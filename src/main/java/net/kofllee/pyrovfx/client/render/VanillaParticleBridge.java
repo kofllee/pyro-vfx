@@ -4,34 +4,30 @@ import net.kofllee.pyrovfx.vfx.VfxParticleDefinition;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleType;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.Objects;
 
 public final class VanillaParticleBridge {
     private VanillaParticleBridge() {}
 
-    public static void spawn(ClientLevel level, Vec3 pos, VfxParticleDefinition particle, RandomSource random) {
+    public static void spawn(ClientLevel level, VfxParticleDefinition particle, Vec3 position, Vec3 velocity) {
         ParticleOptions particleOptions = resolveMinecraftParticle(particle.appearance().minecraftParticleId());
 
         if (particleOptions == null) {
             return;
         }
 
-        double speed = particle.speed();
-
-        double vx = randomTriangle(random) * speed;
-        double vy = random.nextDouble() * speed;
-        double vz = randomTriangle(random) * speed;
-
         level.addParticle(
                 particleOptions,
-                pos.x, pos.y, pos.z,
-                vx, vy, vz
+                position.x,
+                position.y,
+                position.z,
+                velocity.x,
+                velocity.y,
+                velocity.z
         );
     }
 

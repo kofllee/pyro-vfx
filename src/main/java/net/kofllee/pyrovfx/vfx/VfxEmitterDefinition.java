@@ -1,4 +1,4 @@
 package net.kofllee.pyrovfx.vfx;
 
-public record VfxEmitterDefinition(VfxEmitterShape emitterShape, VfxEmitterMode emitterMode, int count, VfxParticleDefinition particle) {
+public record VfxEmitterDefinition(VfxEmitterShapeDefinition shape, VfxEmitterMode emitterMode, int count, VfxParticleDefinition particle) {
 }

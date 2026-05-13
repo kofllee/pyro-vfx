@@ -1,7 +1,6 @@
 package net.kofllee.pyrovfx.vfx;
 
 import net.kofllee.pyrovfx.PyroVfx;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.List;
@@ -12,10 +11,10 @@ public final class TestVfxDefinitions {
             1,
             List.of(
                     new VfxEmitterDefinition(
-                            VfxEmitterShape.POINT,
+                            VfxEmitterShapeDefinition.sphere(VfxVec3.ZERO, 10, true),
                             VfxEmitterMode.BURST,
-                            32,
-                            minecraftParticle("minecraft:campfire_cosy_smoke", 0.08, 0.18)
+                            1000,
+                            minecraftParticle("minecraft:campfire_cosy_smoke", 0)
                     )
             )
     );
@@ -25,10 +24,10 @@ public final class TestVfxDefinitions {
             1,
             List.of(
                     new VfxEmitterDefinition(
-                            VfxEmitterShape.POINT,
+                            VfxEmitterShapeDefinition.point(VfxVec3.ZERO),
                             VfxEmitterMode.BURST,
                             8,
-                            minecraftParticle("minecraft:flash", 0.02, 0.04)
+                            minecraftParticle("minecraft:flash", 0.02)
                     )
             )
     );
@@ -38,10 +37,10 @@ public final class TestVfxDefinitions {
             1,
             List.of(
                     new VfxEmitterDefinition(
-                            VfxEmitterShape.POINT,
+                            VfxEmitterShapeDefinition.point(VfxVec3.ZERO),
                             VfxEmitterMode.BURST,
                             20,
-                            minecraftParticle("minecraft:flame", 0.18, 0.08)
+                            minecraftParticle("minecraft:flame", 10)
                     )
             )
     );
@@ -50,14 +49,13 @@ public final class TestVfxDefinitions {
         return ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, path);
     }
 
-    private static VfxParticleDefinition minecraftParticle(String id, double speed, double spread) {
+    private static VfxParticleDefinition minecraftParticle(String id, double speed) {
         return new VfxParticleDefinition(
                 new VfxAppearanceDefinition(
                         VfxParticleRenderType.MINECRAFT_PARTICLE,
                         ResourceLocation.parse(id)
                 ),
-                speed,
-                spread
+                VfxMotionDefinition.simple(VfxVelocityDefinition.constant(new VfxVec3(0, 1, 0), speed, 0))
         );
     }
 

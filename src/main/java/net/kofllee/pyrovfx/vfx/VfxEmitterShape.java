@@ -1,5 +1,7 @@
 package net.kofllee.pyrovfx.vfx;
 
 public enum VfxEmitterShape {
-    POINT
+    POINT,
+    SPHERE,
+    BOX
 }
