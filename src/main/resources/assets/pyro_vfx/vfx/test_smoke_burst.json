@@ -14,7 +14,7 @@
       "shape": {
         "type": "sphere",
         "radius": 0.35,
-        "surface_only": false
+        "edge_thickness": 1.0
       },
       "particle": {
         "appearance": {

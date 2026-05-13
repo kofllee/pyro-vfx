@@ -140,12 +140,12 @@ public final class VfxDefinitionParser {
         VfxEmitterShape shape = parseEnum(VfxEmitterShape.class, getString(json, "type", "point"), "emitter shape");
 
         VfxVec3 offset = getVec3(json, "offset", VfxVec3.ZERO);
-        boolean surfaceOnly = getBoolean(json, "surface_only", false);
+        double edgeThickness = getDouble(json, "edge_thickness", 1.0);
 
         return switch (shape){
             case POINT -> VfxEmitterShapeDefinition.point(offset);
-            case SPHERE -> VfxEmitterShapeDefinition.sphere(offset, getDouble(json, "radius", 0.25), surfaceOnly);
-            case BOX -> VfxEmitterShapeDefinition.box(offset, getVec3(json, "half_extents", new VfxVec3(0.25, 0.25, 0.25)), surfaceOnly);
+            case SPHERE -> VfxEmitterShapeDefinition.sphere(offset, getDouble(json, "radius", 0.25), edgeThickness);
+            case BOX -> VfxEmitterShapeDefinition.box(offset, getVec3(json, "half_extents", new VfxVec3(0.25, 0.25, 0.25)), edgeThickness);
         };
     }
 

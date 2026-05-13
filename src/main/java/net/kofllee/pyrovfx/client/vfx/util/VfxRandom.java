@@ -14,8 +14,8 @@ public final class VfxRandom {
         return random.nextDouble() - random.nextDouble();
     }
 
-    public static double signed(RandomSource random, double range) {
-        return triangle(random) * range;
+    public static double sign(RandomSource random) {
+        return random.nextBoolean() ? 1.0 : -1.0;
     }
 
     public static Vec3 direction(RandomSource random) {

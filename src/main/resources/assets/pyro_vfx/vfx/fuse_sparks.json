@@ -16,7 +16,7 @@
         "type": "sphere",
         "offset": [0.0, 0.15, 0.0],
         "radius": 10.0,
-        "surface_only": true
+        "edge_thickness": 0.0
       },
       "particle": {
         "appearance": {
