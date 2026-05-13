@@ -1,29 +1,32 @@
 {
-  "lifetime": 20,
+  "lifetime_ticks": 20,
   "emitters": [
     {
+      "timing": {
+        "type": "once",
+        "delay_ticks": 0,
+        "active_ticks": 1
+      },
+      "rate": {
+        "type": "instant",
+        "count": 24
+      },
       "shape": {
         "type": "sphere",
-        "offset": [0.0, 6.0, 0.0],
-        "radius": 10,
-        "surface_only": true
+        "radius": 0.35,
+        "surface_only": false
       },
-      "mode": "burst",
-      "count": 1000,
       "particle": {
         "appearance": {
           "render_type": "minecraft_particle",
-          "minecraft_particle": "minecraft:cloud"
+          "minecraft_particle": "minecraft:smoke"
         },
         "motion": {
           "velocity": {
             "mode": "spherical",
-            "speed": 0.06,
+            "speed": 0.04,
             "speed_random": 0.04
-          },
-          "acceleration": [0.0, 0.0, 0.0],
-          "gravity": 0.0,
-          "drag": 0.0
+          }
         }
       }
     }

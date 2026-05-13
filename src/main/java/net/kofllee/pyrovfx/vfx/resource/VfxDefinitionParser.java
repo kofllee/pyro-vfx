@@ -31,17 +31,52 @@ public final class VfxDefinitionParser {
     }
 
     private static VfxEmitterDefinition parseEmitter(JsonObject json) {
-        VfxEmitterShapeDefinition shape = parseShape(getObject(json, "shape"));
-        VfxEmitterMode mode = parseEnum(
-                VfxEmitterMode.class,
-                getString(json, "mode", "burst"),
-                "emitter mode"
-        );
 
-        int count = getInt(json, "count", 1);
+        VfxEmitterTimingDefinition timing = json.has("timing")
+                ? parseTiming(getObject(json, "timing"))
+                : VfxEmitterTimingDefinition.once(0, 1);
+        VfxEmitterRateDefinition rate = json.has("rate")
+                ? parseRate(getObject(json, "rate"))
+                : VfxEmitterRateDefinition.instant(1);
+
+        VfxEmitterShapeDefinition shape = parseShape(getObject(json, "shape"));
         VfxParticleDefinition particle = parseParticle(getObject(json, "particle"));
 
-        return new VfxEmitterDefinition(shape, mode, count, particle);
+        return new VfxEmitterDefinition(timing, rate, shape, particle);
+    }
+
+    private static VfxEmitterRateDefinition parseRate(JsonObject json) {
+        VfxEmitterRateType type = parseEnum(
+                VfxEmitterRateType.class,
+                getString(json, "type", "instant"),
+                "emitter rate type"
+        );
+
+        return switch (type) {
+            case INSTANT -> VfxEmitterRateDefinition.instant(
+                    getInt(json, "count", 1)
+            );
+            case STEADY -> VfxEmitterRateDefinition.steady(
+                    getFloat(json, "particles_per_tick", 1.0F),
+                    getInt(json, "max_particles", 256)
+            );
+        };
+    }
+
+    private static VfxEmitterTimingDefinition parseTiming(JsonObject json) {
+        VfxEmitterTimingType type = parseEnum(
+                VfxEmitterTimingType.class,
+                getString(json, "type", "once"),
+                "emitter timing type"
+        );
+        int delayTicks = getInt(json, "delay_ticks", 0);
+        int activeTicks = getInt(json, "active_ticks", 1);
+        int sleepTicks = getInt(json, "sleep_ticks", 0);
+
+        return switch(type) {
+            case ONCE -> VfxEmitterTimingDefinition.once(delayTicks, activeTicks);
+            case LOOPING -> VfxEmitterTimingDefinition.loop(delayTicks, activeTicks, sleepTicks);
+        };
     }
 
     private static VfxParticleDefinition parseParticle(JsonObject json) {
@@ -156,6 +191,14 @@ public final class VfxDefinitionParser {
         }
 
         return json.get(key).getAsDouble();
+    }
+
+    private static float getFloat(JsonObject json, String key, float fallback) {
+        if (!json.has(key)) {
+            return fallback;
+        }
+
+        return json.get(key).getAsFloat();
     }
 
     private static boolean getBoolean(JsonObject json, String key, boolean fallback) {

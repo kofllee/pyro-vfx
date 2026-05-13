@@ -1,0 +1,38 @@
+{
+  "lifetime_ticks": 80,
+  "emitters": [
+    {
+      "timing": {
+        "type": "once",
+        "delay_ticks": 0,
+        "active_ticks": 80
+      },
+      "rate": {
+        "type": "steady",
+        "particles_per_tick": 0.5,
+        "max_particles": 40
+      },
+      "shape": {
+        "type": "sphere",
+        "offset": [0.0, 0.15, 0.0],
+        "radius": 10.0,
+        "surface_only": true
+      },
+      "particle": {
+        "appearance": {
+          "render_type": "minecraft_particle",
+          "minecraft_particle": "minecraft:flame"
+        },
+        "motion": {
+          "velocity": {
+            "mode": "spherical",
+            "speed": -1.0,
+            "speed_random": 0.03
+          },
+          "gravity": 0.0,
+          "drag": 0.0
+        }
+      }
+    }
+  ]
+}
