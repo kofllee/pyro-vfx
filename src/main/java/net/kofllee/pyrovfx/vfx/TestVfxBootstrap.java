@@ -11,6 +11,8 @@ public final class TestVfxBootstrap {
         if (initialized) return;
         initialized = true;
 
-        VfxRegistry.register(TestVfxDefinitions.TEST_SMOKE);
+        VfxRegistry.register(TestVfxDefinitions.TEST_SMOKE_BURST);
+        VfxRegistry.register(TestVfxDefinitions.TEST_FLASH);
+        VfxRegistry.register(TestVfxDefinitions.TEST_SPARKS);
     }
 }

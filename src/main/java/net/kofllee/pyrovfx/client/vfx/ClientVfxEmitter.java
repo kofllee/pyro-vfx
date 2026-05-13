@@ -29,7 +29,7 @@ public final class ClientVfxEmitter {
 
         hasBurst = true;
         for(int i = 0; i < definition.count(); i++){
-            if(definition.particle().renderType() == VfxParticleRenderType.MINECRAFT_PARTICLE){
+            if(definition.particle().appearance().renderType() == VfxParticleRenderType.MINECRAFT_PARTICLE){
                 VanillaParticleBridge.spawn(level, position, definition.particle(), random);
             }
         }
