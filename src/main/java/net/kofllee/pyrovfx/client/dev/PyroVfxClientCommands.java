@@ -1,6 +1,8 @@
 package net.kofllee.pyrovfx.client.dev;
 
-import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.kofllee.pyrovfx.vfx.VfxDefinition;
 import net.kofllee.pyrovfx.vfx.resource.VfxRegistry;
 import net.minecraft.ChatFormatting;
@@ -10,13 +12,20 @@ import static net.minecraft.commands.Commands.literal;
 import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import net.minecraft.client.Minecraft;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.arguments.coordinates.Vec3Argument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.commands.arguments.ResourceLocationArgument;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
+
+import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
 
 @EventBusSubscriber(
         modid = PyroVfx.MOD_ID,
@@ -30,20 +39,10 @@ public final class PyroVfxClientCommands {
         event.getDispatcher().register(
                 literal("pyrovfx")
                         .then(literal("play")
-                                .then(argument("effect", StringArgumentType.greedyString())
-                                        .suggests(((context, builder) -> {
-                                            String input = builder.getRemaining().toLowerCase();
-
-                                            for(ResourceLocation id : VfxRegistry.ids()){
-                                                if(id.toString().toLowerCase().startsWith(input)){
-                                                    builder.suggest(id.toString());
-                                                }
-                                            }
-                                            return builder.buildFuture();
-                                        }
-                                        ))
+                                .then(argument("effect", ResourceLocationArgument.id())
+                                        .suggests(PyroVfxClientCommands::suggestEffects)
                                         .executes(context -> playEffect(
-                                                StringArgumentType.getString(context, "effect")
+                                                ResourceLocationArgument.getId(context, "effect")
                                         ))
                                 )
                         )
@@ -52,6 +51,17 @@ public final class PyroVfxClientCommands {
                         )
                         .then(literal("stop_all")
                                 .executes(context -> stopAll())
+                        )
+                        .then(literal("play_at")
+                                .then(argument("effect", ResourceLocationArgument.id())
+                                        .suggests(PyroVfxClientCommands::suggestEffects)
+                                        .then(argument("pos", Vec3Argument.vec3())
+                                                .executes(context -> playEffectAt(
+                                                        ResourceLocationArgument.getId(context, "effect"),
+                                                        Vec3Argument.getVec3(context, "pos")
+                                                ))
+                                        )
+                                )
                         )
         );
     }
@@ -103,7 +113,7 @@ public final class PyroVfxClientCommands {
         return 1;
     }
 
-    private static int playEffect(String effectIdText){
+    private static int playEffect(ResourceLocation effectIdText){
         Minecraft minecraft = Minecraft.getInstance();
         Player player = minecraft.player;
 
@@ -111,38 +121,47 @@ public final class PyroVfxClientCommands {
             return 0;
         }
 
-        ResourceLocation effectId = parseEffectId(effectIdText);
-        if (effectId == null) {
-            player.displayClientMessage(
-                    Component.literal("Invalid Pyro VFX id: " + effectIdText).withStyle(ChatFormatting.RED),
-                    false
-            );
+        return playEffectAt(effectIdText, player.position().add(0, player.getEyeHeight(), 0));
+    }
+
+    private static int playEffectAt(ResourceLocation effect, Vec3 position){
+        Minecraft minecraft = Minecraft.getInstance();
+        Player player = minecraft.player;
+
+        if(player == null){
             return 0;
         }
 
-        VfxDefinition definition = VfxRegistry.get(effectId);
+        VfxDefinition definition = VfxRegistry.get(effect);
         if (definition == null) {
             player.displayClientMessage(
-                    Component.literal("No Pyro VFX found with id: " + effectId).withStyle(ChatFormatting.RED),
+                    Component.literal("No Pyro VFX found with id: " + effect).withStyle(ChatFormatting.RED),
                     false
             );
             return 0;
         }
 
-        ClientVfxManager.play(definition, player.position());
+        ClientVfxManager.play(definition, position);
         player.displayClientMessage(
-                Component.literal("Playing Pyro VFX: " + effectId),
+                Component.literal("Playing Pyro VFX: " + effect),
                 false
         );
 
         return 1;
     }
 
-    private static ResourceLocation parseEffectId(String text) {
-        if (!text.contains(":")) {
-            text = PyroVfx.MOD_ID + ":" + text;
+    private static CompletableFuture<Suggestions> suggestEffects(
+            CommandContext<CommandSourceStack> context,
+            SuggestionsBuilder builder
+    ) {
+        String input = builder.getRemaining().toLowerCase(Locale.ROOT);
+
+        for (ResourceLocation id : VfxRegistry.ids()) {
+            if (id.toString().toLowerCase(Locale.ROOT).startsWith(input)) {
+                builder.suggest(id.toString());
+            }
         }
 
-        return ResourceLocation.tryParse(text);
+        return builder.buildFuture();
     }
 }
