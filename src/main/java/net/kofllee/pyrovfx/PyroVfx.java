@@ -1,6 +1,7 @@
 package net.kofllee.pyrovfx;
 
 import com.mojang.logging.LogUtils;
+import net.kofllee.pyrovfx.vfx.TestVfxBootstrap;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
@@ -14,5 +15,7 @@ public final class PyroVfx {
 
     public PyroVfx(IEventBus modEventBus, ModContainer modContainer) {
         LOGGER.info("Pyro VFX initialized");
+
+        TestVfxBootstrap.init();
     }
 }

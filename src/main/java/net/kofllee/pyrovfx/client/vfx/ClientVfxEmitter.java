@@ -1,0 +1,37 @@
+package net.kofllee.pyrovfx.client.vfx;
+
+import net.kofllee.pyrovfx.client.render.VanillaParticleBridge;
+import net.kofllee.pyrovfx.vfx.VfxEmitterDefinition;
+import net.kofllee.pyrovfx.vfx.VfxEmitterMode;
+import net.kofllee.pyrovfx.vfx.VfxParticleRenderType;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.phys.Vec3;
+
+public final class ClientVfxEmitter {
+    private final VfxEmitterDefinition definition;
+    private boolean hasBurst;
+
+    public ClientVfxEmitter(final VfxEmitterDefinition definition) {
+        this.definition = definition;
+    }
+
+    public void tick(ClientLevel level, Vec3 position, RandomSource random) {
+        if (definition.emitterMode() == VfxEmitterMode.BURST){
+            tickBurst(level, position, random);
+        }
+    }
+
+    private void tickBurst(ClientLevel level, Vec3 position, RandomSource random) {
+        if(hasBurst){
+            return;
+        }
+
+        hasBurst = true;
+        for(int i = 0; i < definition.count(); i++){
+            if(definition.particle().renderType() == VfxParticleRenderType.MINECRAFT_PARTICLE){
+                VanillaParticleBridge.spawn(level, position, definition.particle(), random);
+            }
+        }
+    }
+}
