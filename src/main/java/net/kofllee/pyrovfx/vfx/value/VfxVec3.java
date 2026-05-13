@@ -1,4 +1,4 @@
-package net.kofllee.pyrovfx.vfx;
+package net.kofllee.pyrovfx.vfx.value;
 
 import net.minecraft.world.phys.Vec3;
 

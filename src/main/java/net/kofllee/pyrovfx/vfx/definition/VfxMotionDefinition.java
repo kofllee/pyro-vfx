@@ -1,4 +1,6 @@
-package net.kofllee.pyrovfx.vfx;
+package net.kofllee.pyrovfx.vfx.definition;
+
+import net.kofllee.pyrovfx.vfx.value.VfxVec3;
 
 public record VfxMotionDefinition (VfxVelocityDefinition velocity, VfxVec3 acceleration, double gravity, double drag) {
     public static VfxMotionDefinition none() {

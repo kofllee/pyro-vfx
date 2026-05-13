@@ -1,7 +1,14 @@
 package net.kofllee.pyrovfx.client.vfx;
 
 import net.kofllee.pyrovfx.client.render.VanillaParticleBridge;
-import net.kofllee.pyrovfx.vfx.*;
+import net.kofllee.pyrovfx.client.vfx.sampling.VfxSpawnPositionSampler;
+import net.kofllee.pyrovfx.client.vfx.sampling.VfxVelocitySampler;
+import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxEmitterRateDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxEmitterTimingDefinition;
+import net.kofllee.pyrovfx.vfx.type.VfxEmitterRateType;
+import net.kofllee.pyrovfx.vfx.type.VfxEmitterTimingType;
+import net.kofllee.pyrovfx.vfx.type.VfxParticleRenderType;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;

@@ -1,4 +1,7 @@
-package net.kofllee.pyrovfx.vfx;
+package net.kofllee.pyrovfx.vfx.definition;
+
+import net.kofllee.pyrovfx.vfx.type.VfxEmitterShape;
+import net.kofllee.pyrovfx.vfx.value.VfxVec3;
 
 public record VfxEmitterShapeDefinition (VfxEmitterShape shape, VfxVec3 offset, double radius, VfxVec3 halfExtents, double edgeThickness) {
     public static VfxEmitterShapeDefinition point(VfxVec3 offset){

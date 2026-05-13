@@ -1,4 +1,4 @@
-package net.kofllee.pyrovfx.client.vfx.util;
+package net.kofllee.pyrovfx.client.vfx.sampling;
 
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;

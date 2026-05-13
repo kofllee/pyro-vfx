@@ -1,8 +1,7 @@
-package net.kofllee.pyrovfx.client.vfx;
+package net.kofllee.pyrovfx.client.vfx.sampling;
 
-import net.kofllee.pyrovfx.client.vfx.util.VfxRandom;
-import net.kofllee.pyrovfx.vfx.VfxEmitterShape;
-import net.kofllee.pyrovfx.vfx.VfxEmitterShapeDefinition;
+import net.kofllee.pyrovfx.vfx.type.VfxEmitterShape;
+import net.kofllee.pyrovfx.vfx.definition.VfxEmitterShapeDefinition;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 

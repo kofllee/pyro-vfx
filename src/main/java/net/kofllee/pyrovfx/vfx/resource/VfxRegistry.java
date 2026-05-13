@@ -1,7 +1,7 @@
 package net.kofllee.pyrovfx.vfx.resource;
 
 
-import net.kofllee.pyrovfx.vfx.VfxDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.Collection;

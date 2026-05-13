@@ -3,7 +3,7 @@ package net.kofllee.pyrovfx.client.dev;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
-import net.kofllee.pyrovfx.vfx.VfxDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.kofllee.pyrovfx.vfx.resource.VfxRegistry;
 import net.minecraft.ChatFormatting;
 

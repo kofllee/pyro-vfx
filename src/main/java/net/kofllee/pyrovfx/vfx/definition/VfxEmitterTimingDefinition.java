@@ -1,4 +1,6 @@
-package net.kofllee.pyrovfx.vfx;
+package net.kofllee.pyrovfx.vfx.definition;
+
+import net.kofllee.pyrovfx.vfx.type.VfxEmitterTimingType;
 
 public record VfxEmitterTimingDefinition (VfxEmitterTimingType timingType, int delayTicks, int activeTicks, int sleepTicks) {
     public static VfxEmitterTimingDefinition once(int delayTicks, int activeTicks) {

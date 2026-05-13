@@ -3,7 +3,9 @@ package net.kofllee.pyrovfx.vfx.resource;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import net.kofllee.pyrovfx.vfx.*;
+import net.kofllee.pyrovfx.vfx.definition.*;
+import net.kofllee.pyrovfx.vfx.type.*;
+import net.kofllee.pyrovfx.vfx.value.VfxVec3;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;

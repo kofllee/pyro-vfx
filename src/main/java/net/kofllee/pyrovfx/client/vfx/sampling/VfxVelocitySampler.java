@@ -1,8 +1,7 @@
-package net.kofllee.pyrovfx.client.vfx;
+package net.kofllee.pyrovfx.client.vfx.sampling;
 
-import net.kofllee.pyrovfx.client.vfx.util.VfxRandom;
-import net.kofllee.pyrovfx.vfx.VfxVelocityDefinition;
-import net.kofllee.pyrovfx.vfx.VfxVelocityMode;
+import net.kofllee.pyrovfx.vfx.definition.VfxVelocityDefinition;
+import net.kofllee.pyrovfx.vfx.type.VfxVelocityMode;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 

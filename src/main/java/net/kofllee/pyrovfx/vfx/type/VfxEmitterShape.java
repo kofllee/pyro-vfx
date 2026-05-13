@@ -1,4 +1,4 @@
-package net.kofllee.pyrovfx.vfx;
+package net.kofllee.pyrovfx.vfx.type;
 
 public enum VfxEmitterShape {
     POINT,

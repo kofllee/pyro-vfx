@@ -1,6 +1,6 @@
 package net.kofllee.pyrovfx.client.vfx;
 
-import net.kofllee.pyrovfx.vfx.VfxDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;

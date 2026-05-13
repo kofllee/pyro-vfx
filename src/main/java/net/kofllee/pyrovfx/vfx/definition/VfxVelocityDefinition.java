@@ -1,4 +1,7 @@
-package net.kofllee.pyrovfx.vfx;
+package net.kofllee.pyrovfx.vfx.definition;
+
+import net.kofllee.pyrovfx.vfx.value.VfxVec3;
+import net.kofllee.pyrovfx.vfx.type.VfxVelocityMode;
 
 public record VfxVelocityDefinition(VfxVelocityMode mode, VfxVec3 direction, double speed, double speedRandom) {
     public static VfxVelocityDefinition none() {

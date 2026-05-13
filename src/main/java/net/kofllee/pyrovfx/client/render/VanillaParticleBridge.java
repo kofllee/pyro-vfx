@@ -1,6 +1,6 @@
 package net.kofllee.pyrovfx.client.render;
 
-import net.kofllee.pyrovfx.vfx.VfxParticleDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxParticleDefinition;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleType;

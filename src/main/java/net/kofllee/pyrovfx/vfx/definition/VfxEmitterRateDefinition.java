@@ -1,4 +1,6 @@
-package net.kofllee.pyrovfx.vfx;
+package net.kofllee.pyrovfx.vfx.definition;
+
+import net.kofllee.pyrovfx.vfx.type.VfxEmitterRateType;
 
 public record VfxEmitterRateDefinition (VfxEmitterRateType type, int count, float particlePerTicks, int maxParticles) {
     public static VfxEmitterRateDefinition instant(int count) {

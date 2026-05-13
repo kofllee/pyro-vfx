@@ -2,7 +2,7 @@ package net.kofllee.pyrovfx.vfx.resource;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import net.kofllee.pyrovfx.vfx.VfxDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;

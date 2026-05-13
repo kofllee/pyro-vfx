@@ -1,7 +1,7 @@
 package net.kofllee.pyrovfx.client.vfx;
 
 import net.minecraft.client.Minecraft;
-import net.kofllee.pyrovfx.vfx.VfxDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.phys.Vec3;
 
