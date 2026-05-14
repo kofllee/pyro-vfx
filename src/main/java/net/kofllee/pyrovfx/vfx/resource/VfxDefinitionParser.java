@@ -79,9 +79,14 @@ public final class VfxDefinitionParser {
                 : VfxSpawnAmountDefinition.instant(1);
 
         VfxSpawnShapeDefinition spawnShape = parseSpawnShape(getObject(json, "spawn_shape"));
-        VfxParticleDefinition particle = parseParticle(getObject(json, "particle"));
 
-        return new VfxEmitterDefinition(emitterLifetime, spawnAmount, spawnShape, particle);
+        VfxMotionDefinition motion = json.has("motion")
+                ? parseMotion(getObject(json, "motion"))
+                : VfxMotionDefinition.none();
+
+        VfxRenderDefinition render = parseRender(getObject(json, "render"));
+
+        return new VfxEmitterDefinition(emitterLifetime, spawnAmount, spawnShape, motion, render);
     }
 
     private static VfxSpawnAmountDefinition parseSpawnAmount(JsonObject json) {
@@ -121,15 +126,6 @@ public final class VfxDefinitionParser {
             case LOOPING -> VfxEmitterLifetimeDefinition.looping(delayTicks, activeTicks, sleepTicks, loops);
             case MANUAL -> VfxEmitterLifetimeDefinition.manual();
         };
-    }
-
-    private static VfxParticleDefinition parseParticle(JsonObject json) {
-        VfxRenderDefinition render = parseRender(getObject(json, "render"));
-        VfxMotionDefinition motion = json.has("motion")
-                ? parseMotion(getObject(json, "motion"))
-                : VfxMotionDefinition.none();
-
-        return new VfxParticleDefinition(render, motion);
     }
 
     private static VfxMotionDefinition parseMotion(JsonObject json) {

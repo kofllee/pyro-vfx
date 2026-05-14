@@ -29,22 +29,20 @@
         "radius": 0.25,
         "edge_thickness": 0.0
       },
-      "particle": {
-        "render": {
-          "type": "minecraft_particle",
-          "minecraft_particle": {
-            "particle": "minecraft:smoke"
-          }
+      "motion": {
+        "velocity": {
+          "mode": "spherical",
+          "speed": 0.04,
+          "speed_random": 0.04
         },
-        "motion": {
-          "velocity": {
-            "mode": "spherical",
-            "speed": 0.04,
-            "speed_random": 0.04
-          },
-          "acceleration": [0, 0.001, 0],
-          "gravity": 0.0,
-          "drag": 0.02
+        "acceleration": [0, 0.001, 0],
+        "gravity": 0.0,
+        "drag": 0.02
+      },
+      "render": {
+        "type": "minecraft_particle",
+        "minecraft_particle": {
+          "particle": "minecraft:smoke"
         }
       }
     },
@@ -67,22 +65,20 @@
         "radius": 0.25,
         "edge_thickness": 0.0
       },
-      "particle": {
-        "render": {
-          "type": "minecraft_particle",
-          "minecraft_particle": {
-            "particle": "minecraft:flame"
-          }
+      "motion": {
+        "velocity": {
+          "mode": "spherical",
+          "speed": 0.04,
+          "speed_random": 0.04
         },
-        "motion": {
-          "velocity": {
-            "mode": "spherical",
-            "speed": 0.04,
-            "speed_random": 0.04
-          },
-          "acceleration": [0, 0.001, 0],
-          "gravity": 0.0,
-          "drag": 0.02
+        "acceleration": [0, 0.001, 0],
+        "gravity": 0.0,
+        "drag": 0.02
+      },
+      "render": {
+        "type": "minecraft_particle",
+        "minecraft_particle": {
+          "particle": "minecraft:smoke"
         }
       }
     }

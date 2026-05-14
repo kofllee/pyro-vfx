@@ -1,6 +1,6 @@
 package net.kofllee.pyrovfx.client.render;
 
-import net.kofllee.pyrovfx.vfx.definition.VfxParticleDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxRenderDefinition;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleType;
@@ -13,8 +13,8 @@ import net.minecraft.world.phys.Vec3;
 public final class VanillaParticleBridge {
     private VanillaParticleBridge() {}
 
-    public static void spawn(ClientLevel level, VfxParticleDefinition particle, Vec3 position, Vec3 velocity) {
-        ParticleOptions particleOptions = resolveMinecraftParticle(particle.render().minecraftParticle().particle());
+    public static void spawn(ClientLevel level, VfxRenderDefinition render, Vec3 position, Vec3 velocity) {
+        ParticleOptions particleOptions = resolveMinecraftParticle(render.minecraftParticle().particle());
 
         if (particleOptions == null) {
             return;
