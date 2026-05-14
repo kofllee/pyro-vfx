@@ -90,8 +90,46 @@ public final class VfxDefinitionParser {
 
         VfxRenderDefinition render = parseRender(getObject(json, "render"));
 
-        return new VfxEmitterDefinition(emitterLifetime, spawnAmount, spawnShape, particleLifetime, motion, render);
+        VfxRotationDefinition rotation = json.has("rotation")
+                ? parseRotation(getObject(json, "rotation"))
+                : VfxRotationDefinition.none();
+
+        return new VfxEmitterDefinition(emitterLifetime, spawnAmount, spawnShape, particleLifetime, motion, rotation, render);
     }
+
+    private static VfxRotationDefinition parseRotation(JsonObject json) {
+        VfxRotationMode mode = parseEnum(
+                VfxRotationMode.class,
+                getString(json, "mode", "none"),
+                "rotation mode"
+        );
+
+        return switch (mode) {
+            case NONE -> VfxRotationDefinition.none();
+            case DYNAMIC -> VfxRotationDefinition.dynamic(
+                    parseDynamicRotation(getObject(json, "dynamic"))
+            );
+            case PARAMETRIC -> VfxRotationDefinition.parametric(
+                    parseParametricRotation(getObject(json, "parametric"))
+            );
+        };
+    }
+
+    private static VfxDynamicRotationDefinition parseDynamicRotation(JsonObject json) {
+        return VfxDynamicRotationDefinition.of(
+                getVec3(json, "start_rotation", VfxVec3.ZERO),
+                getVec3(json, "angular_velocity", VfxVec3.ZERO),
+                getVec3(json, "angular_acceleration", VfxVec3.ZERO),
+                getDouble(json, "angular_drag", 0.0)
+        );
+    }
+
+    private static VfxParametricRotationDefinition parseParametricRotation(JsonObject json) {
+        return VfxParametricRotationDefinition.of(
+                getVec3(json, "rotation", VfxVec3.ZERO)
+        );
+    }
+
 
     private static VfxParticleLifetimeDefinition parseParticleLifetime(JsonObject json) {
         return VfxParticleLifetimeDefinition.of(
@@ -139,19 +177,51 @@ public final class VfxDefinitionParser {
     }
 
     private static VfxMotionDefinition parseMotion(JsonObject json) {
-        VfxVelocityDefinition velocity = json.has("velocity")
-                ? parseVelocity(getObject(json, "velocity"))
-                : VfxVelocityDefinition.none();
-
-        VfxVec3 acceleration = getVec3(json, "acceleration", VfxVec3.ZERO);
-        double gravity = getDouble(json, "gravity", 0.0);
-        double drag = getDouble(json, "drag", 0.0);
+        VfxMotionMode mode = parseEnum(
+                VfxMotionMode.class,
+                getString(json, "mode", "static"),
+                "motion mode"
+        );
 
         VfxMotionCollisionDefinition collision = json.has("collision")
                 ? parseMotionCollision(getObject(json, "collision"))
                 : VfxMotionCollisionDefinition.none();
 
-        return new VfxMotionDefinition(velocity, acceleration, gravity, drag, collision);
+        return switch (mode) {
+            case STATIC -> VfxMotionDefinition.statik(collision);
+            case DYNAMIC -> VfxMotionDefinition.dynamic(
+                    parseDynamicMotion(getObject(json, "dynamic")),
+                    collision
+            );
+            case PARAMETRIC -> VfxMotionDefinition.parametric(
+                    parseParametricMotion(getObject(json, "parametric")),
+                    collision
+            );
+        };
+    }
+
+    private static VfxParametricMotionDefinition parseParametricMotion(JsonObject json) {
+        return VfxParametricMotionDefinition.of(
+                getVec3(json, "offset", VfxVec3.ZERO),
+                getVec3(json, "direction", new VfxVec3(0.0, 1.0, 0.0))
+        );
+    }
+
+    private static VfxDynamicMotionDefinition parseDynamicMotion(JsonObject json) {
+        VfxDirectionMode direction = parseEnum(
+                VfxDirectionMode.class,
+                getString(json, "direction", "custom"),
+                "motion direction"
+        );
+
+        return VfxDynamicMotionDefinition.of(
+                direction,
+                getVec3(json, "custom_direction", new VfxVec3(0.0, 1.0, 0.0)),
+                getDouble(json, "speed", 0.0),
+                getVec3(json, "acceleration", VfxVec3.ZERO),
+                getDouble(json, "gravity", 0.0),
+                getDouble(json, "linear_drag", 0.0)
+        );
     }
 
     private static VfxMotionCollisionDefinition parseMotionCollision(JsonObject json) {

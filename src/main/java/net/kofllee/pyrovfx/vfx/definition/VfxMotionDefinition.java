@@ -1,41 +1,49 @@
 package net.kofllee.pyrovfx.vfx.definition;
 
-import net.kofllee.pyrovfx.vfx.value.VfxVec3;
+import net.kofllee.pyrovfx.vfx.type.VfxMotionMode;
 
-public record VfxMotionDefinition (VfxVelocityDefinition velocity, VfxVec3 acceleration, double gravity, double drag, VfxMotionCollisionDefinition collision) {
-    public static VfxMotionDefinition none() {
-        return new VfxMotionDefinition(
-                VfxVelocityDefinition.none(),
-                VfxVec3.ZERO,
-                0.0,
-                0.0,
-                VfxMotionCollisionDefinition.none()
-        );
-    }
+public record VfxMotionDefinition (
+        VfxMotionMode mode,
+        VfxDynamicMotionDefinition dynamic,
+        VfxParametricMotionDefinition parametric,
+        VfxMotionCollisionDefinition collision
+) {
 
-    public static VfxMotionDefinition simple(VfxVelocityDefinition velocity) {
+    public static VfxMotionDefinition statik(VfxMotionCollisionDefinition collision) {
         return new VfxMotionDefinition(
-                velocity,
-                VfxVec3.ZERO,
-                0.0,
-                0.0,
-                VfxMotionCollisionDefinition.none()
-        );
-    }
-
-    public static VfxMotionDefinition withForces(
-            VfxVelocityDefinition velocity,
-            VfxVec3 acceleration,
-            double gravity,
-            double drag,
-            VfxMotionCollisionDefinition collision
-    ) {
-        return new VfxMotionDefinition(
-                velocity,
-                acceleration,
-                gravity,
-                drag,
+                VfxMotionMode.STATIC,
+                VfxDynamicMotionDefinition.none(),
+                VfxParametricMotionDefinition.none(),
                 collision
         );
     }
+
+    public static VfxMotionDefinition dynamic(
+            VfxDynamicMotionDefinition dynamic,
+            VfxMotionCollisionDefinition collision
+    ) {
+        return new VfxMotionDefinition(
+                VfxMotionMode.DYNAMIC,
+                dynamic,
+                VfxParametricMotionDefinition.none(),
+                collision
+        );
+    }
+
+    public static VfxMotionDefinition parametric(
+            VfxParametricMotionDefinition parametric,
+            VfxMotionCollisionDefinition collision
+    ) {
+        return new VfxMotionDefinition(
+                VfxMotionMode.PARAMETRIC,
+                VfxDynamicMotionDefinition.none(),
+                parametric,
+                collision
+        );
+    }
+
+    public static VfxMotionDefinition none() {
+        return statik(VfxMotionCollisionDefinition.none());
+    }
+
 }

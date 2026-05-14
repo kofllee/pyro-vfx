@@ -6,6 +6,7 @@ import net.kofllee.pyrovfx.client.vfx.sampling.VfxVelocitySampler;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterLifetimeDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxSpawnAmountDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxVelocityDefinition;
 import net.kofllee.pyrovfx.vfx.type.VfxEmitterLifetimeMode;
 import net.kofllee.pyrovfx.vfx.type.VfxSpawnAmountMode;
 import net.kofllee.pyrovfx.vfx.type.VfxRenderType;
@@ -118,7 +119,7 @@ public final class ClientVfxEmitter {
         for(int i = 0; i < count; i++){
             Vec3 particlePosition = VfxSpawnPositionSampler.sample(emitterPosition, definition.spawnShape(), random);
 
-            Vec3 velocity = VfxVelocitySampler.sample(definition.motion().velocity(), emitterPosition, particlePosition, random);
+            Vec3 velocity = VfxVelocitySampler.sample(VfxVelocityDefinition.none(), emitterPosition, particlePosition, random);
 
             if(definition.render().type() == VfxRenderType.MINECRAFT_PARTICLE){
                 VanillaParticleBridge.spawn(level, definition.render(), particlePosition, velocity);

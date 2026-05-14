@@ -6,6 +6,7 @@ public record VfxEmitterDefinition(
         VfxSpawnShapeDefinition spawnShape,
         VfxParticleLifetimeDefinition particleLifetime,
         VfxMotionDefinition motion,
+        VfxRotationDefinition rotation,
         VfxRenderDefinition render
 ) {
 }
