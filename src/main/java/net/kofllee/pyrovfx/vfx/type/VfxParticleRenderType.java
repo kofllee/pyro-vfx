@@ -1,5 +1,6 @@
 package net.kofllee.pyrovfx.vfx.type;
 
 public enum VfxParticleRenderType {
-    MINECRAFT_PARTICLE
+    MINECRAFT_PARTICLE,
+    SPRITE
 }

@@ -1,5 +1,14 @@
 {
-  "lifetime_ticks": 20,
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "kofllee",
+    "description": "First test smoke burst in new Pyro VFX format."
+  },
+  "lifetime": {
+    "mode": "once",
+    "delay_ticks": 0,
+    "active_ticks": 40
+  },
   "emitters": [
     {
       "timing": {
@@ -9,12 +18,13 @@
       },
       "rate": {
         "type": "instant",
-        "count": 24
+        "count": 20
       },
       "shape": {
         "type": "sphere",
-        "radius": 0.35,
-        "edge_thickness": 1.0
+        "offset": [0, 0.1, 0],
+        "radius": 0.25,
+        "edge_thickness": 0.0
       },
       "particle": {
         "appearance": {
@@ -26,7 +36,10 @@
             "mode": "spherical",
             "speed": 0.04,
             "speed_random": 0.04
-          }
+          },
+          "acceleration": [0, 0.001, 0],
+          "gravity": 0.0,
+          "drag": 0.02
         }
       }
     }

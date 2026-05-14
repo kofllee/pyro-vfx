@@ -16,7 +16,19 @@ public final class VfxDefinitionParser {
     private VfxDefinitionParser() {}
 
     public static VfxDefinition parse(ResourceLocation location, JsonObject json) {
-        int lifetimeTicks = getInt(json, "lifetime_ticks", 20);
+        String format = getRequiredString(json, "format");
+
+        if (!format.equals("pyro_vfx:1")) {
+            throw new IllegalArgumentException("Unsupported VFX format: " + format);
+        }
+
+        VfxMetadataDefinition metadata = json.has("metadata")
+                ? parseMetadata(getObject(json, "metadata"))
+                : VfxMetadataDefinition.empty();
+
+        VfxLifetimeDefinition lifetime = json.has("lifetime")
+                ? parseLifetime(getObject(json, "lifetime"))
+                : VfxLifetimeDefinition.once(0, 20);
 
         List<VfxEmitterDefinition> emitters = new ArrayList<>();
         JsonArray array = getArray(json, "emitters");
@@ -29,7 +41,32 @@ public final class VfxDefinitionParser {
             emitters.add(parseEmitter(element.getAsJsonObject()));
         }
 
-        return new VfxDefinition(location, lifetimeTicks, emitters);
+        return new VfxDefinition(location, format, metadata, lifetime, emitters);
+    }
+
+    private static VfxMetadataDefinition parseMetadata(JsonObject json) {
+        return new VfxMetadataDefinition(
+                getString(json, "author", ""),
+                getString(json, "description", "")
+        );
+    }
+
+    private static VfxLifetimeDefinition parseLifetime(JsonObject json) {
+        VfxLifetimeMode mode = parseEnum(
+                VfxLifetimeMode.class,
+                getString(json, "mode", "once"),
+                "effect lifetime mode"
+        );
+
+        int delayTicks = getInt(json, "delay_ticks", 0);
+        int activeTicks = getInt(json, "active_ticks", 20);
+        int sleepTicks = getInt(json, "sleep_ticks", 0);
+        int loops = getInt(json, "loops", 1);
+
+        return switch (mode) {
+            case ONCE -> VfxLifetimeDefinition.once(delayTicks, activeTicks);
+            case LOOPING -> VfxLifetimeDefinition.looping(delayTicks, activeTicks, sleepTicks, loops);
+        };
     }
 
     private static VfxEmitterDefinition parseEmitter(JsonObject json) {
@@ -223,6 +260,18 @@ public final class VfxDefinitionParser {
     private static String getString(JsonObject json, String key, String fallback) {
         if (!json.has(key)) {
             return fallback;
+        }
+
+        return json.get(key).getAsString();
+    }
+
+    private static String getRequiredString(JsonObject json, String key) {
+        if (!json.has(key)) {
+            throw new IllegalArgumentException("Missing required string field: " + key);
+        }
+
+        if (!json.get(key).isJsonPrimitive()) {
+            throw new IllegalArgumentException("Expected string field: " + key);
         }
 
         return json.get(key).getAsString();

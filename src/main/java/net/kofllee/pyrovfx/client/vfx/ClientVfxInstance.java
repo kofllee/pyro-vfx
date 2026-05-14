@@ -34,6 +34,6 @@ public final class ClientVfxInstance {
     }
 
     public boolean isFinished(){
-        return age >= definition.lifeTimeTicks();
+        return age >= definition.lifetime().delayTicks() + definition.lifetime().activeTicks();
     }
 }
