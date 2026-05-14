@@ -1,14 +1,17 @@
 package net.kofllee.pyrovfx.vfx.definition;
 
+import net.kofllee.pyrovfx.vfx.expression.VfxEvaluationMode;
+import net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression;
+import net.kofllee.pyrovfx.vfx.expression.VfxVec3Expression;
 import net.kofllee.pyrovfx.vfx.type.VfxCollisionType;
 import net.kofllee.pyrovfx.vfx.value.VfxVec3;
 
 public record  VfxMotionCollisionDefinition(
         boolean collide,
         VfxCollisionType collisionType,
-        VfxVec3 collisionSize,
-        double collisionDrag,
-        double bounciness,
+        VfxVec3Expression collisionSize,
+        VfxNumberExpression collisionDrag,
+        VfxNumberExpression bounciness,
         boolean expireOnContact,
         VfxEventsDefinition events
 ) {
@@ -16,9 +19,10 @@ public record  VfxMotionCollisionDefinition(
         return new VfxMotionCollisionDefinition(
                 false,
                 VfxCollisionType.SPHERE,
-                new VfxVec3(0.05, 0.05, 0.05),
-                0.0,
-                0.0,
+                VfxVec3Expression.constant(new VfxVec3(0.05, 0.05, 0.05), VfxEvaluationMode.PARTICLE_SPAWN),
+                VfxNumberExpression.constant(0.0, VfxEvaluationMode.TICK),
+                VfxNumberExpression.constant(0.0, VfxEvaluationMode.TICK),
+
                 false,
                 VfxEventsDefinition.empty()
         );
@@ -27,28 +31,20 @@ public record  VfxMotionCollisionDefinition(
     public static VfxMotionCollisionDefinition of(
             boolean collide,
             VfxCollisionType collisionType,
-            VfxVec3 collisionSize,
-            double collisionDrag,
-            double bounciness,
+            VfxVec3Expression collisionSize,
+            VfxNumberExpression collisionDrag,
+            VfxNumberExpression bounciness,
             boolean expireOnContact,
             VfxEventsDefinition events
     ) {
         return new VfxMotionCollisionDefinition(
                 collide,
                 collisionType,
-                clampSize(collisionSize),
-                Math.clamp(collisionDrag, 0.0, 1.0),
-                Math.clamp(bounciness, 0.0, 1.0),
+                collisionSize,
+                collisionDrag,
+                bounciness,
                 expireOnContact,
                 events
-        );
-    }
-
-    private static VfxVec3 clampSize(VfxVec3 size) {
-        return new VfxVec3(
-                Math.max(0.001, size.x()),
-                Math.max(0.001, size.y()),
-                Math.max(0.001, size.z())
         );
     }
 }

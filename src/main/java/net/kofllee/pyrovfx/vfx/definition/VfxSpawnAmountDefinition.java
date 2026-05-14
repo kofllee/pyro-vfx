@@ -1,31 +1,45 @@
 package net.kofllee.pyrovfx.vfx.definition;
 
+import net.kofllee.pyrovfx.vfx.expression.VfxEvaluationMode;
+import net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression;
 import net.kofllee.pyrovfx.vfx.type.VfxSpawnAmountMode;
 
-public record VfxSpawnAmountDefinition(VfxSpawnAmountMode mode, int amount, float rate, int maxParticles) {
-    public static VfxSpawnAmountDefinition instant(int amount) {
+public record VfxSpawnAmountDefinition(
+        VfxSpawnAmountMode mode,
+        VfxNumberExpression amount,
+        VfxNumberExpression rate,
+        VfxNumberExpression maxParticles
+) {
+    public static VfxSpawnAmountDefinition instant(VfxNumberExpression amount) {
         return new VfxSpawnAmountDefinition(
                 VfxSpawnAmountMode.INSTANT,
                 amount,
-                0.0F,
+                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START),
                 amount
         );
     }
 
-    public static VfxSpawnAmountDefinition steady(float rate, int maxParticles) {
+    public static VfxSpawnAmountDefinition defaultInstant() {
+        return instant(VfxNumberExpression.constant(1.0, VfxEvaluationMode.EMITTER_START));
+    }
+
+    public static VfxSpawnAmountDefinition steady(
+            VfxNumberExpression rate,
+            VfxNumberExpression maxParticles
+    ) {
         return new VfxSpawnAmountDefinition(
                 VfxSpawnAmountMode.STEADY,
-                0,
+                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START),
                 rate,
                 maxParticles
         );
     }
 
-    public static VfxSpawnAmountDefinition manual(int amount) {
+    public static VfxSpawnAmountDefinition manual(VfxNumberExpression amount) {
         return new VfxSpawnAmountDefinition(
                 VfxSpawnAmountMode.MANUAL,
                 amount,
-                0.0F,
+                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START),
                 amount
         );
     }

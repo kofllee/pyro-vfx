@@ -1,11 +1,14 @@
 package net.kofllee.pyrovfx.vfx.definition;
 
-public record VfxParticleLifetimeDefinition(int maxAgeTicks) {
-    public static VfxParticleLifetimeDefinition of(int maxAgeTicks) {
-        return new VfxParticleLifetimeDefinition(Math.max(1, maxAgeTicks));
+import net.kofllee.pyrovfx.vfx.expression.VfxEvaluationMode;
+import net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression;
+
+public record VfxParticleLifetimeDefinition(VfxNumberExpression maxAgeTicks) {
+    public static VfxParticleLifetimeDefinition of(VfxNumberExpression maxAgeTicks) {
+        return new VfxParticleLifetimeDefinition(maxAgeTicks);
     }
 
     public static VfxParticleLifetimeDefinition defaultLifetime() {
-        return new VfxParticleLifetimeDefinition(20);
+        return new VfxParticleLifetimeDefinition(VfxNumberExpression.constant(20.0, VfxEvaluationMode.PARTICLE_SPAWN));
     }
 }
