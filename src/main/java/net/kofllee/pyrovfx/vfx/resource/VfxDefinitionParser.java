@@ -147,7 +147,41 @@ public final class VfxDefinitionParser {
         double gravity = getDouble(json, "gravity", 0.0);
         double drag = getDouble(json, "drag", 0.0);
 
-        return new VfxMotionDefinition(velocity, acceleration, gravity, drag);
+        VfxMotionCollisionDefinition collision = json.has("collision")
+                ? parseMotionCollision(getObject(json, "collision"))
+                : VfxMotionCollisionDefinition.none();
+
+        return new VfxMotionDefinition(velocity, acceleration, gravity, drag, collision);
+    }
+
+    private static VfxMotionCollisionDefinition parseMotionCollision(JsonObject json) {
+        boolean collide = getBoolean(json, "collide", false);
+
+        VfxCollisionType collisionType = parseEnum(
+                VfxCollisionType.class,
+                getString(json, "collision_type", "sphere"),
+                "collision type"
+        );
+
+        VfxVec3 defaultSize = collisionType == VfxCollisionType.SPHERE
+                ? new VfxVec3(0.05, 0.05, 0.05)
+                : new VfxVec3(0.05, 0.05, 0.05);
+
+        return VfxMotionCollisionDefinition.of(
+                collide,
+                collisionType,
+                getVec3(json, "collision_size", defaultSize),
+                getDouble(json, "collision_drag", 0.0),
+                getDouble(json, "bounciness", 0.0),
+                getBoolean(json, "expire_on_contact", false),
+                json.has("events")
+                        ? parseEvents(getObject(json, "events"))
+                        : VfxEventsDefinition.empty()
+        );
+    }
+
+    private static VfxEventsDefinition parseEvents(JsonObject json) {
+        return VfxEventsDefinition.empty();
     }
 
     private static VfxVelocityDefinition parseVelocity(JsonObject json) {
