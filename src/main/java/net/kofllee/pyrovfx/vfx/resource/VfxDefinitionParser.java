@@ -80,13 +80,23 @@ public final class VfxDefinitionParser {
 
         VfxSpawnShapeDefinition spawnShape = parseSpawnShape(getObject(json, "spawn_shape"));
 
+        VfxParticleLifetimeDefinition particleLifetime = json.has("particle_lifetime")
+                ? parseParticleLifetime(getObject(json, "particle_lifetime"))
+                : VfxParticleLifetimeDefinition.defaultLifetime();
+
         VfxMotionDefinition motion = json.has("motion")
                 ? parseMotion(getObject(json, "motion"))
                 : VfxMotionDefinition.none();
 
         VfxRenderDefinition render = parseRender(getObject(json, "render"));
 
-        return new VfxEmitterDefinition(emitterLifetime, spawnAmount, spawnShape, motion, render);
+        return new VfxEmitterDefinition(emitterLifetime, spawnAmount, spawnShape, particleLifetime, motion, render);
+    }
+
+    private static VfxParticleLifetimeDefinition parseParticleLifetime(JsonObject json) {
+        return VfxParticleLifetimeDefinition.of(
+                getInt(json, "max_age_ticks", 20)
+        );
     }
 
     private static VfxSpawnAmountDefinition parseSpawnAmount(JsonObject json) {

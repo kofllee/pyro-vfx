@@ -29,6 +29,9 @@
         "radius": 0.25,
         "edge_thickness": 0.0
       },
+      "particle_lifetime": {
+        "max_age_ticks": 40
+      },
       "motion": {
         "velocity": {
           "mode": "spherical",
@@ -64,6 +67,9 @@
         "offset": [0, 0.1, 0],
         "radius": 0.25,
         "edge_thickness": 0.0
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 40
       },
       "motion": {
         "velocity": {
