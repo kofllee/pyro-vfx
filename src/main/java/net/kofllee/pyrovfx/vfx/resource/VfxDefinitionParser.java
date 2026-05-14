@@ -78,10 +78,10 @@ public final class VfxDefinitionParser {
                 ? parseSpawnAmount(getObject(json, "spawn_amount"))
                 : VfxSpawnAmountDefinition.instant(1);
 
-        VfxEmitterShapeDefinition shape = parseShape(getObject(json, "shape"));
+        VfxSpawnShapeDefinition spawnShape = parseSpawnShape(getObject(json, "spawn_shape"));
         VfxParticleDefinition particle = parseParticle(getObject(json, "particle"));
 
-        return new VfxEmitterDefinition(emitterLifetime, spawnAmount, shape, particle);
+        return new VfxEmitterDefinition(emitterLifetime, spawnAmount, spawnShape, particle);
     }
 
     private static VfxSpawnAmountDefinition parseSpawnAmount(JsonObject json) {
@@ -180,17 +180,30 @@ public final class VfxDefinitionParser {
         return new VfxAppearanceDefinition(renderType, minecraftParticleId);
     }
 
-    private static VfxEmitterShapeDefinition parseShape(JsonObject json) {
-        VfxEmitterShape shape = parseEnum(VfxEmitterShape.class, getString(json, "type", "point"), "emitter shape");
+    private static VfxSpawnShapeDefinition parseSpawnShape(JsonObject json) {
+        VfxSpawnShapeType type = parseEnum(
+                VfxSpawnShapeType.class,
+                getString(json, "type", "point"),
+                "spawn shape type"
+        );
 
         VfxVec3 offset = getVec3(json, "offset", VfxVec3.ZERO);
-        double edgeThickness = getDouble(json, "edge_thickness", 1.0);
+        double edgeThickness = getDouble(json, "edge_thickness", 0.0);
 
-        return switch (shape){
-            case POINT -> VfxEmitterShapeDefinition.point(offset);
-            case SPHERE -> VfxEmitterShapeDefinition.sphere(offset, getDouble(json, "radius", 0.25), edgeThickness);
-            case BOX -> VfxEmitterShapeDefinition.box(offset, getVec3(json, "half_extents", new VfxVec3(0.25, 0.25, 0.25)), edgeThickness);
+        return switch (type) {
+            case POINT -> VfxSpawnShapeDefinition.point(offset);
+            case SPHERE -> VfxSpawnShapeDefinition.sphere(
+                    offset,
+                    getDouble(json, "radius", 0.25),
+                    edgeThickness
+            );
+            case BOX -> VfxSpawnShapeDefinition.box(
+                    offset,
+                    getVec3(json, "half_extents", new VfxVec3(0.25, 0.25, 0.25)),
+                    edgeThickness
+            );
         };
+
     }
 
 

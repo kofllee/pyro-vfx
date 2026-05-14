@@ -1,6 +1,6 @@
 package net.kofllee.pyrovfx.vfx.type;
 
-public enum VfxEmitterShape {
+public enum VfxSpawnShapeType {
     POINT,
     SPHERE,
     BOX

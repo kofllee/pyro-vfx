@@ -116,7 +116,7 @@ public final class ClientVfxEmitter {
 
     private void spawnParticles(ClientLevel level, Vec3 emitterPosition, RandomSource random, int count) {
         for(int i = 0; i < count; i++){
-            Vec3 particlePosition = VfxSpawnPositionSampler.sample(emitterPosition, definition.shape(), random);
+            Vec3 particlePosition = VfxSpawnPositionSampler.sample(emitterPosition, definition.spawnShape(), random);
 
             Vec3 velocity = VfxVelocitySampler.sample(definition.particle().motion().velocity(), emitterPosition, particlePosition, random);
 
