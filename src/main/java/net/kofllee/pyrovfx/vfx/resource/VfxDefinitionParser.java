@@ -74,30 +74,33 @@ public final class VfxDefinitionParser {
         VfxEmitterTimingDefinition timing = json.has("timing")
                 ? parseTiming(getObject(json, "timing"))
                 : VfxEmitterTimingDefinition.once(0, 1);
-        VfxEmitterRateDefinition rate = json.has("rate")
-                ? parseRate(getObject(json, "rate"))
-                : VfxEmitterRateDefinition.instant(1);
+        VfxSpawnAmountDefinition spawnAmount = json.has("spawn_amount")
+                ? parseSpawnAmount(getObject(json, "spawn_amount"))
+                : VfxSpawnAmountDefinition.instant(1);
 
         VfxEmitterShapeDefinition shape = parseShape(getObject(json, "shape"));
         VfxParticleDefinition particle = parseParticle(getObject(json, "particle"));
 
-        return new VfxEmitterDefinition(timing, rate, shape, particle);
+        return new VfxEmitterDefinition(timing, spawnAmount, shape, particle);
     }
 
-    private static VfxEmitterRateDefinition parseRate(JsonObject json) {
-        VfxEmitterRateType type = parseEnum(
-                VfxEmitterRateType.class,
-                getString(json, "type", "instant"),
-                "emitter rate type"
+    private static VfxSpawnAmountDefinition parseSpawnAmount(JsonObject json) {
+        VfxSpawnAmountMode mode = parseEnum(
+                VfxSpawnAmountMode.class,
+                getString(json, "mode", "instant"),
+                "spawn amount mode"
         );
 
-        return switch (type) {
-            case INSTANT -> VfxEmitterRateDefinition.instant(
-                    getInt(json, "count", 1)
+        return switch (mode) {
+            case INSTANT -> VfxSpawnAmountDefinition.instant(
+                    getInt(json, "amount", 1)
             );
-            case STEADY -> VfxEmitterRateDefinition.steady(
-                    getFloat(json, "particles_per_tick", 1.0F),
+            case STEADY -> VfxSpawnAmountDefinition.steady(
+                    getFloat(json, "rate", 20.0F),
                     getInt(json, "max_particles", 256)
+            );
+            case MANUAL -> VfxSpawnAmountDefinition.manual(
+                    getInt(json, "amount", 1)
             );
         };
     }

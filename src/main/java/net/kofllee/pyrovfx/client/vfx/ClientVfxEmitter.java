@@ -4,9 +4,9 @@ import net.kofllee.pyrovfx.client.render.VanillaParticleBridge;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxSpawnPositionSampler;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxVelocitySampler;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
-import net.kofllee.pyrovfx.vfx.definition.VfxEmitterRateDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxSpawnAmountDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterTimingDefinition;
-import net.kofllee.pyrovfx.vfx.type.VfxEmitterRateType;
+import net.kofllee.pyrovfx.vfx.type.VfxSpawnAmountMode;
 import net.kofllee.pyrovfx.vfx.type.VfxEmitterTimingType;
 import net.kofllee.pyrovfx.vfx.type.VfxParticleRenderType;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -30,7 +30,7 @@ public final class ClientVfxEmitter {
             return;
         }
 
-        tickRate(level, emitterPosition, random);
+        tickSpawnAmount(level, emitterPosition, random);
     }
 
     private boolean isActive() {
@@ -60,30 +60,36 @@ public final class ClientVfxEmitter {
         return false;
     }
 
-    private void tickRate(ClientLevel level, Vec3 emitterPosition, RandomSource random) {
-        VfxEmitterRateDefinition rate = definition.rate();
+    private void tickSpawnAmount(ClientLevel level, Vec3 emitterPosition, RandomSource random) {
+        VfxSpawnAmountDefinition spawnAmount = definition.spawnAmount();
 
-        if(rate.type() == VfxEmitterRateType.INSTANT){
-            tickInstantRate(level, emitterPosition, random, rate);
+        if(spawnAmount.mode() == VfxSpawnAmountMode.INSTANT){
+            tickInstantSpawnAmount(level, emitterPosition, random, spawnAmount);
         }
 
-        if(rate.type() == VfxEmitterRateType.STEADY){
-            tickSteadyRate(level, emitterPosition, random, rate);
+        if(spawnAmount.mode() == VfxSpawnAmountMode.STEADY){
+            tickSteadySpawnAmount(level, emitterPosition, random, spawnAmount);
+        }
+
+        if(spawnAmount.mode() == VfxSpawnAmountMode.MANUAL){
+            return;
         }
     }
 
-    private void tickSteadyRate(ClientLevel level, Vec3 emitterPosition, RandomSource random, VfxEmitterRateDefinition rate) {
-        if(emittedParticles >= rate.maxParticles())
+    private void tickSteadySpawnAmount(ClientLevel level, Vec3 emitterPosition, RandomSource random, VfxSpawnAmountDefinition spawnAmount) {
+        if(emittedParticles >= spawnAmount.maxParticles()) {
             return;
+        }
 
-        spawnAccumulator += rate.particlePerTicks();
+        spawnAccumulator += spawnAmount.rate() / 20.0F;
 
         int amount = (int) spawnAccumulator;
 
-        if(amount < 0)
+        if(amount <= 0) {
             return;
+        }
 
-        int remaining = rate.maxParticles() - emittedParticles;
+        int remaining = spawnAmount.maxParticles() - emittedParticles;
         amount = Math.min(amount, remaining);
 
         spawnAccumulator -= amount;
@@ -92,14 +98,16 @@ public final class ClientVfxEmitter {
         spawnParticles(level, emitterPosition, random, amount);
     }
 
-    private void tickInstantRate(ClientLevel level, Vec3 emitterPosition, RandomSource random, VfxEmitterRateDefinition rate) {
-        if(instantEmitted)
+
+    private void tickInstantSpawnAmount(ClientLevel level, Vec3 emitterPosition, RandomSource random, VfxSpawnAmountDefinition spawnAmount) {
+        if(instantEmitted) {
             return;
+        }
 
         instantEmitted = true;
-        emittedParticles += rate.count();
+        emittedParticles += spawnAmount.amount();
 
-        spawnParticles(level, emitterPosition, random, rate.count());
+        spawnParticles(level, emitterPosition, random, spawnAmount.amount());
     }
 
     private void spawnParticles(ClientLevel level, Vec3 emitterPosition, RandomSource random, int count) {

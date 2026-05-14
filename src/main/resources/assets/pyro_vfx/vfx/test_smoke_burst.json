@@ -16,9 +16,10 @@
         "delay_ticks": 0,
         "active_ticks": 1
       },
-      "rate": {
-        "type": "instant",
-        "count": 20
+      "spawn_amount": {
+        "mode": "steady",
+        "rate": 12.0,
+        "max_particles": 80
       },
       "shape": {
         "type": "sphere",
