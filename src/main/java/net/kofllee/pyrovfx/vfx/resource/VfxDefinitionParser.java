@@ -71,9 +71,9 @@ public final class VfxDefinitionParser {
 
     private static VfxEmitterDefinition parseEmitter(JsonObject json) {
 
-        VfxEmitterTimingDefinition timing = json.has("timing")
-                ? parseTiming(getObject(json, "timing"))
-                : VfxEmitterTimingDefinition.once(0, 1);
+        VfxEmitterLifetimeDefinition emitterLifetime = json.has("emitter_lifetime")
+                ? parseEmitterLifetime(getObject(json, "emitter_lifetime"))
+                : VfxEmitterLifetimeDefinition.once(0, 1);
         VfxSpawnAmountDefinition spawnAmount = json.has("spawn_amount")
                 ? parseSpawnAmount(getObject(json, "spawn_amount"))
                 : VfxSpawnAmountDefinition.instant(1);
@@ -81,7 +81,7 @@ public final class VfxDefinitionParser {
         VfxEmitterShapeDefinition shape = parseShape(getObject(json, "shape"));
         VfxParticleDefinition particle = parseParticle(getObject(json, "particle"));
 
-        return new VfxEmitterDefinition(timing, spawnAmount, shape, particle);
+        return new VfxEmitterDefinition(emitterLifetime, spawnAmount, shape, particle);
     }
 
     private static VfxSpawnAmountDefinition parseSpawnAmount(JsonObject json) {
@@ -105,19 +105,21 @@ public final class VfxDefinitionParser {
         };
     }
 
-    private static VfxEmitterTimingDefinition parseTiming(JsonObject json) {
-        VfxEmitterTimingType type = parseEnum(
-                VfxEmitterTimingType.class,
-                getString(json, "type", "once"),
-                "emitter timing type"
+    private static VfxEmitterLifetimeDefinition parseEmitterLifetime(JsonObject json) {
+        VfxEmitterLifetimeMode mode = parseEnum(
+                VfxEmitterLifetimeMode.class,
+                getString(json, "mode", "once"),
+                "emitter lifetime mode"
         );
         int delayTicks = getInt(json, "delay_ticks", 0);
         int activeTicks = getInt(json, "active_ticks", 1);
         int sleepTicks = getInt(json, "sleep_ticks", 0);
+        int loops = getInt(json, "loops", 1);
 
-        return switch(type) {
-            case ONCE -> VfxEmitterTimingDefinition.once(delayTicks, activeTicks);
-            case LOOPING -> VfxEmitterTimingDefinition.loop(delayTicks, activeTicks, sleepTicks);
+        return switch(mode) {
+            case ONCE -> VfxEmitterLifetimeDefinition.once(delayTicks, activeTicks);
+            case LOOPING -> VfxEmitterLifetimeDefinition.looping(delayTicks, activeTicks, sleepTicks, loops);
+            case MANUAL -> VfxEmitterLifetimeDefinition.manual();
         };
     }
 

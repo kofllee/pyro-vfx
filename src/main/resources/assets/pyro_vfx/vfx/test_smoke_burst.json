@@ -11,10 +11,12 @@
   },
   "emitters": [
     {
-      "timing": {
-        "type": "once",
+      "emitter_lifetime": {
+        "mode": "looping",
         "delay_ticks": 0,
-        "active_ticks": 1
+        "active_ticks": 10,
+        "sleep_ticks": 5,
+        "loops": 1
       },
       "spawn_amount": {
         "mode": "steady",
@@ -31,6 +33,42 @@
         "appearance": {
           "render_type": "minecraft_particle",
           "minecraft_particle": "minecraft:smoke"
+        },
+        "motion": {
+          "velocity": {
+            "mode": "spherical",
+            "speed": 0.04,
+            "speed_random": 0.04
+          },
+          "acceleration": [0, 0.001, 0],
+          "gravity": 0.0,
+          "drag": 0.02
+        }
+      }
+    },
+    {
+      "emitter_lifetime": {
+        "mode": "looping",
+        "delay_ticks": 0,
+        "active_ticks": 10,
+        "sleep_ticks": 5,
+        "loops": 1
+      },
+      "spawn_amount": {
+        "mode": "steady",
+        "rate": 12.0,
+        "max_particles": 80
+      },
+      "shape": {
+        "type": "sphere",
+        "offset": [0, 0.1, 0],
+        "radius": 0.25,
+        "edge_thickness": 0.0
+      },
+      "particle": {
+        "appearance": {
+          "render_type": "minecraft_particle",
+          "minecraft_particle": "minecraft:flame"
         },
         "motion": {
           "velocity": {

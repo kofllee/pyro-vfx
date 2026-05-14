@@ -4,10 +4,10 @@ import net.kofllee.pyrovfx.client.render.VanillaParticleBridge;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxSpawnPositionSampler;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxVelocitySampler;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxEmitterLifetimeDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxSpawnAmountDefinition;
-import net.kofllee.pyrovfx.vfx.definition.VfxEmitterTimingDefinition;
+import net.kofllee.pyrovfx.vfx.type.VfxEmitterLifetimeMode;
 import net.kofllee.pyrovfx.vfx.type.VfxSpawnAmountMode;
-import net.kofllee.pyrovfx.vfx.type.VfxEmitterTimingType;
 import net.kofllee.pyrovfx.vfx.type.VfxParticleRenderType;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.util.RandomSource;
@@ -34,27 +34,31 @@ public final class ClientVfxEmitter {
     }
 
     private boolean isActive() {
-        VfxEmitterTimingDefinition timing = definition.timing();
+        VfxEmitterLifetimeDefinition lifetime = definition.emitterLifetime();
 
-        if(age < timing.delayTicks()){
+        if(lifetime.mode() == VfxEmitterLifetimeMode.MANUAL) {
             return false;
         }
 
-        int localAge = age - timing.delayTicks();
-
-        if(timing.timingType() == VfxEmitterTimingType.ONCE){
-            return localAge < timing.activeTicks();
+        if(age < lifetime.delayTicks()) {
+            return false;
         }
 
-        if(timing.timingType() == VfxEmitterTimingType.LOOPING){
-            int cycleTicks = timing.activeTicks() + timing.sleepTicks();
+        int localAge = age - lifetime.delayTicks();
+
+        if(lifetime.mode() == VfxEmitterLifetimeMode.ONCE){
+            return localAge < lifetime.activeTicks();
+        }
+
+        if(lifetime.mode() == VfxEmitterLifetimeMode.LOOPING){
+            int cycleTicks = lifetime.activeTicks() + lifetime.sleepTicks();
 
             if(cycleTicks <= 0){
                 return false;
             }
 
             int cycleAge = localAge % cycleTicks;
-            return cycleAge < timing.activeTicks();
+            return cycleAge < lifetime.activeTicks();
         }
 
         return false;
