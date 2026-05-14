@@ -30,9 +30,11 @@
         "edge_thickness": 0.0
       },
       "particle": {
-        "appearance": {
-          "render_type": "minecraft_particle",
-          "minecraft_particle": "minecraft:smoke"
+        "render": {
+          "type": "minecraft_particle",
+          "minecraft_particle": {
+            "particle": "minecraft:smoke"
+          }
         },
         "motion": {
           "velocity": {
@@ -66,9 +68,11 @@
         "edge_thickness": 0.0
       },
       "particle": {
-        "appearance": {
-          "render_type": "minecraft_particle",
-          "minecraft_particle": "minecraft:flame"
+        "render": {
+          "type": "minecraft_particle",
+          "minecraft_particle": {
+            "particle": "minecraft:flame"
+          }
         },
         "motion": {
           "velocity": {

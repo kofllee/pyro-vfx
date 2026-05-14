@@ -124,12 +124,12 @@ public final class VfxDefinitionParser {
     }
 
     private static VfxParticleDefinition parseParticle(JsonObject json) {
-        VfxAppearanceDefinition appearance = parseAppearance(getObject(json, "appearance"));
+        VfxRenderDefinition render = parseRender(getObject(json, "render"));
         VfxMotionDefinition motion = json.has("motion")
                 ? parseMotion(getObject(json, "motion"))
                 : VfxMotionDefinition.none();
 
-        return new VfxParticleDefinition(appearance, motion);
+        return new VfxParticleDefinition(render, motion);
     }
 
     private static VfxMotionDefinition parseMotion(JsonObject json) {
@@ -166,18 +166,27 @@ public final class VfxDefinitionParser {
         };
     }
 
-    private static VfxAppearanceDefinition parseAppearance(JsonObject json) {
-        VfxParticleRenderType renderType = parseEnum(
-                VfxParticleRenderType.class,
-                getString(json, "render_type", "minecraft_particle"),
-                "particle render type"
+    private static VfxRenderDefinition parseRender(JsonObject json) {
+        VfxRenderType type = parseEnum(
+                VfxRenderType.class,
+                getString(json, "type", "minecraft_particle"),
+                "render type"
         );
 
-        ResourceLocation minecraftParticleId = ResourceLocation.parse(
-                getString(json, "minecraft_particle", "minecraft:smoke")
-        );
 
-        return new VfxAppearanceDefinition(renderType, minecraftParticleId);
+        return switch (type) {
+            case MINECRAFT_PARTICLE -> VfxRenderDefinition.minecraftParticle(
+                    parseMinecraftParticleRender(getObject(json, "minecraft_particle"))
+            );
+            case SPRITE -> throw new IllegalArgumentException("Sprite render is not implemented yet");
+            case MODEL -> throw new IllegalArgumentException("Model render is not implemented yet");
+        };
+    }
+
+    private static VfxMinecraftParticleRenderDefinition parseMinecraftParticleRender(JsonObject json) {
+        return new VfxMinecraftParticleRenderDefinition(
+                ResourceLocation.parse(getString(json, "particle", "minecraft:smoke"))
+        );
     }
 
     private static VfxSpawnShapeDefinition parseSpawnShape(JsonObject json) {

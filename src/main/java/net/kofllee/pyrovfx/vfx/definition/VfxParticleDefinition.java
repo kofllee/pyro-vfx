@@ -1,4 +1,4 @@
 package net.kofllee.pyrovfx.vfx.definition;
 
-public record VfxParticleDefinition(VfxAppearanceDefinition appearance, VfxMotionDefinition motion) {
+public record VfxParticleDefinition(VfxRenderDefinition render, VfxMotionDefinition motion) {
 }

@@ -14,7 +14,7 @@ public final class VanillaParticleBridge {
     private VanillaParticleBridge() {}
 
     public static void spawn(ClientLevel level, VfxParticleDefinition particle, Vec3 position, Vec3 velocity) {
-        ParticleOptions particleOptions = resolveMinecraftParticle(particle.appearance().minecraftParticleId());
+        ParticleOptions particleOptions = resolveMinecraftParticle(particle.render().minecraftParticle().particle());
 
         if (particleOptions == null) {
             return;
