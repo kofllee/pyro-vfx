@@ -27,9 +27,9 @@ public final class ClientVfxInstance {
 
     private int age;
 
-    public ClientVfxInstance(VfxDefinition definition, Vec3 postion){
+    public ClientVfxInstance(VfxDefinition definition, Vec3 position){
         this.definition = definition;
-        this.position = postion;
+        this.position = position;
 
         VfxExpressionContext effectStartContext = ClientVfxExpressionContexts.effectStart(position, random);
         VfxLifetimeDefinition lifetime = definition.lifetime();
@@ -55,7 +55,10 @@ public final class ClientVfxInstance {
 
         if (isEffectActive()) {
             for (var emitter : emitters) {
-                particles.addAll(emitter.tick(level, position, position, effectContext, random));
+                Vec3 emitterOffset = emitter.definition().offset().evaluate(effectContext).toVec3();
+                Vec3 emitterPosition = position.add(emitterOffset);
+
+                particles.addAll(emitter.tick(level, position, emitterPosition, effectContext, random));
             }
         }
 

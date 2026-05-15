@@ -284,4 +284,8 @@ public final class ClientVfxEmitter {
 
         return false;
     }
+
+    public VfxEmitterDefinition definition() {
+        return definition;
+    }
 }

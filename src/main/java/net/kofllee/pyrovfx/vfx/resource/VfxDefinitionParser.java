@@ -81,6 +81,13 @@ public final class VfxDefinitionParser {
                 ? parseSpawnAmount(getObject(json, "spawn_amount"))
                 : VfxSpawnAmountDefinition.defaultInstant();
 
+        VfxVec3Expression offset = getVec3Expression(
+                json,
+                "offset",
+                VfxVec3.ZERO,
+                VfxEvaluationMode.EMITTER_TICK
+        );
+
         VfxSpawnShapeDefinition spawnShape = parseSpawnShape(getObject(json, "spawn_shape"));
 
         VfxParticleLifetimeDefinition particleLifetime = json.has("particle_lifetime")
@@ -97,7 +104,7 @@ public final class VfxDefinitionParser {
                 ? parseRotation(getObject(json, "rotation"))
                 : VfxRotationDefinition.none();
 
-        return new VfxEmitterDefinition(emitterLifetime, spawnAmount, spawnShape, particleLifetime, motion, rotation, render);
+        return new VfxEmitterDefinition(emitterLifetime, spawnAmount, offset, spawnShape, particleLifetime, motion, rotation, render);
     }
 
     private static VfxRotationDefinition parseRotation(JsonObject json) {
@@ -316,12 +323,6 @@ public final class VfxDefinitionParser {
                 "spawn shape type"
         );
 
-        VfxVec3Expression offset = getVec3Expression(
-                json,
-                "offset",
-                VfxVec3.ZERO,
-                VfxEvaluationMode.EMITTER_TICK
-        );
         VfxNumberExpression edgeThickness = getNumberExpression(
                 json,
                 "edge_thickness",
@@ -330,14 +331,12 @@ public final class VfxDefinitionParser {
         );
 
         return switch (type) {
-            case POINT -> VfxSpawnShapeDefinition.point(offset);
+            case POINT -> VfxSpawnShapeDefinition.point();
             case SPHERE -> VfxSpawnShapeDefinition.sphere(
-                    offset,
                     getNumberExpression(json, "radius", 0.25, VfxEvaluationMode.EMITTER_TICK),
                     edgeThickness
             );
             case BOX -> VfxSpawnShapeDefinition.box(
-                    offset,
                     getVec3Expression(json, "half_extents", new VfxVec3(0.25, 0.25, 0.25), VfxEvaluationMode.EMITTER_TICK),
                     edgeThickness
             );

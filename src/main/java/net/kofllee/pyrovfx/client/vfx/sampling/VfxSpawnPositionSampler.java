@@ -15,15 +15,13 @@ public final class VfxSpawnPositionSampler {
             VfxExpressionContext context,
             RandomSource random
     ) {
-        Vec3 base = emitterPosition.add(spawnShape.offset().evaluate(context).toVec3());
-
         if(spawnShape.type() == VfxSpawnShapeType.POINT){
-            return base;
+            return emitterPosition;
         }
 
         if(spawnShape.type() == VfxSpawnShapeType.SPHERE){
             return sampleSphere(
-                    base,
+                    emitterPosition,
                     spawnShape.radius().evaluate(context),
                     spawnShape.edgeThickness().evaluate(context),
                     random
@@ -32,14 +30,14 @@ public final class VfxSpawnPositionSampler {
 
         if(spawnShape.type() == VfxSpawnShapeType.BOX){
             return sampleBox(
-                    base,
+                    emitterPosition,
                     spawnShape.halfExtents().evaluate(context).toVec3(),
                     spawnShape.edgeThickness().evaluate(context),
                     random
             );
         }
 
-        return base;
+        return emitterPosition;
     }
 
     private static Vec3 sampleBox(Vec3 center, Vec3 halfExtents, double edgeThickness, RandomSource random) {
