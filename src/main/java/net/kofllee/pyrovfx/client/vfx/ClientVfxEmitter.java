@@ -67,6 +67,7 @@ public final class ClientVfxEmitter {
             Vec3 effectPosition,
             Vec3 emitterPosition,
             VfxExpressionContext effectContext,
+            boolean canSpawn,
             RandomSource random
     ) {
         VfxExpressionContext emitterContext = ClientVfxExpressionContexts.emitterTick(
@@ -78,7 +79,7 @@ public final class ClientVfxEmitter {
                 emittedParticles
         );
 
-        if(isActive()){
+        if(canSpawn && isActive()){
             tickSpawnAmount(level, effectPosition, emitterPosition, emitterContext, random);
         }
 
@@ -92,7 +93,9 @@ public final class ClientVfxEmitter {
             }
         }
 
-        age++;
+        if(canSpawn){
+            age++;
+        }
     }
 
     private boolean isActive() {

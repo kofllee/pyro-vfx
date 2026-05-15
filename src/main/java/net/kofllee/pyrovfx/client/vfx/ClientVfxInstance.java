@@ -50,14 +50,13 @@ public final class ClientVfxInstance {
                 delayTicks,
                 activeTicks
         );
+        boolean effectActive = isEffectActive();
 
-        if (isEffectActive()) {
-            for (var emitter : emitters) {
-                Vec3 emitterOffset = emitter.definition().offset().evaluate(effectContext).toVec3();
-                Vec3 emitterPosition = position.add(emitterOffset);
+        for (var emitter : emitters) {
+            Vec3 emitterOffset = emitter.definition().offset().evaluate(effectContext).toVec3();
+            Vec3 emitterPosition = position.add(emitterOffset);
 
-                emitter.tick(level, position, emitterPosition, effectContext, random);
-            }
+            emitter.tick(level, position, emitterPosition, effectContext, isEffectActive(), random);
         }
 
         age++;

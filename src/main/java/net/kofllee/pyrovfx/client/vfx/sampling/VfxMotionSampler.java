@@ -3,7 +3,6 @@ package net.kofllee.pyrovfx.client.vfx.sampling;
 import net.kofllee.pyrovfx.client.vfx.VfxTime;
 import net.kofllee.pyrovfx.vfx.definition.VfxDynamicMotionDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxMotionDefinition;
-import net.kofllee.pyrovfx.vfx.definition.VfxVelocityDefinition;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.type.VfxDirectionMode;
 import net.kofllee.pyrovfx.vfx.type.VfxMotionMode;
@@ -82,9 +81,5 @@ public final class VfxMotionSampler {
         }
 
         return Vec3.ZERO;
-    }
-
-    private static double sampleSpeed(VfxVelocityDefinition velocity, RandomSource random) {
-        return velocity.speed() + VfxRandom.triangle(random) * velocity.speedRandom();
     }
 }

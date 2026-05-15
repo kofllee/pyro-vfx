@@ -41,14 +41,15 @@
       "rotation": {
         "mode": "dynamic",
         "dynamic": {
-          "start_rotation": [0, 0, 90],
-          "angular_velocity": [0, 90, 90],
+          "start_rotation": [0, 0, 0],
+          "angular_velocity": [0, 0, 0],
           "angular_acceleration": [0, 0, 0],
           "angular_drag": 0.8
         }
       },
       "render": {
         "type": "sprite",
+        "facing": "camera_horizontal",
         "sprite": {
           "texture": "minecraft:textures/particle/generic_0.png"
         },
@@ -93,14 +94,15 @@
       "rotation": {
         "mode": "dynamic",
         "dynamic": {
-          "start_rotation": [0, 0, 90],
-          "angular_velocity": [0, 90, 90],
+          "start_rotation": [0, 0, 0],
+          "angular_velocity": [0, 0, 0],
           "angular_acceleration": [0, 0, 0],
           "angular_drag": 0.8
         }
       },
       "render": {
         "type": "sprite",
+        "facing": "world_x",
         "sprite": {
           "texture": "minecraft:textures/particle/generic_0.png"
         },
@@ -145,14 +147,15 @@
       "rotation": {
         "mode": "dynamic",
         "dynamic": {
-          "start_rotation": [0, 0, 90],
-          "angular_velocity": [0, 90, 90],
+          "start_rotation": [0, 0, 0],
+          "angular_velocity": [0, 0, 0],
           "angular_acceleration": [0, 0, 0],
           "angular_drag": 0.8
         }
       },
       "render": {
         "type": "sprite",
+        "facing": "velocity",
         "sprite": {
           "texture": "minecraft:textures/particle/generic_0.png"
         },

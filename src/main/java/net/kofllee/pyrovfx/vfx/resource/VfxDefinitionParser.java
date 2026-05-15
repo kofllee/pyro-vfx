@@ -268,12 +268,19 @@ public final class VfxDefinitionParser {
                 "render type"
         );
 
+        VfxFacingMode facing = parseEnum(
+                VfxFacingMode.class,
+                getString(json, "facing", "camera"),
+                "render facing mode"
+        );
+
 
         return switch (type) {
             case MINECRAFT_PARTICLE -> VfxRenderDefinition.minecraftParticle(
                     parseMinecraftParticleRender(getObject(json, "minecraft_particle"))
             );
             case SPRITE -> VfxRenderDefinition.sprite(
+                    facing,
                     parseSpriteRender(getObject(json, "sprite")),
                     parseParticleAppearance(json)
             );
