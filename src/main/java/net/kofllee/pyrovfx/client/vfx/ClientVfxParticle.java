@@ -80,13 +80,15 @@ public final class ClientVfxParticle {
         }
 
         if (emitterDefinition.motion().mode() == VfxMotionMode.DYNAMIC){
-            Vec3 acceleration = emitterDefinition.motion().dynamic().acceleration().evaluate(particleContext).toVec3();
+            Vec3 accelerationPerSecondSquared = emitterDefinition.motion().dynamic().acceleration().evaluate(particleContext).toVec3();
+
+            Vec3 acceleration = accelerationPerSecondSquared.scale(VfxTime.SECONDS_PER_TICK * VfxTime.SECONDS_PER_TICK);
 
             double drag = emitterDefinition.motion().dynamic().linearDrag().evaluate(particleContext);
 
-            drag = Math.clamp(drag, 0.0, 1.0);
+            double dragMultiplier = Math.exp(-drag * VfxTime.SECONDS_PER_TICK);
 
-            velocity = velocity.add(acceleration).scale(1.0 - drag);
+            velocity = velocity.add(acceleration).scale(dragMultiplier);
             position = position.add(velocity);
         }
     }

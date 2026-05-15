@@ -1,5 +1,6 @@
 package net.kofllee.pyrovfx.client.vfx.sampling;
 
+import net.kofllee.pyrovfx.client.vfx.VfxTime;
 import net.kofllee.pyrovfx.vfx.definition.VfxDynamicMotionDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxMotionDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxVelocityDefinition;
@@ -40,8 +41,10 @@ public final class VfxMotionSampler {
     ) {
         Vec3 direction = sampleDirection(motion, emitterPosition, particlePosition, context, random);
 
-        double speed = motion.speed().evaluate(context);
-        return direction.normalize().scale(speed);
+        double speedPerSecond = motion.speed().evaluate(context);
+        double speedPerTick = VfxTime.blocksPerSecondToBlocksPerTick(speedPerSecond);
+
+        return direction.normalize().scale(speedPerTick);
     }
 
     private static Vec3 sampleDirection(VfxDynamicMotionDefinition motion, Vec3 emitterPosition, Vec3 particlePosition, VfxExpressionContext context, RandomSource random) {
