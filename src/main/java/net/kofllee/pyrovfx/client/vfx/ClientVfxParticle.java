@@ -23,7 +23,6 @@ public final class ClientVfxParticle {
 
     private int age;
     private double size;
-    private double alpha;
     private VfxColor color;
 
     public ClientVfxParticle(
@@ -64,7 +63,6 @@ public final class ClientVfxParticle {
                 age,
                 lifetime,
                 random,
-                1.0,
                 1.0
         );
 
@@ -82,16 +80,13 @@ public final class ClientVfxParticle {
                 age,
                 lifetime,
                 random,
-                size,
-                alpha
+                size
         );
 
         size = emitterDefinition.render().appearance().size().evaluate(renderContext);
-        alpha = emitterDefinition.render().appearance().alpha().evaluate(renderContext);
         color = emitterDefinition.render().appearance().color().evaluate(renderContext);
 
         size =  Math.max(0.0, size);
-        alpha = Math.clamp(alpha, 0.0, 1.0);
 
         age++;
     }
@@ -166,10 +161,6 @@ public final class ClientVfxParticle {
 
     public double size(){
         return size;
-    }
-
-    public double alpha(){
-        return alpha;
     }
 
     public VfxColor color(){

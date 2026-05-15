@@ -23,8 +23,6 @@ public final class ClientVfxInstance {
     private final int sleepTicks;
     private final int loops;
 
-    private final List<ClientVfxParticle> particles = new ArrayList<>();
-
     private int age;
 
     public ClientVfxInstance(VfxDefinition definition, Vec3 position){
@@ -58,20 +56,9 @@ public final class ClientVfxInstance {
                 Vec3 emitterOffset = emitter.definition().offset().evaluate(effectContext).toVec3();
                 Vec3 emitterPosition = position.add(emitterOffset);
 
-                particles.addAll(emitter.tick(level, position, emitterPosition, effectContext, random));
+                emitter.tick(level, position, emitterPosition, effectContext, random);
             }
         }
-
-        for(var particleIterator = particles.iterator(); particleIterator.hasNext(); ){
-            ClientVfxParticle particle = particleIterator.next();
-
-            particle.tick(effectContext);
-
-            if(particle.isDead()){
-                particleIterator.remove();
-            }
-        }
-
 
         age++;
     }
@@ -113,13 +100,13 @@ public final class ClientVfxInstance {
         if(definition.lifetime().mode() == VfxLifetimeMode.ONCE) {
             return age >= delayTicks + activeTicks
                     && emitters.stream().allMatch(ClientVfxEmitter::isFinished)
-                    && particles.isEmpty();
+                    && hasNoParticles();
         }
 
         if(definition.lifetime().mode() == VfxLifetimeMode.LOOPING && loops > 0) {
             int cycleTicks = activeTicks + sleepTicks;
             return (cycleTicks <= 0 || age >= delayTicks + cycleTicks * loops)
-                    && particles.isEmpty();
+                    && hasNoParticles();
         }
 
         return false;
@@ -129,7 +116,23 @@ public final class ClientVfxInstance {
         return definition;
     }
 
+    private boolean hasNoParticles() {
+        for (ClientVfxEmitter emitter : emitters) {
+            if (!emitter.particles().isEmpty()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public List<ClientVfxParticle> particles() {
-        return Collections.unmodifiableList(particles);
+        List<ClientVfxParticle> result = new ArrayList<>();
+
+        for (ClientVfxEmitter emitter : emitters) {
+            result.addAll(emitter.particles());
+        }
+
+        return Collections.unmodifiableList(result);
     }
 }

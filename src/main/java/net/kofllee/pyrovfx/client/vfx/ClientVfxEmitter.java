@@ -16,6 +16,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public final class ClientVfxEmitter {
@@ -31,6 +32,8 @@ public final class ClientVfxEmitter {
     private final int loops;
     private final int instantAmount;
     private final int maxParticles;
+
+    private final List<ClientVfxParticle> particles = new ArrayList<>();
 
     public ClientVfxEmitter(
             VfxEmitterDefinition definition,
@@ -59,7 +62,7 @@ public final class ClientVfxEmitter {
         this.maxParticles = Math.max(0, (int) Math.round(spawnAmount.maxParticles().evaluate(emitterStartContext)));
     }
 
-    public List<ClientVfxParticle> tick(
+    public void tick(
             ClientLevel level,
             Vec3 effectPosition,
             Vec3 emitterPosition,
@@ -75,14 +78,21 @@ public final class ClientVfxEmitter {
                 emittedParticles
         );
 
-        List<ClientVfxParticle> spawnedParticles = new ArrayList<>();
-
         if(isActive()){
-            tickSpawnAmount(level, effectPosition, emitterPosition, emitterContext, random, spawnedParticles);
+            tickSpawnAmount(level, effectPosition, emitterPosition, emitterContext, random);
+        }
+
+        for(var particleIterator = particles.iterator(); particleIterator.hasNext(); ) {
+            ClientVfxParticle particle = particleIterator.next();
+
+            particle.tick(emitterContext);
+
+            if(particle.isDead()) {
+                particleIterator.remove();
+            }
         }
 
         age++;
-        return spawnedParticles;
     }
 
     private boolean isActive() {
@@ -130,17 +140,16 @@ public final class ClientVfxEmitter {
             Vec3 effectPosition,
             Vec3 emitterPosition,
             VfxExpressionContext emitterContext,
-            RandomSource random,
-            List<ClientVfxParticle> spawnedParticles
+            RandomSource random
     ) {
         VfxSpawnAmountDefinition spawnAmount = definition.spawnAmount();
 
         if(spawnAmount.mode() == VfxSpawnAmountMode.INSTANT){
-            tickInstantSpawnAmount(level, effectPosition, emitterPosition, emitterContext, random, spawnedParticles);
+            tickInstantSpawnAmount(level, effectPosition, emitterPosition, emitterContext, random);
         }
 
         if(spawnAmount.mode() == VfxSpawnAmountMode.STEADY){
-            tickSteadySpawnAmount(level, effectPosition, emitterPosition, emitterContext, random, spawnedParticles);
+            tickSteadySpawnAmount(level, effectPosition, emitterPosition, emitterContext, random);
         }
     }
 
@@ -149,8 +158,7 @@ public final class ClientVfxEmitter {
             Vec3 effectPosition,
             Vec3 emitterPosition,
             VfxExpressionContext emitterContext,
-            RandomSource random,
-            List<ClientVfxParticle> spawnedParticles
+            RandomSource random
     ) {
         if(emittedParticles >= maxParticles) {
             return;
@@ -170,7 +178,7 @@ public final class ClientVfxEmitter {
 
         spawnAccumulator -= amount;
 
-        spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, amount, spawnedParticles);
+        spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, amount);
     }
 
 
@@ -179,8 +187,7 @@ public final class ClientVfxEmitter {
             Vec3 effectPosition,
             Vec3 emitterPosition,
             VfxExpressionContext emitterContext,
-            RandomSource random,
-            List<ClientVfxParticle> spawnedParticles
+            RandomSource random
     ) {
         if(instantEmitted) {
             return;
@@ -188,7 +195,7 @@ public final class ClientVfxEmitter {
 
         instantEmitted = true;
 
-        spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, instantAmount, spawnedParticles);
+        spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, instantAmount);
     }
 
     private void spawnParticles(
@@ -197,8 +204,7 @@ public final class ClientVfxEmitter {
             Vec3 emitterPosition,
             VfxExpressionContext emitterContext,
             RandomSource random,
-            int count,
-            List<ClientVfxParticle> spawnedParticles
+            int count
     ) {
         for(int i = 0; i < count; i++){
             VfxExpressionContext preSpawnContext = ClientVfxExpressionContexts.particleSpawn(
@@ -254,7 +260,7 @@ public final class ClientVfxEmitter {
 
             double particleRandom = random.nextDouble();
 
-            spawnedParticles.add(new ClientVfxParticle(
+            particles.add(new ClientVfxParticle(
                     definition,
                     particlePosition,
                     velocity,
@@ -287,5 +293,9 @@ public final class ClientVfxEmitter {
 
     public VfxEmitterDefinition definition() {
         return definition;
+    }
+
+    public List<ClientVfxParticle> particles() {
+        return Collections.unmodifiableList(particles);
     }
 }

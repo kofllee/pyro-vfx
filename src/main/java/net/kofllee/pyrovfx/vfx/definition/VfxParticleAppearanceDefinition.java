@@ -5,11 +5,10 @@ import net.kofllee.pyrovfx.vfx.expression.VfxEvaluationMode;
 import net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 
-public record VfxParticleAppearanceDefinition (VfxColorExpression color, VfxNumberExpression alpha, VfxNumberExpression size) {
+public record VfxParticleAppearanceDefinition (VfxColorExpression color, VfxNumberExpression size) {
     public static VfxParticleAppearanceDefinition defaultAppearance() {
         return new VfxParticleAppearanceDefinition(
                 constantColor(new VfxColor(1.0, 1.0, 1.0, 1.0)),
-                VfxNumberExpression.constant(1.0, VfxEvaluationMode.PARTICLE_TICK),
                 VfxNumberExpression.constant(1.0, VfxEvaluationMode.PARTICLE_TICK)
         );
     }

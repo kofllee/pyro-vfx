@@ -291,12 +291,6 @@ public final class VfxDefinitionParser {
                 ),
                 getNumberExpression(
                         json,
-                        "alpha",
-                        1.0,
-                        VfxEvaluationMode.PARTICLE_TICK
-                ),
-                getNumberExpression(
-                        json,
                         "size",
                         1.0,
                         VfxEvaluationMode.PARTICLE_TICK
