@@ -2,31 +2,39 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "Sprite parser test"
+    "description": "Sprite render test"
   },
   "lifetime": {
     "mode": "once",
-    "active_ticks": 20
+    "active_ticks": 60
   },
   "emitters": [
     {
       "spawn_amount": {
         "mode": "instant",
-        "amount": 1
+        "amount": 8
       },
       "emitter_lifetime": {
         "mode": "once",
         "active_ticks": 1
       },
       "spawn_shape": {
-        "type": "point",
-        "offset": [0, 0, 0]
+        "type": "sphere",
+        "offset": [0, 0, 0],
+        "radius": 0.2,
+        "edge_thickness": 0
       },
       "particle_lifetime": {
-        "max_age_ticks": 20
+        "max_age_ticks": 60
       },
       "motion": {
-        "mode": "static"
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": 0.7,
+          "acceleration": [0, 0.001, 0],
+          "linear_drag": 0.02
+        }
       },
       "rotation": {
         "mode": "none"
@@ -37,7 +45,7 @@
           "texture": "pyro_vfx:textures/vfx/smoke.png"
         },
         "color": "#FFFFFFFF",
-        "alpha": 1.0,
+        "alpha": 0.75,
         "size": 0.5
       }
     }
