@@ -3,6 +3,7 @@ package net.kofllee.pyrovfx.client.vfx;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.type.VfxMotionMode;
+import net.kofllee.pyrovfx.vfx.type.VfxRotationMode;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.minecraft.world.phys.Vec3;
 
@@ -16,6 +17,10 @@ public final class ClientVfxParticle {
     private Vec3 previousPosition;
     private Vec3 velocity;
 
+    private Vec3 rotation;
+    private Vec3 previousRotation;
+    private Vec3 angularVelocity;
+
     private int age;
     private double size;
     private double alpha;
@@ -25,6 +30,8 @@ public final class ClientVfxParticle {
             VfxEmitterDefinition definition,
             Vec3 position,
             Vec3 velocity,
+            Vec3 rotation,
+            Vec3 angularVelocity,
             int lifetime,
             double random
     )
@@ -34,6 +41,9 @@ public final class ClientVfxParticle {
         this.position = position;
         this.previousPosition = spawnPosition;
         this.velocity = velocity;
+        this.rotation = rotation;
+        this.previousRotation = rotation;
+        this.angularVelocity = angularVelocity;
         this.lifetime = Math.max(1, lifetime);
         this.random = random;
         this.color = new VfxColor(1.0, 1.0, 1.0, 1.0);
@@ -41,6 +51,7 @@ public final class ClientVfxParticle {
 
     public void tick(VfxExpressionContext emitterContext){
         previousPosition = position;
+        previousRotation = rotation;
 
         VfxExpressionContext particleContext = ClientVfxExpressionContexts.particleTick(
                 emitterContext,
@@ -48,12 +59,31 @@ public final class ClientVfxParticle {
                 position,
                 previousPosition,
                 velocity,
+                rotation,
+                angularVelocity,
                 age,
                 lifetime,
                 random,
                 1.0,
-                1.0,
-                0.0
+                1.0
+        );
+
+        tickMotion(particleContext);
+        tickRotation(particleContext);
+
+        VfxExpressionContext renderContext = ClientVfxExpressionContexts.particleTick(
+                emitterContext,
+                spawnPosition,
+                position,
+                previousPosition,
+                velocity,
+                rotation,
+                angularVelocity,
+                age,
+                lifetime,
+                random,
+                size,
+                alpha
         );
 
         size = emitterDefinition.render().appearance().size().evaluate(particleContext);
@@ -62,8 +92,6 @@ public final class ClientVfxParticle {
 
         size =  Math.max(0.0, size);
         alpha = Math.clamp(alpha, 0.0, 1.0);
-
-        tickMotion(particleContext);
 
         age++;
     }
@@ -90,6 +118,29 @@ public final class ClientVfxParticle {
 
             velocity = velocity.add(acceleration).scale(dragMultiplier);
             position = position.add(velocity);
+        }
+    }
+
+    private void tickRotation(VfxExpressionContext particleContext){
+        if(emitterDefinition.rotation().mode() == VfxRotationMode.NONE)
+            return;
+
+        if (emitterDefinition.rotation().mode() == VfxRotationMode.PARAMETRIC){
+            rotation = emitterDefinition.rotation().parametric().rotation().evaluate(particleContext).toVec3();
+            return;
+        }
+
+        if(emitterDefinition.rotation().mode() == VfxRotationMode.DYNAMIC){
+            Vec3 angularAccelerationPerSecondSquared = emitterDefinition.rotation().dynamic().angularAcceleration().evaluate(particleContext).toVec3();
+
+            Vec3 angularAcceleration = angularAccelerationPerSecondSquared.scale(VfxTime.SECONDS_PER_TICK * VfxTime.SECONDS_PER_TICK);
+
+            double angularDrag = emitterDefinition.rotation().dynamic().angularDrag().evaluate(particleContext);
+
+            double dragMultiplier = Math.exp(-angularDrag * VfxTime.SECONDS_PER_TICK);
+
+            angularVelocity = angularVelocity.add(angularAcceleration).scale(dragMultiplier);
+            rotation = rotation.add(angularVelocity);
         }
     }
 
@@ -123,5 +174,25 @@ public final class ClientVfxParticle {
 
     public VfxColor color(){
         return color;
+    }
+
+    public Vec3 previousPosition(){
+        return previousPosition;
+    }
+
+    public Vec3 interpolatedPosition(float partialTick) {
+        return previousPosition.lerp(position, partialTick);
+    }
+
+    public Vec3 rotation(){
+        return rotation;
+    }
+
+    public Vec3 previousRotation(){
+        return previousRotation;
+    }
+
+    public Vec3 interpolatedRotation(float partialTick) {
+        return previousRotation.lerp(rotation, partialTick);
     }
 }

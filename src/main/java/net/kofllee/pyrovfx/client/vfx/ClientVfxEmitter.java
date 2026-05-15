@@ -1,6 +1,7 @@
 package net.kofllee.pyrovfx.client.vfx;
 
 import net.kofllee.pyrovfx.client.render.VanillaParticleBridge;
+import net.kofllee.pyrovfx.client.vfx.sampling.VfxRotationSampler;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxSpawnPositionSampler;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxMotionSampler;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
@@ -213,6 +214,16 @@ public final class ClientVfxEmitter {
                     random
             );
 
+            Vec3 rotation = VfxRotationSampler.sampleInitialRotation(
+                    definition.rotation(),
+                    preSpawnContext
+            );
+
+            Vec3 angularVelocity = VfxRotationSampler.sampleInitialAngularVelocity(
+                    definition.rotation(),
+                    preSpawnContext
+            );
+
             VfxExpressionContext particleSpawnContext = ClientVfxExpressionContexts.particleSpawn(
                     emitterContext,
                     particlePosition,
@@ -247,6 +258,8 @@ public final class ClientVfxEmitter {
                     definition,
                     particlePosition,
                     velocity,
+                    rotation,
+                    angularVelocity,
                     lifeTime,
                     particleRandom
             ));

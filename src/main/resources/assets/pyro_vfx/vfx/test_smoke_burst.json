@@ -37,7 +37,11 @@
         }
       },
       "rotation": {
-        "mode": "none"
+        "mode": "dynamic",
+        "dynamic": {
+          "angular_velocity": [0, 0, 5],
+          "angular_drag": 0.1
+        }
       },
       "render": {
         "type": "sprite",

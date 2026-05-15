@@ -2,6 +2,7 @@ package net.kofllee.pyrovfx.client.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.math.Axis;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxParticle;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.minecraft.client.Camera;
@@ -26,7 +27,7 @@ public final class SpriteVfxParticleRenderer {
             return;
 
         Vec3 cameraPosition = camera.getPosition();
-        Vec3 particlePosition = particle.position();
+        Vec3 particlePosition = particle.interpolatedPosition(partialTick);
 
         double x = particlePosition.x - cameraPosition.x;
         double y = particlePosition.y - cameraPosition.y;
@@ -51,8 +52,7 @@ public final class SpriteVfxParticleRenderer {
 
         poseStack.pushPose();
         poseStack.translate(x, y, z);
-        poseStack.mulPose(camera.rotation());
-
+        poseStack.mulPose(Axis.ZP.rotationDegrees((float) particle.interpolatedRotation(partialTick).z));
 
         Matrix4f matrix = poseStack.last().pose();
         float halfSize = size * 0.5f;

@@ -13,4 +13,12 @@ public final class VfxTime {
     public static double blocksPerSecondSquaredToBlocksPerTickSquared(double value) {
         return value * SECONDS_PER_TICK * SECONDS_PER_TICK;
     }
+
+    public static double degreesPerSecondToDegreesPerTick(double value) {
+        return value * SECONDS_PER_TICK;
+    }
+
+    public static double degreesPerSecondSquaredToDegreesPerTickSquared(double value) {
+        return value * SECONDS_PER_TICK * SECONDS_PER_TICK;
+    }
 }
