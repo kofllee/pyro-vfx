@@ -9,6 +9,7 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public final class ClientVfxInstance {
@@ -56,17 +57,18 @@ public final class ClientVfxInstance {
             for (var emitter : emitters) {
                 particles.addAll(emitter.tick(level, position, position, effectContext, random));
             }
+        }
 
-            for(var particleIterator = particles.iterator(); particleIterator.hasNext(); ){
-                ClientVfxParticle particle = particleIterator.next();
+        for(var particleIterator = particles.iterator(); particleIterator.hasNext(); ){
+            ClientVfxParticle particle = particleIterator.next();
 
-                particle.tick(effectContext);
+            particle.tick(effectContext);
 
-                if(particle.isDead()){
-                    particleIterator.remove();
-                }
+            if(particle.isDead()){
+                particleIterator.remove();
             }
         }
+
 
         age++;
     }
@@ -122,5 +124,9 @@ public final class ClientVfxInstance {
 
     public VfxDefinition definition() {
         return definition;
+    }
+
+    public List<ClientVfxParticle> particles() {
+        return Collections.unmodifiableList(particles);
     }
 }

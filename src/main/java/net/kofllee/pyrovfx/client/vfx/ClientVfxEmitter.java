@@ -231,7 +231,12 @@ public final class ClientVfxEmitter {
             if(definition.render().type() == VfxRenderType.MINECRAFT_PARTICLE){
                 VanillaParticleBridge.spawn(level, definition.render(), particlePosition, velocity);
                 emittedParticles++;
-                return;
+                continue;
+            }
+
+            if(definition.render().type() != VfxRenderType.SPRITE){
+                emittedParticles++;
+                continue;
             }
 
             int lifeTime = Math.max(1, (int) Math.round(definition.particleLifetime().maxAgeTicks().evaluate(particleSpawnContext)));

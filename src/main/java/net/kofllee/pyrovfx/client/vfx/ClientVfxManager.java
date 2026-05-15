@@ -8,6 +8,7 @@ import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -55,5 +56,19 @@ public final class ClientVfxManager {
 
     public static int getActiveInstanceCount(){
         return INSTANCES.size();
+    }
+
+    public static List<ClientVfxInstance> instances() {
+        return Collections.unmodifiableList(INSTANCES);
+    }
+
+    public static int getActiveParticleCount(){
+        int count = 0;
+
+        for(ClientVfxInstance instance : INSTANCES){
+            count += instance.particles().size();
+        }
+
+        return count;
     }
 }

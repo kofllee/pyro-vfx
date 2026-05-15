@@ -3,6 +3,7 @@ package net.kofllee.pyrovfx.client.vfx;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.type.VfxMotionMode;
+import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.minecraft.world.phys.Vec3;
 
 public final class ClientVfxParticle {
@@ -16,6 +17,9 @@ public final class ClientVfxParticle {
     private Vec3 velocity;
 
     private int age;
+    private double size;
+    private double alpha;
+    private VfxColor color;
 
     public ClientVfxParticle(
             VfxEmitterDefinition definition,
@@ -32,6 +36,7 @@ public final class ClientVfxParticle {
         this.velocity = velocity;
         this.lifetime = Math.max(1, lifetime);
         this.random = random;
+        this.color = new VfxColor(1.0, 1.0, 1.0, 1.0);
     }
 
     public void tick(VfxExpressionContext emitterContext){
@@ -50,6 +55,13 @@ public final class ClientVfxParticle {
                 1.0,
                 0.0
         );
+
+        size = emitterDefinition.render().appearance().size().evaluate(particleContext);
+        alpha = emitterDefinition.render().appearance().alpha().evaluate(particleContext);
+        color = emitterDefinition.render().appearance().color().evaluate(particleContext);
+
+        size =  Math.max(0.0, size);
+        alpha = Math.clamp(alpha, 0.0, 1.0);
 
         tickMotion(particleContext);
 
@@ -89,5 +101,25 @@ public final class ClientVfxParticle {
 
     public Vec3 velocity(){
         return velocity;
+    }
+
+    public VfxEmitterDefinition emitterDefinition(){
+        return emitterDefinition;
+    }
+
+    public double ageNormalized(){
+        return lifetime <= 0 ? 1.0 : Math.min(1.0, age / (double) lifetime);
+    }
+
+    public double size(){
+        return size;
+    }
+
+    public double alpha(){
+        return alpha;
+    }
+
+    public VfxColor color(){
+        return color;
     }
 }

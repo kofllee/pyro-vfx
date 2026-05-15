@@ -266,9 +266,41 @@ public final class VfxDefinitionParser {
             case MINECRAFT_PARTICLE -> VfxRenderDefinition.minecraftParticle(
                     parseMinecraftParticleRender(getObject(json, "minecraft_particle"))
             );
-            case SPRITE -> throw new IllegalArgumentException("Sprite render is not implemented yet");
+            case SPRITE -> VfxRenderDefinition.sprite(
+                    parseSpriteRender(getObject(json, "sprite")),
+                    parseParticleAppearance(json)
+            );
             case MODEL -> throw new IllegalArgumentException("Model render is not implemented yet");
         };
+    }
+
+    private static VfxParticleAppearanceDefinition parseParticleAppearance(JsonObject json) {
+        return new VfxParticleAppearanceDefinition(
+                getColorExpression(
+                        json,
+                        "color",
+                        new VfxColor(1.0, 1.0, 1.0, 1.0),
+                        VfxEvaluationMode.PARTICLE_TICK
+                ),
+                getNumberExpression(
+                        json,
+                        "alpha",
+                        1.0,
+                        VfxEvaluationMode.PARTICLE_TICK
+                ),
+                getNumberExpression(
+                        json,
+                        "size",
+                        1.0,
+                        VfxEvaluationMode.PARTICLE_TICK
+                )
+        );
+    }
+
+    private static VfxSpriteRenderDefinition parseSpriteRender(JsonObject json) {
+        return new VfxSpriteRenderDefinition(
+                ResourceLocation.parse(getString(json, "texture", "minecraft:textures/particle/generic_0.png"))
+        );
     }
 
     private static VfxMinecraftParticleRenderDefinition parseMinecraftParticleRender(JsonObject json) {

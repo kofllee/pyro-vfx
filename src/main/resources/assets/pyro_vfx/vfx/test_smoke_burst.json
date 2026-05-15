@@ -2,45 +2,43 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "Runtime expression test."
+    "description": "Sprite parser test"
   },
   "lifetime": {
     "mode": "once",
-    "delay_ticks": 0,
-    "active_ticks": "20 + 40"
+    "active_ticks": 20
   },
   "emitters": [
     {
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 1
+      },
       "emitter_lifetime": {
         "mode": "once",
-        "delay_ticks": 0,
-        "active_ticks": 60
-      },
-      "spawn_amount": {
-        "mode": "steady",
-        "rate": "5 + emitter.age * 10",
-        "max_particles": 100
+        "active_ticks": 1
       },
       "spawn_shape": {
-        "type": "sphere",
-        "offset": [0, 0.2, 0],
-        "radius": "0.2 + emitter.normalized_age * 5.0",
-        "edge_thickness": 0.0
+        "type": "point",
+        "offset": [0, 0, 0]
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 20
       },
       "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": "0.02 + particle.random * 0.05",
-          "acceleration": [0, 0, 0],
-          "linear_drag": 0
-        }
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
       },
       "render": {
-        "type": "minecraft_particle",
-        "minecraft_particle": {
-          "particle": "minecraft:smoke"
-        }
+        "type": "sprite",
+        "sprite": {
+          "texture": "pyro_vfx:textures/vfx/smoke.png"
+        },
+        "color": "#FFFFFFFF",
+        "alpha": 1.0,
+        "size": 0.5
       }
     }
   ]
