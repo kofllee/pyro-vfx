@@ -60,7 +60,7 @@
           "1.0 - particle.normalized_age"
         ],
         "alpha": "particle.normalized_age",
-        "size": "0.45 + particle.speed * 9.0"
+        "scale": ["-10", "1", 1.0 ]
       }
     },
     {
@@ -113,7 +113,7 @@
           "1.0 - particle.normalized_age"
         ],
         "alpha": "particle.normalized_age",
-        "size": "0.45 + particle.speed * 9.0"
+        "scale": ["0.45 + particle.speed * 9.0", "0.45 + particle.speed * 9.0", 1.0 ]
       }
     },
     {
@@ -165,7 +165,7 @@
           "0.5 + particle.vel.z * 18.0",
           "1.0 - particle.normalized_age"
         ],
-        "size": "0.45 + particle.speed * 9.0"
+        "scale": ["0.45 + particle.speed * 9.0", "0.45 + particle.speed * 9.0", 1.0 ]
       }
     }
   ]

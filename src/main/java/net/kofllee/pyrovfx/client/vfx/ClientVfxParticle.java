@@ -22,7 +22,7 @@ public final class ClientVfxParticle {
     private Vec3 angularVelocity;
 
     private int age;
-    private double size;
+    private Vec3 scale;
     private VfxColor color;
 
     public ClientVfxParticle(
@@ -46,6 +46,7 @@ public final class ClientVfxParticle {
         this.lifetime = Math.max(1, lifetime);
         this.random = random;
         this.color = new VfxColor(1.0, 1.0, 1.0, 1.0);
+        this.scale = new Vec3(1.0, 1.0, 1.0);
     }
 
     public void tick(VfxExpressionContext emitterContext){
@@ -63,7 +64,7 @@ public final class ClientVfxParticle {
                 age,
                 lifetime,
                 random,
-                1.0
+                new Vec3(1.0, 1.0, 1.0)
         );
 
         tickMotion(particleContext);
@@ -80,13 +81,11 @@ public final class ClientVfxParticle {
                 age,
                 lifetime,
                 random,
-                size
+                scale
         );
 
-        size = emitterDefinition.render().appearance().size().evaluate(renderContext);
+        scale = emitterDefinition.render().appearance().scale().evaluate(renderContext).toVec3();
         color = emitterDefinition.render().appearance().color().evaluate(renderContext);
-
-        size =  Math.max(0.0, size);
 
         age++;
     }
@@ -159,8 +158,8 @@ public final class ClientVfxParticle {
         return lifetime <= 0 ? 1.0 : Math.min(1.0, age / (double) lifetime);
     }
 
-    public double size(){
-        return size;
+    public Vec3 scale(){
+        return scale;
     }
 
     public VfxColor color(){

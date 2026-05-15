@@ -88,7 +88,7 @@ public final class ClientVfxExpressionContexts {
             int particleAge,
             int particleLifetime,
             double particleRandom,
-            double particleSize
+            Vec3 particleScale
     ) {
         double normalizedAge = particleLifetime <= 0
                 ? 1.0
@@ -99,7 +99,7 @@ public final class ClientVfxExpressionContexts {
                 .number("particle.lifetime", particleLifetime)
                 .number("particle.normalized_age", normalizedAge)
                 .number("particle.random", particleRandom)
-                .number("particle.size", particleSize)
+                .vec3("particle.scale", particleScale)
                 .vec3("particle.rotation", rotation)
                 .vec3("particle.angular_velocity", angularVelocity)
                 .vec3("spawn.pos", spawnPosition)

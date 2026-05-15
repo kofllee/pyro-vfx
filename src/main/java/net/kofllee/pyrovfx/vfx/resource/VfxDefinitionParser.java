@@ -296,10 +296,10 @@ public final class VfxDefinitionParser {
                         new VfxColor(1.0, 1.0, 1.0, 1.0),
                         VfxEvaluationMode.PARTICLE_TICK
                 ),
-                getNumberExpression(
+                getVec3Expression(
                         json,
-                        "size",
-                        1.0,
+                        "scale",
+                        new VfxVec3(1.0, 1.0, 1.0),
                         VfxEvaluationMode.PARTICLE_TICK
                 )
         );

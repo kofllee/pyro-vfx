@@ -35,10 +35,10 @@ public final class SpriteVfxParticleRenderer {
         double y = particlePosition.y - cameraPosition.y;
         double z = particlePosition.z - cameraPosition.z;
 
-        float size = (float) particle.size();
+        Vec3 scale = particle.scale();
 
-        if(size <= 0)
-            return;
+        float width = (float) scale.x;
+        float height = (float) scale.y;
 
         VfxColor color = particle.color();
 
@@ -59,12 +59,14 @@ public final class SpriteVfxParticleRenderer {
         applyParticleRotation(particle, poseStack, partialTick);
 
         Matrix4f matrix = poseStack.last().pose();
-        float halfSize = size * 0.5f;
 
-        vertex(consumer, matrix, -halfSize, -halfSize, 0.0F, 0.0F, 1.0F, r, g, b, a);
-        vertex(consumer, matrix,  halfSize, -halfSize, 0.0F, 1.0F, 1.0F, r, g, b, a);
-        vertex(consumer, matrix,  halfSize,  halfSize, 0.0F, 1.0F, 0.0F, r, g, b, a);
-        vertex(consumer, matrix, -halfSize,  halfSize, 0.0F, 0.0F, 0.0F, r, g, b, a);
+        float halfWidth = width * 0.5F;
+        float halfHeight = height * 0.5F;
+
+        vertex(consumer, matrix, -halfWidth, -halfHeight, 0.0F, 0.0F, 1.0F, r, g, b, a);
+        vertex(consumer, matrix,  halfWidth, -halfHeight, 0.0F, 1.0F, 1.0F, r, g, b, a);
+        vertex(consumer, matrix,  halfWidth,  halfHeight, 0.0F, 1.0F, 0.0F, r, g, b, a);
+        vertex(consumer, matrix, -halfWidth,  halfHeight, 0.0F, 0.0F, 0.0F, r, g, b, a);
 
         poseStack.popPose();
     }
