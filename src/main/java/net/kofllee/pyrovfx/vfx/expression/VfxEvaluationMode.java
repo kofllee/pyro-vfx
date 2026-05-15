@@ -4,6 +4,7 @@ public enum VfxEvaluationMode {
     DEFINITION,
     EFFECT_START,
     EMITTER_START,
+    EMITTER_TICK,
     PARTICLE_SPAWN,
-    TICK
+    PARTICLE_TICK
 }

@@ -10,8 +10,8 @@ public record VfxParametricMotionDefinition(
 ) {
     public static VfxParametricMotionDefinition none() {
         return new VfxParametricMotionDefinition(
-                VfxVec3Expression.constant(VfxVec3.ZERO, VfxEvaluationMode.TICK),
-                VfxVec3Expression.constant(new VfxVec3(0.0, 1.0, 0.0), VfxEvaluationMode.TICK)
+                VfxVec3Expression.constant(VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_TICK),
+                VfxVec3Expression.constant(new VfxVec3(0.0, 1.0, 0.0), VfxEvaluationMode.PARTICLE_TICK)
         );
     }
 

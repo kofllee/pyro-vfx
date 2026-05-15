@@ -15,8 +15,8 @@ public record VfxDynamicRotationDefinition(
         return new VfxDynamicRotationDefinition(
                 VfxVec3Expression.constant(VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_SPAWN),
                 VfxVec3Expression.constant(VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_SPAWN),
-                VfxVec3Expression.constant(VfxVec3.ZERO, VfxEvaluationMode.TICK),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.TICK)
+                VfxVec3Expression.constant(VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_TICK),
+                VfxNumberExpression.constant(0.0, VfxEvaluationMode.PARTICLE_TICK)
         );
     }
 

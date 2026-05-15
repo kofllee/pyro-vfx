@@ -9,7 +9,7 @@ public record VfxParametricRotationDefinition(
 ) {
     public static VfxParametricRotationDefinition none() {
         return new VfxParametricRotationDefinition(
-                VfxVec3Expression.constant(VfxVec3.ZERO, VfxEvaluationMode.TICK)
+                VfxVec3Expression.constant(VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_TICK)
         );
     }
 

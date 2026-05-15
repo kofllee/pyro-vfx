@@ -30,7 +30,7 @@ public final class VfxDefinitionParser {
 
         VfxLifetimeDefinition lifetime = json.has("lifetime")
                 ? parseLifetime(getObject(json, "lifetime"))
-                : VfxLifetimeDefinition.once(0, 20);
+                : VfxLifetimeDefinition.none();
 
         List<VfxEmitterDefinition> emitters = new ArrayList<>();
         JsonArray array = getArray(json, "emitters");
@@ -60,10 +60,11 @@ public final class VfxDefinitionParser {
                 "effect lifetime mode"
         );
 
-        int delayTicks = getInt(json, "delay_ticks", 0);
-        int activeTicks = getInt(json, "active_ticks", 20);
-        int sleepTicks = getInt(json, "sleep_ticks", 0);
-        int loops = getInt(json, "loops", 1);
+        VfxNumberExpression delayTicks = getNumberExpression(json, "delay_ticks", 0.0, VfxEvaluationMode.EFFECT_START);
+        VfxNumberExpression activeTicks = getNumberExpression(json, "active_ticks", 1.0, VfxEvaluationMode.EFFECT_START);
+        VfxNumberExpression sleepTicks = getNumberExpression(json, "sleep_ticks", 0.0, VfxEvaluationMode.EFFECT_START);
+
+        VfxNumberExpression loops = getNumberExpression(json, "loops", 1.0, VfxEvaluationMode.EFFECT_START);
 
         return switch (mode) {
             case ONCE -> VfxLifetimeDefinition.once(delayTicks, activeTicks);
@@ -75,7 +76,7 @@ public final class VfxDefinitionParser {
 
         VfxEmitterLifetimeDefinition emitterLifetime = json.has("emitter_lifetime")
                 ? parseEmitterLifetime(getObject(json, "emitter_lifetime"))
-                : VfxEmitterLifetimeDefinition.once(0, 1);
+                : VfxEmitterLifetimeDefinition.none();
         VfxSpawnAmountDefinition spawnAmount = json.has("spawn_amount")
                 ? parseSpawnAmount(getObject(json, "spawn_amount"))
                 : VfxSpawnAmountDefinition.defaultInstant();
@@ -121,14 +122,14 @@ public final class VfxDefinitionParser {
         return VfxDynamicRotationDefinition.of(
                 getVec3Expression(json, "start_rotation", VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_SPAWN),
                 getVec3Expression(json, "angular_velocity", VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_SPAWN),
-                getVec3Expression(json, "angular_acceleration", VfxVec3.ZERO, VfxEvaluationMode.TICK),
-                getNumberExpression(json, "angular_drag", 0.0, VfxEvaluationMode.TICK)
+                getVec3Expression(json, "angular_acceleration", VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_TICK),
+                getNumberExpression(json, "angular_drag", 0.0, VfxEvaluationMode.PARTICLE_TICK)
         );
     }
 
     private static VfxParametricRotationDefinition parseParametricRotation(JsonObject json) {
         return VfxParametricRotationDefinition.of(
-                getVec3Expression(json, "rotation", VfxVec3.ZERO, VfxEvaluationMode.TICK)
+                getVec3Expression(json, "rotation", VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_TICK)
         );
     }
 
@@ -151,7 +152,7 @@ public final class VfxDefinitionParser {
                     getNumberExpression(json, "amount", 1.0, VfxEvaluationMode.EMITTER_START)
             );
             case STEADY -> VfxSpawnAmountDefinition.steady(
-                    getNumberExpression(json, "rate", 20.0, VfxEvaluationMode.TICK),
+                    getNumberExpression(json, "rate", 20.0, VfxEvaluationMode.EMITTER_TICK),
                     getNumberExpression(json, "max_particles", 256.0, VfxEvaluationMode.EMITTER_START)
             );
             case MANUAL -> VfxSpawnAmountDefinition.manual(
@@ -166,10 +167,11 @@ public final class VfxDefinitionParser {
                 getString(json, "mode", "once"),
                 "emitter lifetime mode"
         );
-        int delayTicks = getInt(json, "delay_ticks", 0);
-        int activeTicks = getInt(json, "active_ticks", 1);
-        int sleepTicks = getInt(json, "sleep_ticks", 0);
-        int loops = getInt(json, "loops", 1);
+        VfxNumberExpression delayTicks = getNumberExpression(json, "delay_ticks", 0.0, VfxEvaluationMode.EMITTER_START);
+        VfxNumberExpression activeTicks = getNumberExpression(json, "active_ticks", 1.0, VfxEvaluationMode.EMITTER_START);
+        VfxNumberExpression sleepTicks = getNumberExpression(json, "sleep_ticks", 0.0, VfxEvaluationMode.EMITTER_START);
+
+        VfxNumberExpression loops = getNumberExpression(json, "loops", 1.0, VfxEvaluationMode.EMITTER_START);
 
         return switch(mode) {
             case ONCE -> VfxEmitterLifetimeDefinition.once(delayTicks, activeTicks);
@@ -204,8 +206,8 @@ public final class VfxDefinitionParser {
 
     private static VfxParametricMotionDefinition parseParametricMotion(JsonObject json) {
         return VfxParametricMotionDefinition.of(
-                getVec3Expression(json, "offset", VfxVec3.ZERO, VfxEvaluationMode.TICK),
-                getVec3Expression(json, "direction", new VfxVec3(0.0, 1.0, 0.0), VfxEvaluationMode.TICK)
+                getVec3Expression(json, "offset", VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_TICK),
+                getVec3Expression(json, "direction", new VfxVec3(0.0, 1.0, 0.0), VfxEvaluationMode.PARTICLE_TICK)
         );
     }
 
@@ -220,8 +222,8 @@ public final class VfxDefinitionParser {
                 direction,
                 getVec3Expression(json, "custom_direction", new VfxVec3(0.0, 1.0, 0.0), VfxEvaluationMode.PARTICLE_SPAWN),
                 getNumberExpression(json, "speed", 0.0, VfxEvaluationMode.PARTICLE_SPAWN),
-                getVec3Expression(json, "acceleration", VfxVec3.ZERO, VfxEvaluationMode.TICK),
-                getNumberExpression(json, "linear_drag", 0.0, VfxEvaluationMode.TICK)
+                getVec3Expression(json, "acceleration", VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_TICK),
+                getNumberExpression(json, "linear_drag", 0.0, VfxEvaluationMode.PARTICLE_TICK)
         );
     }
 
@@ -238,8 +240,8 @@ public final class VfxDefinitionParser {
                 getBoolean(json, "collide", false),
                 collisionType,
                 getVec3Expression(json, "collision_size", defaultSize, VfxEvaluationMode.PARTICLE_SPAWN),
-                getNumberExpression(json, "collision_drag", 0.0, VfxEvaluationMode.TICK),
-                getNumberExpression(json, "bounciness", 0.0, VfxEvaluationMode.TICK),
+                getNumberExpression(json, "collision_drag", 0.0, VfxEvaluationMode.PARTICLE_TICK),
+                getNumberExpression(json, "bounciness", 0.0, VfxEvaluationMode.PARTICLE_TICK),
                 getBoolean(json, "expire_on_contact", false),
                 json.has("events")
                         ? parseEvents(getObject(json, "events"))
@@ -303,19 +305,29 @@ public final class VfxDefinitionParser {
                 "spawn shape type"
         );
 
-        VfxVec3 offset = getVec3(json, "offset", VfxVec3.ZERO);
-        double edgeThickness = getDouble(json, "edge_thickness", 0.0);
+        VfxVec3Expression offset = getVec3Expression(
+                json,
+                "offset",
+                VfxVec3.ZERO,
+                VfxEvaluationMode.EMITTER_TICK
+        );
+        VfxNumberExpression edgeThickness = getNumberExpression(
+                json,
+                "edge_thickness",
+                0.0,
+                VfxEvaluationMode.EMITTER_TICK
+        );
 
         return switch (type) {
             case POINT -> VfxSpawnShapeDefinition.point(offset);
             case SPHERE -> VfxSpawnShapeDefinition.sphere(
                     offset,
-                    getDouble(json, "radius", 0.25),
+                    getNumberExpression(json, "radius", 0.25, VfxEvaluationMode.EMITTER_TICK),
                     edgeThickness
             );
             case BOX -> VfxSpawnShapeDefinition.box(
                     offset,
-                    getVec3(json, "half_extents", new VfxVec3(0.25, 0.25, 0.25)),
+                    getVec3Expression(json, "half_extents", new VfxVec3(0.25, 0.25, 0.25), VfxEvaluationMode.EMITTER_TICK),
                     edgeThickness
             );
         };

@@ -20,8 +20,8 @@ public record  VfxMotionCollisionDefinition(
                 false,
                 VfxCollisionType.SPHERE,
                 VfxVec3Expression.constant(new VfxVec3(0.05, 0.05, 0.05), VfxEvaluationMode.PARTICLE_SPAWN),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.TICK),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.TICK),
+                VfxNumberExpression.constant(0.0, VfxEvaluationMode.PARTICLE_TICK),
+                VfxNumberExpression.constant(0.0, VfxEvaluationMode.PARTICLE_TICK),
 
                 false,
                 VfxEventsDefinition.empty()
