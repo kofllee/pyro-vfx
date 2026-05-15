@@ -27,6 +27,10 @@ public final class VfxRotationSampler {
         if(rotation.mode() == VfxRotationMode.NONE)
             return Vec3.ZERO;
 
+        if (rotation.mode() != VfxRotationMode.DYNAMIC) {
+            return Vec3.ZERO;
+        }
+
         Vec3 degreesPerSecond = rotation.dynamic().angularVelocity().evaluate(context).toVec3();
 
         return new Vec3(

@@ -2,45 +2,50 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "Sprite render test"
+    "description": "Big rotating sprite particles."
   },
   "lifetime": {
     "mode": "once",
-    "active_ticks": 60
+    "delay_ticks": 0,
+    "active_ticks": 10000
   },
   "emitters": [
     {
-      "spawn_amount": {
-        "mode": "instant",
-        "amount": 8
-      },
       "emitter_lifetime": {
         "mode": "once",
+        "delay_ticks": 0,
         "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 20
       },
       "spawn_shape": {
         "type": "sphere",
-        "offset": [0, 0, 0],
-        "radius": 0.2,
-        "edge_thickness": 0
+        "offset": [0, 1.2, 0],
+        "radius": 1.2,
+        "edge_thickness": 0.0
       },
       "particle_lifetime": {
-        "max_age_ticks": 60
+        "max_age_ticks": 10000
       },
       "motion": {
         "mode": "dynamic",
         "dynamic": {
           "direction": "outward",
-          "speed": 0.7,
-          "acceleration": [0, 0.001, 0],
-          "linear_drag": 0.02
+          "custom_direction": [0, 1, 0],
+          "speed": 0.15,
+          "acceleration": [0, 0, 0],
+          "linear_drag": 2.5
         }
       },
       "rotation": {
         "mode": "dynamic",
         "dynamic": {
-          "angular_velocity": [0, 0, 5],
-          "angular_drag": 0.1
+          "start_rotation": [0, 0, "particle.random * 360"],
+          "angular_velocity": [0, 0, "90 + particle.random * 180"],
+          "angular_acceleration": [0, 0, 0],
+          "angular_drag": 0.0
         }
       },
       "render": {
@@ -48,9 +53,9 @@
         "sprite": {
           "texture": "pyro_vfx:textures/vfx/smoke.png"
         },
-        "color": "#FFFFFFFF",
-        "alpha": 0.75,
-        "size": 0.5
+        "color": "#FFCC66FF",
+        "alpha": 1.0,
+        "size": 1.6
       }
     }
   ]

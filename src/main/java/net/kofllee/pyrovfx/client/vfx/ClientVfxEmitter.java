@@ -214,16 +214,6 @@ public final class ClientVfxEmitter {
                     random
             );
 
-            Vec3 rotation = VfxRotationSampler.sampleInitialRotation(
-                    definition.rotation(),
-                    preSpawnContext
-            );
-
-            Vec3 angularVelocity = VfxRotationSampler.sampleInitialAngularVelocity(
-                    definition.rotation(),
-                    preSpawnContext
-            );
-
             VfxExpressionContext particleSpawnContext = ClientVfxExpressionContexts.particleSpawn(
                     emitterContext,
                     particlePosition,
@@ -237,6 +227,16 @@ public final class ClientVfxEmitter {
                     particlePosition,
                     particleSpawnContext,
                     random
+            );
+
+            Vec3 rotation = VfxRotationSampler.sampleInitialRotation(
+                    definition.rotation(),
+                    particleSpawnContext
+            );
+
+            Vec3 angularVelocity = VfxRotationSampler.sampleInitialAngularVelocity(
+                    definition.rotation(),
+                    particleSpawnContext
             );
 
             if(definition.render().type() == VfxRenderType.MINECRAFT_PARTICLE){

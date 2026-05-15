@@ -86,9 +86,9 @@ public final class ClientVfxParticle {
                 alpha
         );
 
-        size = emitterDefinition.render().appearance().size().evaluate(particleContext);
-        alpha = emitterDefinition.render().appearance().alpha().evaluate(particleContext);
-        color = emitterDefinition.render().appearance().color().evaluate(particleContext);
+        size = emitterDefinition.render().appearance().size().evaluate(renderContext);
+        alpha = emitterDefinition.render().appearance().alpha().evaluate(renderContext);
+        color = emitterDefinition.render().appearance().color().evaluate(renderContext);
 
         size =  Math.max(0.0, size);
         alpha = Math.clamp(alpha, 0.0, 1.0);

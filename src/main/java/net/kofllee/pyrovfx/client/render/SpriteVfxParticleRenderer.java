@@ -52,6 +52,8 @@ public final class SpriteVfxParticleRenderer {
 
         poseStack.pushPose();
         poseStack.translate(x, y, z);
+
+        poseStack.mulPose(camera.rotation());
         poseStack.mulPose(Axis.ZP.rotationDegrees((float) particle.interpolatedRotation(partialTick).z));
 
         Matrix4f matrix = poseStack.last().pose();
