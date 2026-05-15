@@ -1,9 +1,11 @@
 package net.kofllee.pyrovfx.client.vfx;
 
+import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -11,6 +13,8 @@ import java.util.List;
 
 public final class ClientVfxManager {
     private static final List<ClientVfxInstance> INSTANCES = new ArrayList<>();
+
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     private ClientVfxManager(){}
 
@@ -30,7 +34,14 @@ public final class ClientVfxManager {
         Iterator<ClientVfxInstance> iterator = INSTANCES.iterator();
         while(iterator.hasNext()){
             ClientVfxInstance instance = iterator.next();
-            instance.tick(minecraft.level);
+
+            try {
+                instance.tick(level);
+            } catch (Exception e) {
+                LOGGER.error("Failed to tick Pyro VFX instance: {}", instance.definition().id(), e);
+                iterator.remove();
+                continue;
+            }
 
             if(instance.isFinished()){
                 iterator.remove();

@@ -22,6 +22,8 @@ public final class ClientVfxInstance {
     private final int sleepTicks;
     private final int loops;
 
+    private final List<ClientVfxParticle> particles = new ArrayList<>();
+
     private int age;
 
     public ClientVfxInstance(VfxDefinition definition, Vec3 postion){
@@ -52,7 +54,17 @@ public final class ClientVfxInstance {
 
         if (isEffectActive()) {
             for (var emitter : emitters) {
-                emitter.tick(level, position, position, effectContext, random);
+                particles.addAll(emitter.tick(level, position, position, effectContext, random));
+            }
+
+            for(var particleIterator = particles.iterator(); particleIterator.hasNext(); ){
+                ClientVfxParticle particle = particleIterator.next();
+
+                particle.tick(effectContext);
+
+                if(particle.isDead()){
+                    particleIterator.remove();
+                }
             }
         }
 
@@ -80,7 +92,7 @@ public final class ClientVfxInstance {
             if(loops > 0){
                 int completeCycles = localAge / cycleTicks;
 
-                if(completeCycles > loops){
+                if(completeCycles >= loops){
                     return false;
                 }
             }
@@ -95,14 +107,20 @@ public final class ClientVfxInstance {
     public boolean isFinished(){
         if(definition.lifetime().mode() == VfxLifetimeMode.ONCE) {
             return age >= delayTicks + activeTicks
-                    && emitters.stream().allMatch(ClientVfxEmitter::isFinished);
+                    && emitters.stream().allMatch(ClientVfxEmitter::isFinished)
+                    && particles.isEmpty();
         }
 
         if(definition.lifetime().mode() == VfxLifetimeMode.LOOPING && loops > 0) {
             int cycleTicks = activeTicks + sleepTicks;
-            return cycleTicks <= 0 || age >= delayTicks + cycleTicks * loops;
+            return (cycleTicks <= 0 || age >= delayTicks + cycleTicks * loops)
+                    && particles.isEmpty();
         }
 
         return false;
+    }
+
+    public VfxDefinition definition() {
+        return definition;
     }
 }

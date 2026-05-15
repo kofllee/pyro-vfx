@@ -253,27 +253,6 @@ public final class VfxDefinitionParser {
         return VfxEventsDefinition.empty();
     }
 
-    private static VfxVelocityDefinition parseVelocity(JsonObject json) {
-        VfxVelocityMode mode = parseEnum(
-                VfxVelocityMode.class,
-                getString(json, "mode", "none"),
-                "velocity mode"
-        );
-
-        double speed = getDouble(json, "speed", 0.0);
-        double speedRandom = getDouble(json, "speed_random", 0.0);
-
-        return switch (mode) {
-            case NONE -> VfxVelocityDefinition.none();
-            case CONSTANT -> VfxVelocityDefinition.constant(
-                    getVec3(json, "direction", new VfxVec3(0.0, 1.0, 0.0)),
-                    speed,
-                    speedRandom
-            );
-            case RANDOM -> VfxVelocityDefinition.random(speed, speedRandom);
-            case SPHERICAL -> VfxVelocityDefinition.spherical(speed, speedRandom);
-        };
-    }
 
     private static VfxRenderDefinition parseRender(JsonObject json) {
         VfxRenderType type = parseEnum(

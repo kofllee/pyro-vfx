@@ -6,7 +6,6 @@ import net.kofllee.pyrovfx.vfx.definition.VfxVelocityDefinition;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.type.VfxDirectionMode;
 import net.kofllee.pyrovfx.vfx.type.VfxMotionMode;
-import net.kofllee.pyrovfx.vfx.type.VfxVelocityMode;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 
@@ -55,7 +54,7 @@ public final class VfxMotionSampler {
         if(direction == VfxDirectionMode.OUTWARD) {
             Vec3 outward = particlePosition.subtract(emitterPosition);
             if (outward.lengthSqr() < 1e-6) {
-                return Vec3.ZERO;
+                return VfxRandom.direction(random);
             }
 
             return outward;
