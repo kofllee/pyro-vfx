@@ -1,5 +1,6 @@
 package net.kofllee.pyrovfx.client.vfx.sampling;
 
+import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.type.VfxSpawnShapeType;
 import net.kofllee.pyrovfx.vfx.definition.VfxSpawnShapeDefinition;
 import net.minecraft.util.RandomSource;
@@ -8,18 +9,34 @@ import net.minecraft.world.phys.Vec3;
 public final class VfxSpawnPositionSampler {
     private VfxSpawnPositionSampler() {}
 
-    public static Vec3 sample(Vec3 emitterPosition, VfxSpawnShapeDefinition spawnShape, RandomSource random) {
-        Vec3 base = emitterPosition.add(spawnShape.offset().toVec3());
+    public static Vec3 sample(
+            Vec3 emitterPosition,
+            VfxSpawnShapeDefinition spawnShape,
+            VfxExpressionContext context,
+            RandomSource random
+    ) {
+        Vec3 base = emitterPosition.add(spawnShape.offset().evaluate(context).toVec3());
 
         if(spawnShape.type() == VfxSpawnShapeType.POINT){
             return base;
         }
+
         if(spawnShape.type() == VfxSpawnShapeType.SPHERE){
-            return sampleSphere(base, spawnShape.radius(), spawnShape.edgeThickness(), random);
+            return sampleSphere(
+                    base,
+                    spawnShape.radius().evaluate(context),
+                    spawnShape.edgeThickness().evaluate(context),
+                    random
+            );
         }
 
         if(spawnShape.type() == VfxSpawnShapeType.BOX){
-            return sampleBox(base, spawnShape.halfExtents().toVec3(), spawnShape.edgeThickness(), random);
+            return sampleBox(
+                    base,
+                    spawnShape.halfExtents().evaluate(context).toVec3(),
+                    spawnShape.edgeThickness().evaluate(context),
+                    random
+            );
         }
 
         return base;

@@ -5,7 +5,5 @@ public enum VfxDirectionMode {
     OUTWARD,
     INWARD,
     UP,
-    DOWN,
-    SHAPE_NORMAL,
-    EMITTER_FORWARD
+    DOWN
 }
