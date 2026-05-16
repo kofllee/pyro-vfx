@@ -90,7 +90,6 @@ public final class ClientVfxEmitter {
                 effectPosition,
                 emitterPosition,
                 effectContext,
-                emitterContext,
                 random,
                 events,
                 emittersById
@@ -115,48 +114,47 @@ public final class ClientVfxEmitter {
         }
     }
 
-    private void tickTriggers(ClientLevel level, Vec3 effectPosition, Vec3 emitterPosition, VfxExpressionContext effectContext, VfxExpressionContext emitterContext, RandomSource random, Map<String, VfxEventDefinition> events, Map<String, ClientVfxEmitter> emittersById) {
-        for(var trigger : definition.triggers()) {
-            if(!shouldFireTrigger(trigger)){
-                continue;
-            }
-
-            VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, effectContext, random);
+    private void tickTriggers(
+            ClientLevel level,
+            Vec3 effectPosition,
+            Vec3 emitterPosition,
+            VfxExpressionContext effectContext,
+            RandomSource random,
+            Map<String, VfxEventDefinition> events,
+            Map<String, ClientVfxEmitter> emittersById
+    ) {
+        if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.MANUAL) {
+            return;
         }
-    }
 
-    private boolean shouldFireTrigger(VfxTriggerDefinition trigger) {
-        if (trigger.type() == VfxTriggerType.ON_CREATION) {
-            if (creationTriggersFired) {
-                return false;
-            }
-
-            if (age != 0) {
-                return false;
-            }
-
+        if (age == 0 && !creationTriggersFired) {
             creationTriggersFired = true;
-            return true;
+
+            for (VfxTriggerDefinition trigger : definition.triggers()) {
+                if (trigger.type() == VfxTriggerType.ON_CREATION) {
+                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, effectContext, random);
+                }
+            }
         }
 
-        if (trigger.type() == VfxTriggerType.TIMELINE) {
-            return age == trigger.timeTicks();
+        if (isActive()) {
+            for (VfxTriggerDefinition trigger : definition.triggers()) {
+                if (trigger.type() == VfxTriggerType.TIMELINE
+                        && age == trigger.timeTicks()) {
+                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, effectContext, random);
+                }
+            }
         }
 
-        if (trigger.type() == VfxTriggerType.ON_EXPIRATION) {
-            if (expirationTriggersFired) {
-                return false;
-            }
-
-            if (!isFinished()) {
-                return false;
-            }
-
+        if (!expirationTriggersFired && isEmitterLifetimeFinished()) {
             expirationTriggersFired = true;
-            return true;
-        }
 
-        return false;
+            for (VfxTriggerDefinition trigger : definition.triggers()) {
+                if (trigger.type() == VfxTriggerType.ON_EXPIRATION) {
+                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, effectContext, random);
+                }
+            }
+        }
     }
 
     private boolean isActive() {
@@ -347,7 +345,7 @@ public final class ClientVfxEmitter {
     ){
         VfxSpawnAmountDefinition spawnAmount = definition.spawnAmount();
 
-        int amount = Math.max(0, (int) Math.round(spawnAmount.rate().evaluate(emitterContext)));
+        int amount = Math.max(0, (int) Math.round(spawnAmount.amount().evaluate(emitterContext)));
 
         if(amount == 0) {
             return;
@@ -358,10 +356,27 @@ public final class ClientVfxEmitter {
 
     public boolean isFinished(){
         if(definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.MANUAL) {
-            return true;
+            return particles.isEmpty();
         }
 
         if(definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.ONCE) {
+            return age >= delayTicks + activeTicks;
+        }
+
+        if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.LOOPING && loops > 0) {
+            int cycleTicks = activeTicks + sleepTicks;
+            return cycleTicks <= 0 || age >= delayTicks + cycleTicks * loops;
+        }
+
+        return false;
+    }
+
+    private boolean isEmitterLifetimeFinished() {
+        if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.MANUAL) {
+            return false;
+        }
+
+        if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.ONCE) {
             return age >= delayTicks + activeTicks;
         }
 
