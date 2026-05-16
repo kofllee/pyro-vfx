@@ -4,13 +4,12 @@ import net.kofllee.pyrovfx.client.render.VanillaParticleBridge;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxRotationSampler;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxSpawnPositionSampler;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxMotionSampler;
-import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
-import net.kofllee.pyrovfx.vfx.definition.VfxEmitterLifetimeDefinition;
-import net.kofllee.pyrovfx.vfx.definition.VfxSpawnAmountDefinition;
+import net.kofllee.pyrovfx.vfx.definition.*;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.type.VfxEmitterLifetimeMode;
 import net.kofllee.pyrovfx.vfx.type.VfxSpawnAmountMode;
 import net.kofllee.pyrovfx.vfx.type.VfxRenderType;
+import net.kofllee.pyrovfx.vfx.type.VfxTriggerType;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
@@ -18,6 +17,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public final class ClientVfxEmitter {
     private final VfxEmitterDefinition definition;
@@ -32,6 +32,10 @@ public final class ClientVfxEmitter {
     private final int loops;
     private final int instantAmount;
     private final int maxParticles;
+
+    private boolean creationTriggersFired = false;
+    private boolean expirationTriggersFired = false;
+
 
     private final List<ClientVfxParticle> particles = new ArrayList<>();
 
@@ -68,6 +72,8 @@ public final class ClientVfxEmitter {
             Vec3 emitterPosition,
             VfxExpressionContext effectContext,
             boolean canSpawn,
+            Map<String, VfxEventDefinition> events,
+            Map<String, ClientVfxEmitter> emittersById,
             RandomSource random
     ) {
         VfxExpressionContext emitterContext = ClientVfxExpressionContexts.emitterTick(
@@ -77,6 +83,17 @@ public final class ClientVfxEmitter {
                 delayTicks,
                 activeTicks,
                 emittedParticles
+        );
+
+        tickTriggers(
+                level,
+                effectPosition,
+                emitterPosition,
+                effectContext,
+                emitterContext,
+                random,
+                events,
+                emittersById
         );
 
         if(canSpawn && isActive()){
@@ -96,6 +113,50 @@ public final class ClientVfxEmitter {
         if(canSpawn){
             age++;
         }
+    }
+
+    private void tickTriggers(ClientLevel level, Vec3 effectPosition, Vec3 emitterPosition, VfxExpressionContext effectContext, VfxExpressionContext emitterContext, RandomSource random, Map<String, VfxEventDefinition> events, Map<String, ClientVfxEmitter> emittersById) {
+        for(var trigger : definition.triggers()) {
+            if(!shouldFireTrigger(trigger)){
+                continue;
+            }
+
+            VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, effectContext, random);
+        }
+    }
+
+    private boolean shouldFireTrigger(VfxTriggerDefinition trigger) {
+        if (trigger.type() == VfxTriggerType.ON_CREATION) {
+            if (creationTriggersFired) {
+                return false;
+            }
+
+            if (age != 0) {
+                return false;
+            }
+
+            creationTriggersFired = true;
+            return true;
+        }
+
+        if (trigger.type() == VfxTriggerType.TIMELINE) {
+            return age == trigger.timeTicks();
+        }
+
+        if (trigger.type() == VfxTriggerType.ON_EXPIRATION) {
+            if (expirationTriggersFired) {
+                return false;
+            }
+
+            if (!isFinished()) {
+                return false;
+            }
+
+            expirationTriggersFired = true;
+            return true;
+        }
+
+        return false;
     }
 
     private boolean isActive() {
@@ -277,6 +338,24 @@ public final class ClientVfxEmitter {
         }
     }
 
+    public void emitManual(
+            ClientLevel level,
+            Vec3 effectPosition,
+            Vec3 emitterPosition,
+            VfxExpressionContext emitterContext,
+            RandomSource random
+    ){
+        VfxSpawnAmountDefinition spawnAmount = definition.spawnAmount();
+
+        int amount = Math.max(0, (int) Math.round(spawnAmount.rate().evaluate(emitterContext)));
+
+        if(amount == 0) {
+            return;
+        }
+
+        spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, amount);
+    }
+
     public boolean isFinished(){
         if(definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.MANUAL) {
             return true;
@@ -300,5 +379,20 @@ public final class ClientVfxEmitter {
 
     public List<ClientVfxParticle> particles() {
         return Collections.unmodifiableList(particles);
+    }
+
+    public int age() {
+        return age;
+    }
+    public int activeTicks() {
+        return activeTicks;
+    }
+
+    public int delayTicks() {
+        return delayTicks;
+    }
+
+    public int emittedParticles() {
+        return emittedParticles;
     }
 }

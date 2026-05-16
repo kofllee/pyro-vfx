@@ -2,79 +2,159 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "Render material matrix test: alpha/additive, depth_write true/false, environment_lighting true/false."
+    "description": "Named event and scoped trigger test."
   },
   "lifetime": {
-    "mode": "looping",
+    "mode": "once",
     "delay_ticks": 0,
-    "active_ticks": 200,
-    "sleep_ticks": 0,
-    "loops": 0
+    "active_ticks": 80
   },
+  "events": {
+    "bang": {
+      "type": "sequence",
+      "events": ["flash_event", "sparks_event", "smoke_event"]
+    },
+    "flash_event": {
+      "type": "emit",
+      "emitter": "flash"
+    },
+    "sparks_event": {
+      "type": "emit",
+      "emitter": "sparks"
+    },
+    "smoke_event": {
+      "type": "emit",
+      "emitter": "smoke"
+    }
+  },
+  "triggers": [
+    {
+      "type": "on_creation",
+      "event": "bang"
+    }
+  ],
   "emitters": [
     {
+      "id": "flash",
       "emitter_lifetime": {
-        "mode": "looping",
-        "delay_ticks": 0,
-        "active_ticks": 200,
-        "sleep_ticks": 0,
-        "loops": 0
+        "mode": "manual"
       },
       "spawn_amount": {
-        "mode": "steady",
-        "rate": 12,
-        "max_particles": 120
+        "mode": "manual",
+        "amount": 1
       },
-      "offset": [0, 1.0, 0],
       "spawn_shape": {
-        "type": "sphere",
-        "radius": 0.12,
-        "edge_thickness": 1.0
+        "type": "point"
       },
       "particle_lifetime": {
-        "max_age_ticks": "35 + particle.random * 20"
+        "max_age_ticks": 5
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png"
+        },
+        "facing": "camera",
+        "environment_lighting": false,
+        "material": {
+          "blend_mode": "additive"
+        },
+        "color": [1.0, 0.8, 0.35, "1.0 - particle.normalized_age"],
+        "scale": [1.2, 1.2, 1.0]
+      }
+    },
+    {
+      "id": "sparks",
+      "emitter_lifetime": {
+        "mode": "manual"
+      },
+      "spawn_amount": {
+        "mode": "manual",
+        "amount": 24
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.15,
+        "edge_thickness": 0
+      },
+      "particle_lifetime": {
+        "max_age_ticks": "8 + particle.random * 10"
       },
       "motion": {
         "mode": "dynamic",
         "dynamic": {
-          "direction": "up",
-          "speed": "0.75 + particle.random * 0.25",
-          "acceleration": [
-            "(particle.random - 0.5) * 0.08",
-            0.12,
-            "(particle.random - 0.5) * 0.08"
-          ],
-          "linear_drag": 1.25
+          "direction": "outward",
+          "speed": "0.04 + particle.random * 0.1",
+          "acceleration": [0, -3.0, 0],
+          "linear_drag": 1.5
         }
       },
       "rotation": {
-        "mode": "dynamic",
-        "dynamic": {
-          "start_rotation": [0, 0, "particle.random * 360"],
-          "angular_velocity": [0, 0, "-45 + particle.random * 90"],
-          "angular_acceleration": [0, 0, 0],
-          "angular_drag": 1.2
-        }
+        "mode": "none"
       },
       "render": {
         "type": "sprite",
-        "facing": "camera",
-        "environment_lighting": false,
-        "material": {
-          "blend_mode": "alpha"
-        },
         "sprite": {
           "texture": "minecraft:textures/particle/generic_0.png"
         },
-        "color": [
-          1.0,
-          "0.45 + particle.random * 0.25",
-          0.08,
-          "1.0 - particle.normalized_age"
-        ],
+        "facing": "camera",
+        "environment_lighting": false,
+        "material": {
+          "blend_mode": "additive"
+        },
+        "color": [1.0, 0.55, 0.1, "1.0 - particle.normalized_age"],
+        "scale": [0.06, 0.06, 1.0]
+      }
+    },
+    {
+      "id": "smoke",
+      "emitter_lifetime": {
+        "mode": "manual"
+      },
+      "spawn_amount": {
+        "mode": "manual",
+        "amount": 32
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.25,
+        "edge_thickness": 0.2
+      },
+      "particle_lifetime": {
+        "max_age_ticks": "35 + particle.random * 35"
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": "0.015 + particle.random * 0.05",
+          "acceleration": [0, 0.35, 0],
+          "linear_drag": 1.2
+        }
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png"
+        },
+        "facing": "camera",
+        "environment_lighting": true,
+        "material": {
+          "blend_mode": "alpha"
+        },
+        "color": [0.4, 0.4, 0.4, "0.75 * (1.0 - particle.normalized_age)"],
         "scale": [
-          "0.35 + particle.normalized_age * 0.35",
-          "0.65 + particle.normalized_age * 0.55",
+          "0.2 + particle.normalized_age * 1.1",
+          "0.2 + particle.normalized_age * 1.1",
           1.0
         ]
       }

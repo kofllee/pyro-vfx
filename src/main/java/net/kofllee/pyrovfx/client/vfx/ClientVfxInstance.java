@@ -2,20 +2,24 @@ package net.kofllee.pyrovfx.client.vfx;
 
 import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxLifetimeDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxTimelineEventDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxTriggerDefinition;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
+import net.kofllee.pyrovfx.vfx.expression.VfxExpressionNode;
+import net.kofllee.pyrovfx.vfx.type.VfxEventType;
 import net.kofllee.pyrovfx.vfx.type.VfxLifetimeMode;
+import net.kofllee.pyrovfx.vfx.type.VfxTriggerType;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 public final class ClientVfxInstance {
     private final VfxDefinition definition;
     private final Vec3 position;
     private final List<ClientVfxEmitter> emitters = new ArrayList<>();
+    private final Map<String, ClientVfxEmitter> emittersById = new HashMap<>();
     private final RandomSource random = RandomSource.create();
 
     private final int delayTicks;
@@ -24,6 +28,8 @@ public final class ClientVfxInstance {
     private final int loops;
 
     private int age;
+    private boolean creationTriggersFired = false;
+    private boolean expirationTriggersFired = false;
 
     public ClientVfxInstance(VfxDefinition definition, Vec3 position){
         this.definition = definition;
@@ -39,7 +45,10 @@ public final class ClientVfxInstance {
 
 
         for(var emitterDef : definition.emitters()){
-            emitters.add(new ClientVfxEmitter(emitterDef, position, effectStartContext, random));
+            ClientVfxEmitter emitter = new ClientVfxEmitter(emitterDef, position, effectStartContext, random);
+
+            emitters.add(emitter);
+            emittersById.put(emitterDef.id(), emitter);
         }
     }
 
@@ -50,16 +59,94 @@ public final class ClientVfxInstance {
                 delayTicks,
                 activeTicks
         );
+        tickEffectTriggers(level, effectContext);
+        
         boolean effectActive = isEffectActive();
 
         for (var emitter : emitters) {
             Vec3 emitterOffset = emitter.definition().offset().evaluate(effectContext).toVec3();
             Vec3 emitterPosition = position.add(emitterOffset);
 
-            emitter.tick(level, position, emitterPosition, effectContext, isEffectActive(), random);
+            emitter.tick(level, position, emitterPosition, effectContext, isEffectActive(), definition.events(), emittersById, random);
         }
 
         age++;
+    }
+
+    private void tickEffectTriggers(ClientLevel level, VfxExpressionContext effectContext) {
+        for (VfxTriggerDefinition trigger : definition.triggers()) {
+            if (!shouldFireEffectTrigger(trigger)) {
+                continue;
+            }
+
+            VfxEventRunner.run(
+                    trigger.eventId(),
+                    definition.events(),
+                    emittersById,
+                    level,
+                    position,
+                    position,
+                    effectContext,
+                    random
+            );
+        }
+
+    }
+
+    private boolean shouldFireEffectTrigger(VfxTriggerDefinition trigger) {
+        if (trigger.type() == VfxTriggerType.ON_CREATION) {
+            if (creationTriggersFired) {
+                return false;
+            }
+
+            if (age != 0) {
+                return false;
+            }
+
+            creationTriggersFired = true;
+            return true;
+        }
+
+        if (trigger.type() == VfxTriggerType.TIMELINE) {
+            return age == trigger.timeTicks();
+        }
+
+        if (trigger.type() == VfxTriggerType.ON_EXPIRATION) {
+            if (expirationTriggersFired) {
+                return false;
+            }
+
+            if (!isEffectLifetimeFinished()) {
+                return false;
+            }
+
+            expirationTriggersFired = true;
+            return true;
+        }
+
+        return false;
+    }
+
+    private void emitFrom(ClientLevel level, VfxExpressionContext effectContext, VfxTimelineEventDefinition event) {
+        ClientVfxEmitter emitter = emittersById.get(event.emitterId());
+
+        if(emitter == null){
+            return;
+        }
+
+        Vec3 emitterOffset = emitter.definition().offset().evaluate(effectContext).toVec3();
+        Vec3 emitterPosition = position.add(emitterOffset);
+
+        VfxExpressionContext emitterContext = ClientVfxExpressionContexts.emitterTick(
+                effectContext,
+                emitterPosition,
+                0,
+                0,
+                0,
+                0
+        );
+
+        emitter.emitManual(level, position, emitterPosition, emitterContext, random);
     }
 
     private boolean isEffectActive() {
@@ -95,20 +182,26 @@ public final class ClientVfxInstance {
         return false;
     }
 
-    public boolean isFinished(){
+    private boolean isEffectLifetimeFinished() {
         if(definition.lifetime().mode() == VfxLifetimeMode.ONCE) {
-            return age >= delayTicks + activeTicks
-                    && emitters.stream().allMatch(ClientVfxEmitter::isFinished)
-                    && hasNoParticles();
+            return age >= delayTicks + activeTicks;
         }
 
         if(definition.lifetime().mode() == VfxLifetimeMode.LOOPING && loops > 0) {
             int cycleTicks = activeTicks + sleepTicks;
-            return (cycleTicks <= 0 || age >= delayTicks + cycleTicks * loops)
-                    && hasNoParticles();
+            return cycleTicks <= 0 || age >= delayTicks + cycleTicks * loops;
         }
 
         return false;
+    }
+
+    public boolean isFinished(){
+        if (!isEffectLifetimeFinished()) {
+            return false;
+        }
+
+        return emitters.stream().allMatch(ClientVfxEmitter::isFinished)
+                && hasNoParticles();
     }
 
     public VfxDefinition definition() {

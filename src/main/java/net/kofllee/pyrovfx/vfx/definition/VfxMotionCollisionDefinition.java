@@ -12,9 +12,7 @@ public record  VfxMotionCollisionDefinition(
         VfxVec3Expression collisionSize,
         VfxNumberExpression collisionDrag,
         VfxNumberExpression bounciness,
-        boolean expireOnContact,
-        VfxEventsDefinition events
-) {
+        boolean expireOnContact) {
     public static VfxMotionCollisionDefinition none() {
         return new VfxMotionCollisionDefinition(
                 false,
@@ -23,8 +21,7 @@ public record  VfxMotionCollisionDefinition(
                 VfxNumberExpression.constant(0.0, VfxEvaluationMode.PARTICLE_TICK),
                 VfxNumberExpression.constant(0.0, VfxEvaluationMode.PARTICLE_TICK),
 
-                false,
-                VfxEventsDefinition.empty()
+                false
         );
     }
 
@@ -34,8 +31,7 @@ public record  VfxMotionCollisionDefinition(
             VfxVec3Expression collisionSize,
             VfxNumberExpression collisionDrag,
             VfxNumberExpression bounciness,
-            boolean expireOnContact,
-            VfxEventsDefinition events
+            boolean expireOnContact
     ) {
         return new VfxMotionCollisionDefinition(
                 collide,
@@ -43,8 +39,7 @@ public record  VfxMotionCollisionDefinition(
                 collisionSize,
                 collisionDrag,
                 bounciness,
-                expireOnContact,
-                events
+                expireOnContact
         );
     }
 }

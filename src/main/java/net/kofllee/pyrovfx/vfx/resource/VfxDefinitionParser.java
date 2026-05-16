@@ -43,9 +43,81 @@ public final class VfxDefinitionParser {
             emitters.add(parseEmitter(emitter.getAsJsonObject(), i));
         }
 
-        validateEmitterIds(emitters);
+        Map<String, VfxEventDefinition> events = json.has("events")
+                ? parseEventsMap(getObject(json, "events"))
+                : Map.of();
 
-        return new VfxDefinition(location, format, metadata, lifetime, emitters);
+        List<VfxTriggerDefinition> triggers = json.has("triggers")
+                ? parseTriggers(getArray(json, "triggers"))
+                : List.of();
+
+        validateEventReferences(events, triggers);
+        validateEmitterIds(emitters);
+        validateEventEmitterReferences(events, emitters);
+        validateScopedTriggerReferences(triggers, events, "effect");
+        validateEmitterTriggerReferences(emitters, events);
+
+        return new VfxDefinition(location, format, metadata, lifetime, emitters, events, triggers);
+    }
+
+    private static List<VfxTriggerDefinition> parseTriggers(JsonArray array) {
+        List<VfxTriggerDefinition> triggers = new ArrayList<>();
+
+        for (JsonElement element : array) {
+            if (!element.isJsonObject()) {
+                throw new IllegalArgumentException("Trigger must be an object");
+            }
+
+            triggers.add(parseTrigger(element.getAsJsonObject()));
+        }
+
+        return List.copyOf(triggers);
+    }
+
+    private static VfxTriggerDefinition parseTrigger(JsonObject json) {
+        VfxTriggerType type = parseEnum(
+                VfxTriggerType.class,
+                getString(json, "type", "timeline"),
+                "trigger type"
+        );
+
+        String eventId = getRequiredString(json, "event");
+
+        return switch (type) {
+            case ON_CREATION -> VfxTriggerDefinition.onCreation(eventId);
+
+            case ON_EXPIRATION -> VfxTriggerDefinition.onExpiration(eventId);
+
+            case TIMELINE -> {
+                int timeTicks = getInt(json, "time_ticks", 0);
+
+                if (timeTicks < 0) {
+                    throw new IllegalArgumentException("Trigger time_ticks must be >= 0");
+                }
+
+                yield VfxTriggerDefinition.timeline(timeTicks, eventId);
+            }
+
+            case TRAVEL_DISTANCE -> {
+                double distance = getDouble(json, "distance", 0.0);
+
+                if (distance <= 0.0) {
+                    throw new IllegalArgumentException("Travel distance trigger distance must be > 0");
+                }
+
+                yield VfxTriggerDefinition.travelDistance(distance, eventId, false);
+            }
+
+            case TRAVEL_DISTANCE_LOOPING -> {
+                double distance = getDouble(json, "distance", 0.0);
+
+                if (distance <= 0.0) {
+                    throw new IllegalArgumentException("Travel distance looping trigger distance must be > 0");
+                }
+
+                yield VfxTriggerDefinition.travelDistance(distance, eventId, true);
+            }
+        };
     }
 
     private static void validateEmitterIds(List<VfxEmitterDefinition> emitters) {
@@ -61,6 +133,74 @@ public final class VfxDefinitionParser {
             if(!ids.add(id)) {
                 throw new IllegalArgumentException("Duplicate emitter id '" + id + "'");
             }
+        }
+    }
+
+    private static void validateEventReferences(Map<String, VfxEventDefinition> events, List<VfxTriggerDefinition> triggers) {
+        for (VfxTriggerDefinition trigger : triggers) {
+            if (!events.containsKey(trigger.eventId())) {
+                throw new IllegalArgumentException(
+                        "Unknown event id in trigger: " + trigger.eventId()
+                );
+            }
+        }
+
+        for (Map.Entry<String, VfxEventDefinition> entry : events.entrySet()) {
+            VfxEventDefinition event = entry.getValue();
+
+            if (event.type() == VfxEventType.SEQUENCE || event.type() == VfxEventType.RANDOMIZE) {
+                for (String nestedEventId : event.eventIds()) {
+                    if (!events.containsKey(nestedEventId)) {
+                        throw new IllegalArgumentException(
+                                "Unknown nested event id in event '" + entry.getKey() + "': " + nestedEventId
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    private static void validateEventEmitterReferences(Map<String, VfxEventDefinition> events, List<VfxEmitterDefinition> emitters) {
+        Set<String> emitterIds = new HashSet<>();
+
+        for (VfxEmitterDefinition emitter : emitters) {
+            emitterIds.add(emitter.id());
+        }
+
+        for (Map.Entry<String, VfxEventDefinition> entry : events.entrySet()) {
+            VfxEventDefinition event = entry.getValue();
+
+            if (event.type() == VfxEventType.EMIT && !emitterIds.contains(event.emitterId())) {
+                throw new IllegalArgumentException(
+                        "Unknown emitter id in event '" + entry.getKey() + "': " + event.emitterId()
+                );
+            }
+        }
+    }
+
+    private static void validateScopedTriggerReferences(List<VfxTriggerDefinition> triggers, Map<String, VfxEventDefinition> events, String scopeName) {
+        for (VfxTriggerDefinition trigger : triggers) {
+            if (!events.containsKey(trigger.eventId())) {
+                throw new IllegalArgumentException(
+                        "Unknown event id in " + scopeName + " trigger: " + trigger.eventId()
+                );
+            }
+        }
+    }
+
+    private static void validateEmitterTriggerReferences(List<VfxEmitterDefinition> emitters, Map<String, VfxEventDefinition> events) {
+        for (VfxEmitterDefinition emitter : emitters) {
+            validateScopedTriggerReferences(
+                    emitter.triggers(),
+                    events,
+                    "emitter '" + emitter.id() + "'"
+            );
+
+            validateScopedTriggerReferences(
+                    emitter.particleTriggers(),
+                    events,
+                    "particle trigger of emitter '" + emitter.id() + "'"
+            );
         }
     }
 
@@ -93,6 +233,14 @@ public final class VfxDefinitionParser {
     private static VfxEmitterDefinition parseEmitter(JsonObject json, int index) {
         String id = getString(json, "id", "emitter_" + index);
 
+        List<VfxTriggerDefinition> triggers = json.has("triggers")
+                ? parseTriggers(getArray(json, "triggers"))
+                : List.of();
+
+        List<VfxTriggerDefinition> particleTriggers = json.has("particle_triggers")
+                ? parseTriggers(getArray(json, "particle_triggers"))
+                : List.of();
+
         VfxEmitterLifetimeDefinition emitterLifetime = json.has("emitter_lifetime")
                 ? parseEmitterLifetime(getObject(json, "emitter_lifetime"))
                 : VfxEmitterLifetimeDefinition.none();
@@ -123,7 +271,7 @@ public final class VfxDefinitionParser {
                 ? parseRotation(getObject(json, "rotation"))
                 : VfxRotationDefinition.none();
 
-        return new VfxEmitterDefinition(id, emitterLifetime, spawnAmount, offset, spawnShape, particleLifetime, motion, rotation, render);
+        return new VfxEmitterDefinition(id, triggers, particleTriggers, emitterLifetime, spawnAmount, offset, spawnShape, particleLifetime, motion, rotation, render);
     }
 
     private static VfxRotationDefinition parseRotation(JsonObject json) {
@@ -268,15 +416,82 @@ public final class VfxDefinitionParser {
                 getVec3Expression(json, "collision_size", defaultSize, VfxEvaluationMode.PARTICLE_SPAWN),
                 getNumberExpression(json, "collision_drag", 0.0, VfxEvaluationMode.PARTICLE_TICK),
                 getNumberExpression(json, "bounciness", 0.0, VfxEvaluationMode.PARTICLE_TICK),
-                getBoolean(json, "expire_on_contact", false),
-                json.has("events")
-                        ? parseEvents(getObject(json, "events"))
-                        : VfxEventsDefinition.empty()
+                getBoolean(json, "expire_on_contact", false)
         );
     }
 
-    private static VfxEventsDefinition parseEvents(JsonObject json) {
-        return VfxEventsDefinition.empty();
+    private static Map<String, VfxEventDefinition> parseEventsMap(JsonObject json) {
+        Map<String, VfxEventDefinition> events = new HashMap<>();
+
+        for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
+            String id = entry.getKey();
+
+            if (id == null || id.isBlank()) {
+                throw new IllegalArgumentException("Event id must not be empty");
+            }
+
+            if (!entry.getValue().isJsonObject()) {
+                throw new IllegalArgumentException("Event must be an object: " + id);
+            }
+
+            if (events.containsKey(id)) {
+                throw new IllegalArgumentException("Duplicate event id: " + id);
+            }
+
+            events.put(id, parseEvent(entry.getValue().getAsJsonObject(), id));
+        }
+
+
+        return Map.copyOf(events);
+    }
+
+    private static VfxEventDefinition parseEvent(JsonObject json, String id) {
+        VfxEventType type = parseEnum(
+                VfxEventType.class,
+                getString(json, "type", "emit"),
+                "event type"
+        );
+
+
+        return switch (type) {
+            case EMIT -> VfxEventDefinition.emit(
+                    getRequiredString(json, "emitter")
+            );
+
+            case SEQUENCE -> VfxEventDefinition.sequence(
+                    parseStringList(getArray(json, "events"), "sequence event list: " + id)
+            );
+
+            case RANDOMIZE -> VfxEventDefinition.randomize(
+                    parseStringList(getArray(json, "events"), "randomize event list: " + id)
+            );
+        };
+    }
+
+    private static VfxTimelineEventDefinition parseTimelineEvent(JsonObject json) {
+        int timeTicks = getInt(json, "time_ticks", 0);
+
+        if (timeTicks < 0) {
+            throw new IllegalArgumentException("Timeline event time_ticks must be >= 0");
+        }
+
+        VfxEventType type = parseEnum(
+                VfxEventType.class,
+                getString(json, "type", "emit"),
+                "timeline event type"
+        );
+
+        if (type == VfxEventType.EMIT) {
+            String emitterId = getRequiredString(json, "emitter");
+
+            return new VfxTimelineEventDefinition(
+                    timeTicks,
+                    type,
+                    emitterId
+            );
+        }
+
+        throw new IllegalArgumentException("Unsupported event type: " + type);
     }
 
 
@@ -451,6 +666,26 @@ public final class VfxDefinitionParser {
         return json.getAsJsonObject(key);
     }
 
+    private static List<String> parseStringList(JsonArray array, String fieldName) {
+        List<String> result = new ArrayList<>();
+
+        for (JsonElement element : array) {
+            if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isString()) {
+                throw new IllegalArgumentException("Expected string in " + fieldName);
+            }
+
+            String value = element.getAsString();
+
+            if (value.isBlank()) {
+                throw new IllegalArgumentException("Empty string in " + fieldName);
+            }
+
+            result.add(value);
+        }
+
+        return List.copyOf(result);
+    }
+
     private static String getString(JsonObject json, String key, String fallback) {
         if (!json.has(key)) {
             return fallback;
@@ -458,6 +693,7 @@ public final class VfxDefinitionParser {
 
         return json.get(key).getAsString();
     }
+
 
     private static String getRequiredString(JsonObject json, String key) {
         if (!json.has(key)) {
