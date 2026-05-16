@@ -10,9 +10,7 @@ import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.kofllee.pyrovfx.vfx.value.VfxVec3;
 import net.minecraft.resources.ResourceLocation;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 
 public final class VfxDefinitionParser {
     private VfxDefinitionParser() {}
@@ -35,15 +33,35 @@ public final class VfxDefinitionParser {
         List<VfxEmitterDefinition> emitters = new ArrayList<>();
         JsonArray array = getArray(json, "emitters");
 
-        for(JsonElement element : array) {
-            if(!element.isJsonObject()) {
+        for(int i = 0; i < array.size(); ++i) {
+            JsonElement emitter = array.get(i);
+
+            if(!emitter.isJsonObject()) {
                 throw new IllegalArgumentException("Emitter must be an object");
             }
 
-            emitters.add(parseEmitter(element.getAsJsonObject()));
+            emitters.add(parseEmitter(emitter.getAsJsonObject(), i));
         }
 
+        validateEmitterIds(emitters);
+
         return new VfxDefinition(location, format, metadata, lifetime, emitters);
+    }
+
+    private static void validateEmitterIds(List<VfxEmitterDefinition> emitters) {
+        Set<String> ids = new HashSet<>();
+
+        for(VfxEmitterDefinition emitter : emitters) {
+            String id = emitter.id();
+
+            if(id == null || id.isBlank()) {
+                throw new IllegalArgumentException("Emitter id must not be empty");
+            }
+
+            if(!ids.add(id)) {
+                throw new IllegalArgumentException("Duplicate emitter id '" + id + "'");
+            }
+        }
     }
 
     private static VfxMetadataDefinition parseMetadata(JsonObject json) {
@@ -72,7 +90,8 @@ public final class VfxDefinitionParser {
         };
     }
 
-    private static VfxEmitterDefinition parseEmitter(JsonObject json) {
+    private static VfxEmitterDefinition parseEmitter(JsonObject json, int index) {
+        String id = getString(json, "id", "emitter_" + index);
 
         VfxEmitterLifetimeDefinition emitterLifetime = json.has("emitter_lifetime")
                 ? parseEmitterLifetime(getObject(json, "emitter_lifetime"))
@@ -104,7 +123,7 @@ public final class VfxDefinitionParser {
                 ? parseRotation(getObject(json, "rotation"))
                 : VfxRotationDefinition.none();
 
-        return new VfxEmitterDefinition(emitterLifetime, spawnAmount, offset, spawnShape, particleLifetime, motion, rotation, render);
+        return new VfxEmitterDefinition(id, emitterLifetime, spawnAmount, offset, spawnShape, particleLifetime, motion, rotation, render);
     }
 
     private static VfxRotationDefinition parseRotation(JsonObject json) {
