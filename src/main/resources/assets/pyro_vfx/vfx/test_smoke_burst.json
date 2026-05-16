@@ -2,170 +2,81 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "Debug effect: particle color is based on current velocity direction."
+    "description": "Render material matrix test: alpha/additive, depth_write true/false, environment_lighting true/false."
   },
   "lifetime": {
-    "mode": "once",
+    "mode": "looping",
     "delay_ticks": 0,
-    "active_ticks": 100
+    "active_ticks": 200,
+    "sleep_ticks": 0,
+    "loops": 0
   },
   "emitters": [
     {
       "emitter_lifetime": {
-        "mode": "once",
+        "mode": "looping",
         "delay_ticks": 0,
-        "active_ticks": 1
+        "active_ticks": 200,
+        "sleep_ticks": 0,
+        "loops": 0
       },
       "spawn_amount": {
-        "mode": "instant",
-        "amount": 1000
+        "mode": "steady",
+        "rate": 12,
+        "max_particles": 120
       },
-      "offset": [0, 1, 0],
+      "offset": [0, 1.0, 0],
       "spawn_shape": {
         "type": "sphere",
-        "radius": 1.0,
-        "edge_thickness": 0.0
+        "radius": 0.12,
+        "edge_thickness": 1.0
       },
       "particle_lifetime": {
-        "max_age_ticks": 70
+        "max_age_ticks": "35 + particle.random * 20"
       },
       "motion": {
         "mode": "dynamic",
         "dynamic": {
-          "direction": "outward",
-          "speed": "5",
-          "acceleration": [0, 0, 0],
-          "linear_drag": 0.1
+          "direction": "up",
+          "speed": "0.75 + particle.random * 0.25",
+          "acceleration": [
+            "(particle.random - 0.5) * 0.08",
+            0.12,
+            "(particle.random - 0.5) * 0.08"
+          ],
+          "linear_drag": 1.25
         }
       },
       "rotation": {
         "mode": "dynamic",
         "dynamic": {
-          "start_rotation": [0, 0, 0],
-          "angular_velocity": [0, 0, 0],
+          "start_rotation": [0, 0, "particle.random * 360"],
+          "angular_velocity": [0, 0, "-45 + particle.random * 90"],
           "angular_acceleration": [0, 0, 0],
-          "angular_drag": 0.8
+          "angular_drag": 1.2
         }
       },
       "render": {
         "type": "sprite",
-        "facing": "camera_horizontal",
+        "facing": "camera",
+        "environment_lighting": false,
+        "material": {
+          "blend_mode": "alpha"
+        },
         "sprite": {
           "texture": "minecraft:textures/particle/generic_0.png"
         },
         "color": [
-          "0.5 + particle.vel.x * 18.0",
-          "0.5 + particle.vel.y * 18.0",
-          "0.5 + particle.vel.z * 18.0",
+          1.0,
+          "0.45 + particle.random * 0.25",
+          0.08,
           "1.0 - particle.normalized_age"
         ],
-        "alpha": "particle.normalized_age",
-        "scale": ["-10", "1", 1.0 ]
-      }
-    },
-    {
-      "emitter_lifetime": {
-        "mode": "once",
-        "delay_ticks": 10,
-        "active_ticks": 1
-      },
-      "spawn_amount": {
-        "mode": "instant",
-        "amount": 1000
-      },
-      "offset": [0, 1, 0],
-      "spawn_shape": {
-        "type": "sphere",
-        "radius": 1.0,
-        "edge_thickness": 0.0
-      },
-      "particle_lifetime": {
-        "max_age_ticks": 70
-      },
-      "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": "5",
-          "acceleration": [0, 0, 0],
-          "linear_drag": 0.1
-        }
-      },
-      "rotation": {
-        "mode": "dynamic",
-        "dynamic": {
-          "start_rotation": [0, 0, 0],
-          "angular_velocity": [0, 0, 0],
-          "angular_acceleration": [0, 0, 0],
-          "angular_drag": 0.8
-        }
-      },
-      "render": {
-        "type": "sprite",
-        "facing": "world_x",
-        "sprite": {
-          "texture": "minecraft:textures/particle/generic_0.png"
-        },
-        "color": [
-          "0.5 + particle.vel.x * 18.0",
-          "0.5 + particle.vel.y * 18.0",
-          "0.5 + particle.vel.z * 18.0",
-          "1.0 - particle.normalized_age"
-        ],
-        "alpha": "particle.normalized_age",
-        "scale": ["0.45 + particle.speed * 9.0", "0.45 + particle.speed * 9.0", 1.0 ]
-      }
-    },
-    {
-      "emitter_lifetime": {
-        "mode": "once",
-        "delay_ticks": 20,
-        "active_ticks": 1
-      },
-      "spawn_amount": {
-        "mode": "instant",
-        "amount": 1000
-      },
-      "offset": [0, 1, 0],
-      "spawn_shape": {
-        "type": "sphere",
-        "radius": 1.0,
-        "edge_thickness": 0.0
-      },
-      "particle_lifetime": {
-        "max_age_ticks": 70
-      },
-      "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": "5",
-          "acceleration": [0, 0, 0],
-          "linear_drag": 0.1
-        }
-      },
-      "rotation": {
-        "mode": "dynamic",
-        "dynamic": {
-          "start_rotation": [0, 0, 0],
-          "angular_velocity": [0, 0, 0],
-          "angular_acceleration": [0, 0, 0],
-          "angular_drag": 0.8
-        }
-      },
-      "render": {
-        "type": "sprite",
-        "facing": "velocity",
-        "sprite": {
-          "texture": "minecraft:textures/particle/generic_0.png"
-        },
-        "color": [
-          "0.5 + particle.vel.x * 18.0",
-          "0.5 + particle.vel.y * 18.0",
-          "0.5 + particle.vel.z * 18.0",
-          "1.0 - particle.normalized_age"
-        ],
-        "scale": ["0.45 + particle.speed * 9.0", "0.45 + particle.speed * 9.0", 1.0 ]
+        "scale": [
+          "0.35 + particle.normalized_age * 0.35",
+          "0.65 + particle.normalized_age * 0.55",
+          1.0
+        ]
       }
     }
   ]

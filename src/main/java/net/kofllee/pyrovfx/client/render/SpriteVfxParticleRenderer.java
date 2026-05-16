@@ -7,10 +7,12 @@ import net.kofllee.pyrovfx.client.vfx.ClientVfxParticle;
 import net.kofllee.pyrovfx.vfx.type.VfxFacingMode;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -50,7 +52,10 @@ public final class SpriteVfxParticleRenderer {
         if(a <= 0)
             return;
 
-        VertexConsumer consumer = bufferSource.getBuffer(RenderType.entityTranslucent(particle.emitterDefinition().render().sprite().texture()));
+        VertexConsumer consumer = bufferSource.getBuffer(VfxSpriteRenderTypes.get(
+                particle.emitterDefinition().render().sprite().texture(),
+                particle.emitterDefinition().render().material()
+        ));
 
         poseStack.pushPose();
         poseStack.translate(x, y, z);
@@ -63,10 +68,14 @@ public final class SpriteVfxParticleRenderer {
         float halfWidth = width * 0.5F;
         float halfHeight = height * 0.5F;
 
-        vertex(consumer, matrix, -halfWidth, -halfHeight, 0.0F, 0.0F, 1.0F, r, g, b, a);
-        vertex(consumer, matrix,  halfWidth, -halfHeight, 0.0F, 1.0F, 1.0F, r, g, b, a);
-        vertex(consumer, matrix,  halfWidth,  halfHeight, 0.0F, 1.0F, 0.0F, r, g, b, a);
-        vertex(consumer, matrix, -halfWidth,  halfHeight, 0.0F, 0.0F, 0.0F, r, g, b, a);
+        int light = particle.emitterDefinition().render().environmentLighting()
+                ? getEnvironmentLight(particle)
+                : LightTexture.FULL_BRIGHT;
+
+        vertex(consumer, matrix, -halfWidth, -halfHeight, 0.0F, 0.0F, 1.0F, r, g, b, a, light);
+        vertex(consumer, matrix,  halfWidth, -halfHeight, 0.0F, 1.0F, 1.0F, r, g, b, a, light);
+        vertex(consumer, matrix,  halfWidth,  halfHeight, 0.0F, 1.0F, 0.0F, r, g, b, a, light);
+        vertex(consumer, matrix, -halfWidth,  halfHeight, 0.0F, 0.0F, 0.0F, r, g, b, a, light);
 
         poseStack.popPose();
     }
@@ -142,13 +151,14 @@ public final class SpriteVfxParticleRenderer {
             int r,
             int g,
             int b,
-            int a
+            int a,
+            int light
     ) {
         consumer.addVertex(matrix, x, y, z)
                 .setColor(r, g, b, a)
                 .setUv(u, v)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
-                .setLight(LightTexture.FULL_BRIGHT)
+                .setLight(light)
                 .setNormal(0.0F, 1.0F, 0.0F);
     }
 
@@ -156,5 +166,18 @@ public final class SpriteVfxParticleRenderer {
         value = Math.clamp(value, 0.0, 1.0);
 
         return (int) (value * 255);
+    }
+
+    private static int getEnvironmentLight(ClientVfxParticle particle) {
+        Minecraft minecraft = Minecraft.getInstance();
+
+        if (minecraft.level == null) {
+            return LightTexture.FULL_BRIGHT;
+        }
+
+        Vec3 position = particle.position();
+        BlockPos blockPos = BlockPos.containing(position.x, position.y, position.z);
+
+        return net.minecraft.client.renderer.LevelRenderer.getLightColor(minecraft.level, blockPos);
     }
 }

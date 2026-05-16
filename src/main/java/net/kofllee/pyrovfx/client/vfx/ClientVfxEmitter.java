@@ -163,7 +163,7 @@ public final class ClientVfxEmitter {
             VfxExpressionContext emitterContext,
             RandomSource random
     ) {
-        if(emittedParticles >= maxParticles) {
+        if(particles.size() >= maxParticles) {
             return;
         }
 
@@ -176,7 +176,7 @@ public final class ClientVfxEmitter {
             return;
         }
 
-        int remaining = maxParticles  - emittedParticles;
+        int remaining = maxParticles - particles.size();
         amount = Math.min(amount, remaining);
 
         spawnAccumulator -= amount;

@@ -274,6 +274,12 @@ public final class VfxDefinitionParser {
                 "render facing mode"
         );
 
+        boolean environmentLighting = getBoolean(json, "environment_lighting", false);
+
+        VfxMaterialDefinition material = json.has("material")
+                ? parseMaterial(getObject(json, "material"))
+                : VfxMaterialDefinition.defaultMaterial();
+
 
         return switch (type) {
             case MINECRAFT_PARTICLE -> VfxRenderDefinition.minecraftParticle(
@@ -281,11 +287,23 @@ public final class VfxDefinitionParser {
             );
             case SPRITE -> VfxRenderDefinition.sprite(
                     facing,
+                    material,
+                    environmentLighting,
                     parseSpriteRender(getObject(json, "sprite")),
                     parseParticleAppearance(json)
             );
             case MODEL -> throw new IllegalArgumentException("Model render is not implemented yet");
         };
+    }
+
+    private static VfxMaterialDefinition parseMaterial(JsonObject json) {
+        VfxBlendMode blendMode = parseEnum(
+                VfxBlendMode.class,
+                getString(json, "blend_mode", "alpha"),
+                "material blend mode"
+        );
+
+        return new VfxMaterialDefinition(blendMode);
     }
 
     private static VfxParticleAppearanceDefinition parseParticleAppearance(JsonObject json) {
