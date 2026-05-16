@@ -70,9 +70,9 @@ public final class ClientVfxExpressionContexts {
                 .build();
     }
 
-    public static VfxExpressionContext particleSpawn(VfxExpressionContext emitterContext, Vec3 spawnPosition, RandomSource random) {
+    public static VfxExpressionContext particleSpawn(VfxExpressionContext emitterContext, Vec3 spawnPosition, double particleRandom) {
         return VfxContextBuilder.childOf(emitterContext)
-                .number("particle.random", random.nextDouble())
+                .number("particle.random", particleRandom)
                 .vec3("spawn.pos", spawnPosition)
                 .build();
     }

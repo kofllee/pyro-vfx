@@ -2,79 +2,86 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "Test: randomize chooses one of three colored flashes."
+    "description": "UV animation test using vanilla Minecraft fire texture."
   },
   "lifetime": {
     "mode": "once",
     "delay_ticks": 0,
-    "active_ticks": 40
+    "active_ticks": 100
   },
-  "events": {
-    "red_flash_event": {
-      "type": "emit",
-      "emitter": "red_flash"
-    },
-    "blue_flash_event": {
-      "type": "emit",
-      "emitter": "blue_flash"
-    }
-  },
-  "triggers": [
-    {
-      "type": "on_creation",
-      "event": "red_flash_event"
-    }
-  ],
   "emitters": [
     {
-      "id": "red_flash",
-      "emitter_lifetime": { "mode": "manual" },
-      "triggers": [
-        {
-          "type": "timeline",
-          "event": "blue_flash_event",
-          "time_ticks": 20
+      "id": "fire_uv_test",
+      "emitter_lifetime": {
+        "mode": "once",
+        "delay_ticks": 0,
+        "active_ticks": 100
+      },
+      "spawn_amount": {
+        "mode": "steady",
+        "rate": 8,
+        "max_particles": 80
+      },
+      "offset": [0, 0.1, 0],
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.08,
+        "edge_thickness": 0.0
+      },
+      "particle_lifetime": {
+        "max_age_ticks": "18 + particle.random * 12"
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "up",
+          "speed": "0.25 + particle.random * 0.25",
+          "acceleration": [0, 0.15, 0],
+          "linear_drag": 1.6
         }
-      ],
-      "spawn_amount": { "mode": "manual", "amount": 1 },
-      "spawn_shape": { "type": "point" },
-      "particle_lifetime": { "max_age_ticks": 16 },
-      "motion": { "mode": "static" },
-      "rotation": { "mode": "none" },
+      },
+      "rotation": {
+        "mode": "dynamic",
+        "dynamic": {
+          "start_rotation": [0, 0, 0],
+          "angular_velocity": [0, 0, 0],
+          "angular_acceleration": [0, 0, 0],
+          "angular_drag": 2.0
+        }
+      },
       "render": {
         "type": "sprite",
-        "sprite": { "texture": "minecraft:textures/particle/generic_0.png" },
         "facing": "camera",
         "environment_lighting": false,
-        "material": { "blend_mode": "alpha" },
-        "color": [1.0, 0, 0, "1.0 - particle.normalized_age"],
-        "scale": [1.5, 1.5, 1.0]
-      }
-    },
-    {
-      "id": "blue_flash",
-      "emitter_lifetime": { "mode": "manual" },
-      "triggers": [
-        {
-          "type": "timeline",
-          "event": "red_flash_event",
-          "time_ticks": 40
-        }
-      ],
-      "offset": [0, 1, 0],
-      "spawn_amount": { "mode": "manual", "amount": 1 },
-      "spawn_shape": { "type": "point" },
-      "particle_lifetime": { "max_age_ticks": 16 },
-      "motion": { "mode": "static" },
-      "rotation": { "mode": "none" },
-      "render": {
-        "type": "sprite",
-        "sprite": { "texture": "minecraft:textures/particle/generic_0.png" },
-        "facing": "camera",
-        "environment_lighting": false,
-        "material": { "blend_mode": "alpha" },
-        "color": [0, 1.0, 0, "1.0 - particle.normalized_age"],
-        "scale": [1.5, 1.5, 1.0]
+        "material": {
+          "blend_mode": "alpha"
+        },
+        "sprite": {
+          "texture": "minecraft:textures/block/fire_0.png",
+          "uv": {
+            "mode": "animated",
+            "texture_size": [16, 512, 0],
+            "uv_start": [0, 0, 0],
+            "uv_size": [16, 16, 0],
+            "uv_step": [0, 16, 0],
+            "frame_count": 32,
+            "fps": "16 + particle.random * 8",
+            "stretch_to_lifetime": true,
+            "loop": true,
+            "random_start_frame": true
+          }
+        },
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "scale": [
+          "0.18 + particle.normalized_age * 0.22",
+          "0.28 + particle.normalized_age * 0.32",
+          1.0
+        ]
       }
     }
   ]

@@ -269,10 +269,12 @@ public final class ClientVfxEmitter {
             int count
     ) {
         for(int i = 0; i < count; i++){
+            double particleRandom = random.nextDouble();
+
             VfxExpressionContext preSpawnContext = ClientVfxExpressionContexts.particleSpawn(
                     emitterContext,
                     emitterPosition,
-                    random
+                    particleRandom
             );
 
             Vec3 particlePosition = VfxSpawnPositionSampler.sample(
@@ -285,7 +287,7 @@ public final class ClientVfxEmitter {
             VfxExpressionContext particleSpawnContext = ClientVfxExpressionContexts.particleSpawn(
                     emitterContext,
                     particlePosition,
-                    random
+                    particleRandom
             );
 
 
@@ -320,8 +322,6 @@ public final class ClientVfxEmitter {
 
             int lifeTime = Math.max(1, (int) Math.round(definition.particleLifetime().maxAgeTicks().evaluate(particleSpawnContext)));
 
-            double particleRandom = random.nextDouble();
-
             particles.add(new ClientVfxParticle(
                     definition,
                     particlePosition,
@@ -329,7 +329,8 @@ public final class ClientVfxEmitter {
                     rotation,
                     angularVelocity,
                     lifeTime,
-                    particleRandom
+                    particleRandom,
+                    particleSpawnContext
             ));
 
             emittedParticles++;

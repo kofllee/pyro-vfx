@@ -1,5 +1,7 @@
 package net.kofllee.pyrovfx.client.vfx;
 
+import net.kofllee.pyrovfx.client.render.ClientVfxSpriteUvResolver;
+import net.kofllee.pyrovfx.client.render.ClientVfxSpriteUvState;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.type.VfxMotionMode;
@@ -25,6 +27,8 @@ public final class ClientVfxParticle {
     private Vec3 scale;
     private VfxColor color;
 
+    private ClientVfxSpriteUvState spriteUv;
+
     public ClientVfxParticle(
             VfxEmitterDefinition definition,
             Vec3 position,
@@ -32,7 +36,8 @@ public final class ClientVfxParticle {
             Vec3 rotation,
             Vec3 angularVelocity,
             int lifetime,
-            double random
+            double random,
+            VfxExpressionContext particleSpawnContext
     )
     {
         this.emitterDefinition = definition;
@@ -47,6 +52,14 @@ public final class ClientVfxParticle {
         this.random = random;
         this.color = new VfxColor(1.0, 1.0, 1.0, 1.0);
         this.scale = new Vec3(1.0, 1.0, 1.0);
+
+        this.spriteUv = definition.render().sprite() == null
+                ? ClientVfxSpriteUvState.full()
+                : ClientVfxSpriteUvResolver.resolve(
+                definition.render().sprite().uv(),
+                particleSpawnContext,
+                random
+        );
     }
 
     public void tick(VfxExpressionContext emitterContext){
@@ -184,5 +197,17 @@ public final class ClientVfxParticle {
 
     public Vec3 interpolatedRotation(float partialTick) {
         return previousRotation.lerp(rotation, partialTick);
+    }
+
+    public int age() {
+        return age;
+    }
+
+    public double random() {
+        return random;
+    }
+
+    public ClientVfxSpriteUvState spriteUv() {
+        return spriteUv;
     }
 }

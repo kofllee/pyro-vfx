@@ -2,5 +2,5 @@ package net.kofllee.pyrovfx.vfx.definition;
 
 import net.minecraft.resources.ResourceLocation;
 
-public record VfxSpriteRenderDefinition (ResourceLocation texture) {
+public record VfxSpriteRenderDefinition (ResourceLocation texture, VfxSpriteUvDefinition uv) {
 }

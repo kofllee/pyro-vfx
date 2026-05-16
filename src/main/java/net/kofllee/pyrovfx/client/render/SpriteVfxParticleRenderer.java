@@ -10,7 +10,6 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
@@ -72,10 +71,12 @@ public final class SpriteVfxParticleRenderer {
                 ? getEnvironmentLight(particle)
                 : LightTexture.FULL_BRIGHT;
 
-        vertex(consumer, matrix, -halfWidth, -halfHeight, 0.0F, 0.0F, 1.0F, r, g, b, a, light);
-        vertex(consumer, matrix,  halfWidth, -halfHeight, 0.0F, 1.0F, 1.0F, r, g, b, a, light);
-        vertex(consumer, matrix,  halfWidth,  halfHeight, 0.0F, 1.0F, 0.0F, r, g, b, a, light);
-        vertex(consumer, matrix, -halfWidth,  halfHeight, 0.0F, 0.0F, 0.0F, r, g, b, a, light);
+        VfxSpriteUvRect uv = VfxSpriteUvSampler.sample(particle);
+
+        vertex(consumer, matrix, -halfWidth, -halfHeight, 0.0F, uv.u0(), uv.v1(), r, g, b, a, light);
+        vertex(consumer, matrix,  halfWidth, -halfHeight, 0.0F, uv.u1(), uv.v1(), r, g, b, a, light);
+        vertex(consumer, matrix,  halfWidth,  halfHeight, 0.0F, uv.u1(), uv.v0(), r, g, b, a, light);
+        vertex(consumer, matrix, -halfWidth,  halfHeight, 0.0F, uv.u0(), uv.v0(), r, g, b, a, light);
 
         poseStack.popPose();
     }

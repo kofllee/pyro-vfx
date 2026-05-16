@@ -559,8 +559,79 @@ public final class VfxDefinitionParser {
 
     private static VfxSpriteRenderDefinition parseSpriteRender(JsonObject json) {
         return new VfxSpriteRenderDefinition(
-                ResourceLocation.parse(getString(json, "texture", "minecraft:textures/particle/generic_0.png"))
+                ResourceLocation.parse(getString(json, "texture", "minecraft:textures/particle/generic_0.png")),
+                json.has("uv")
+                        ? parseSpriteUv(getObject(json, "uv"))
+                        : VfxSpriteUvDefinition.full()
         );
+    }
+
+    private static VfxSpriteUvDefinition parseSpriteUv(JsonObject json) {
+        VfxUvMode mode = parseEnum(
+                VfxUvMode.class,
+                getString(json, "mode", "full"),
+                "sprite uv mode"
+        );
+
+        if (mode == VfxUvMode.FULL) {
+            return VfxSpriteUvDefinition.full();
+        }
+
+        VfxVec3Expression textureSize = getVec3Expression(
+                json,
+                "texture_size",
+                new VfxVec3(16.0, 16.0, 0.0),
+                VfxEvaluationMode.DEFINITION
+        );
+
+        VfxVec3Expression uvStart = getVec3Expression(
+                json,
+                "uv_start",
+                VfxVec3.ZERO,
+                VfxEvaluationMode.PARTICLE_SPAWN
+        );
+
+        VfxVec3Expression uvSize = getVec3Expression(
+                json,
+                "uv_size",
+                new VfxVec3(16.0, 16.0, 0.0),
+                VfxEvaluationMode.PARTICLE_SPAWN
+        );
+
+        VfxVec3Expression uvStep = getVec3Expression(
+                json,
+                "uv_step",
+                new VfxVec3(16.0, 0.0, 0.0),
+                VfxEvaluationMode.PARTICLE_SPAWN
+        );
+
+        VfxNumberExpression frameCount = getNumberExpression(
+                json,
+                "frame_count",
+                1.0,
+                VfxEvaluationMode.PARTICLE_SPAWN
+        );
+
+        VfxNumberExpression fps = getNumberExpression(
+                json,
+                "fps",
+                0.0,
+                VfxEvaluationMode.PARTICLE_SPAWN
+        );
+
+        return new VfxSpriteUvDefinition(
+                mode,
+                textureSize,
+                uvStart,
+                uvSize,
+                uvStep,
+                frameCount,
+                fps,
+                getBoolean(json, "stretch_to_lifetime", false),
+                getBoolean(json, "loop", false),
+                getBoolean(json, "random_start_frame", false)
+        );
+
     }
 
     private static VfxMinecraftParticleRenderDefinition parseMinecraftParticleRender(JsonObject json) {
