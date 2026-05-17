@@ -19,8 +19,12 @@ public final class ClientVfxManager {
 
     private ClientVfxManager(){}
 
-    public static void play(VfxDefinition definition, Vec3 position){
-        INSTANCES.add(new ClientVfxInstance(definition, position));
+    public static void play(VfxDefinition definition, Vec3 position) {
+        play(definition, position, VfxPlayOptions.empty());
+    }
+
+    public static void play(VfxDefinition definition, Vec3 position, VfxPlayOptions options) {
+        INSTANCES.add(new ClientVfxInstance(definition, position, options));
     }
 
     public static void tick(){

@@ -1,8 +1,11 @@
 package net.kofllee.pyrovfx.client.dev;
 
+import com.mojang.brigadier.arguments.DoubleArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import net.kofllee.pyrovfx.client.vfx.VfxPlayOptions;
 import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.kofllee.pyrovfx.vfx.resource.VfxRegistry;
 import net.minecraft.ChatFormatting;
@@ -13,7 +16,11 @@ import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.arguments.CompoundTagArgument;
 import net.minecraft.commands.arguments.coordinates.Vec3Argument;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NumericTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.commands.arguments.ResourceLocationArgument;
@@ -41,9 +48,16 @@ public final class PyroVfxClientCommands {
                         .then(literal("play")
                                 .then(argument("effect", ResourceLocationArgument.id())
                                         .suggests(PyroVfxClientCommands::suggestEffects)
-                                        .executes(context -> playEffect(
-                                                ResourceLocationArgument.getId(context, "effect")
+                                        .executes(context -> playEffectWithParameters(
+                                                ResourceLocationArgument.getId(context, "effect"),
+                                                new CompoundTag()
                                         ))
+                                        .then(argument("parameters", CompoundTagArgument.compoundTag())
+                                                .executes(context -> playEffectWithParameters(
+                                                        ResourceLocationArgument.getId(context, "effect"),
+                                                        CompoundTagArgument.getCompoundTag(context, "parameters")
+                                                ))
+                                        )
                                 )
                         )
                         .then(literal("list")
@@ -56,14 +70,132 @@ public final class PyroVfxClientCommands {
                                 .then(argument("effect", ResourceLocationArgument.id())
                                         .suggests(PyroVfxClientCommands::suggestEffects)
                                         .then(argument("pos", Vec3Argument.vec3())
-                                                .executes(context -> playEffectAt(
+                                                .executes(context -> playEffectAtWithParameters(
                                                         ResourceLocationArgument.getId(context, "effect"),
-                                                        Vec3Argument.getVec3(context, "pos")
+                                                        Vec3Argument.getVec3(context, "pos"),
+                                                        new CompoundTag()
                                                 ))
+                                                .then(argument("parameters", CompoundTagArgument.compoundTag())
+                                                        .executes(context -> playEffectAtWithParameters(
+                                                                ResourceLocationArgument.getId(context, "effect"),
+                                                                Vec3Argument.getVec3(context, "pos"),
+                                                                CompoundTagArgument.getCompoundTag(context, "parameters")
+                                                        ))
+                                                )
                                         )
                                 )
                         )
         );
+    }
+
+    private static int playEffectAtWithParameters(
+            ResourceLocation effect,
+            Vec3 position,
+            CompoundTag parametersTag
+    ) {
+        Minecraft minecraft = Minecraft.getInstance();
+        Player player = minecraft.player;
+
+        if (player == null) {
+            return 0;
+        }
+
+        VfxDefinition definition = VfxRegistry.get(effect);
+        if (definition == null) {
+            player.displayClientMessage(
+                    Component.literal("No Pyro VFX found with id: " + effect).withStyle(ChatFormatting.RED),
+                    false
+            );
+            return 0;
+        }
+
+        VfxPlayOptions options = parsePlayOptions(definition, parametersTag, player);
+
+        ClientVfxManager.play(definition, position, options);
+
+        player.displayClientMessage(
+                Component.literal("Playing Pyro VFX: " + effect + " with " + options.parameters().size() + " parameter(s)"),
+                false
+        );
+
+        return 1;
+    }
+
+    private static VfxPlayOptions parsePlayOptions(
+            VfxDefinition definition,
+            CompoundTag tag,
+            Player player
+    ) {
+        VfxPlayOptions.Builder builder = VfxPlayOptions.builder();
+
+        for (String key : tag.getAllKeys()) {
+            if (!definition.parameters().containsKey(key)) {
+                player.displayClientMessage(
+                        Component.literal("Unknown Pyro VFX parameter '" + key + "' for effect " + definition.id())
+                                .withStyle(ChatFormatting.YELLOW),
+                        false
+                );
+                continue;
+            }
+
+            Tag valueTag = tag.get(key);
+
+            if (!(valueTag instanceof NumericTag numericTag)) {
+                player.displayClientMessage(
+                        Component.literal("Pyro VFX parameter '" + key + "' must be numeric")
+                                .withStyle(ChatFormatting.RED),
+                        false
+                );
+                continue;
+            }
+
+            builder.param(key, numericTag.getAsDouble());
+        }
+
+        return builder.build();
+    }
+
+    private static int playEffectWithParameters(ResourceLocation effect, CompoundTag parametersTag) {
+        Minecraft minecraft = Minecraft.getInstance();
+        Player player = minecraft.player;
+
+        if (player == null) {
+            return 0;
+        }
+
+        return playEffectAtWithParameters(
+                effect,
+                player.position().add(0, player.getEyeHeight(), 0),
+                parametersTag
+        );
+    }
+
+    private static CompletableFuture<Suggestions> suggestParameters(
+            CommandContext<CommandSourceStack> context,
+            SuggestionsBuilder builder
+    ) {
+        ResourceLocation effect;
+
+        try {
+            effect = ResourceLocationArgument.getId(context, "effect");
+        } catch (IllegalArgumentException exception) {
+            return builder.buildFuture();
+        }
+
+        VfxDefinition definition = VfxRegistry.get(effect);
+        if (definition == null) {
+            return builder.buildFuture();
+        }
+
+        String input = builder.getRemaining().toLowerCase(Locale.ROOT);
+
+        for (String parameter : definition.parameters().keySet()) {
+            if (parameter.toLowerCase(Locale.ROOT).startsWith(input)) {
+                builder.suggest(parameter);
+            }
+        }
+
+        return builder.buildFuture();
     }
 
     private static int stopAll() {
@@ -109,43 +241,6 @@ public final class PyroVfxClientCommands {
                     false
             );
         }
-
-        return 1;
-    }
-
-    private static int playEffect(ResourceLocation effectIdText){
-        Minecraft minecraft = Minecraft.getInstance();
-        Player player = minecraft.player;
-
-        if(player == null){
-            return 0;
-        }
-
-        return playEffectAt(effectIdText, player.position().add(0, player.getEyeHeight(), 0));
-    }
-
-    private static int playEffectAt(ResourceLocation effect, Vec3 position){
-        Minecraft minecraft = Minecraft.getInstance();
-        Player player = minecraft.player;
-
-        if(player == null){
-            return 0;
-        }
-
-        VfxDefinition definition = VfxRegistry.get(effect);
-        if (definition == null) {
-            player.displayClientMessage(
-                    Component.literal("No Pyro VFX found with id: " + effect).withStyle(ChatFormatting.RED),
-                    false
-            );
-            return 0;
-        }
-
-        ClientVfxManager.play(definition, position);
-        player.displayClientMessage(
-                Component.literal("Playing Pyro VFX: " + effect),
-                false
-        );
 
         return 1;
     }

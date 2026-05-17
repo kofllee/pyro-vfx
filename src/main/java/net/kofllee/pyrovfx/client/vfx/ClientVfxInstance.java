@@ -32,7 +32,7 @@ public final class ClientVfxInstance {
     private boolean expirationTriggersFired = false;
 
 
-    public ClientVfxInstance(VfxDefinition definition, Vec3 position){
+    public ClientVfxInstance(VfxDefinition definition, Vec3 position, VfxPlayOptions options){
         this.definition = definition;
         this.position = position;
 
@@ -44,7 +44,7 @@ public final class ClientVfxInstance {
                 Map.of()
         );
 
-        this.parameters = resolveParameters(definition, parameterStartContext);
+        this.parameters = resolveParameters(definition, parameterStartContext, options);
 
         VfxExpressionContext effectStartContext = ClientVfxExpressionContexts.effectStart(position, effectRandom, parameters);
 
@@ -63,14 +63,27 @@ public final class ClientVfxInstance {
         }
     }
 
+    public ClientVfxInstance(VfxDefinition definition, Vec3 position) {
+        this(definition, position, VfxPlayOptions.empty());
+    }
+
     private static Map<String, Double> resolveParameters(
             VfxDefinition definition,
-            VfxExpressionContext effectStartContext
+            VfxExpressionContext effectStartContext,
+            VfxPlayOptions options
     ) {
         Map<String, Double> result = new HashMap<>();
 
         for (VfxParameterDefinition parameter : definition.parameters().values()) {
             result.put(parameter.id(), parameter.value().evaluate(effectStartContext));
+        }
+
+        for (Map.Entry<String, Double> entry : options.parameters().entrySet()) {
+            if (!definition.parameters().containsKey(entry.getKey())) {
+                continue;
+            }
+
+            result.put(entry.getKey(), entry.getValue());
         }
 
         return Map.copyOf(result);
