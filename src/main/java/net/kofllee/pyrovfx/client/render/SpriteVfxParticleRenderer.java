@@ -36,12 +36,12 @@ public final class SpriteVfxParticleRenderer {
         double y = particlePosition.y - cameraPosition.y;
         double z = particlePosition.z - cameraPosition.z;
 
-        Vec3 scale = particle.scale();
+        Vec3 scale = particle.interpolatedScale(partialTick);
 
         float width = (float) scale.x;
         float height = (float) scale.y;
 
-        VfxColor color = particle.color();
+        VfxColor color = particle.interpolatedColor(partialTick);
 
         int r = toColorByte(color.r());
         int g = toColorByte(color.g());
@@ -68,7 +68,7 @@ public final class SpriteVfxParticleRenderer {
         float halfHeight = height * 0.5F;
 
         int light = particle.emitterDefinition().render().environmentLighting()
-                ? getEnvironmentLight(particle)
+                ? getEnvironmentLight(particle, partialTick)
                 : LightTexture.FULL_BRIGHT;
 
         VfxSpriteUvRect uv = VfxSpriteUvSampler.sample(particle);
@@ -169,14 +169,14 @@ public final class SpriteVfxParticleRenderer {
         return (int) (value * 255);
     }
 
-    private static int getEnvironmentLight(ClientVfxParticle particle) {
+    private static int getEnvironmentLight(ClientVfxParticle particle, float partialTick) {
         Minecraft minecraft = Minecraft.getInstance();
 
         if (minecraft.level == null) {
             return LightTexture.FULL_BRIGHT;
         }
 
-        Vec3 position = particle.position();
+        Vec3 position = particle.interpolatedPosition(partialTick);
         BlockPos blockPos = BlockPos.containing(position.x, position.y, position.z);
 
         return net.minecraft.client.renderer.LevelRenderer.getLightColor(minecraft.level, blockPos);

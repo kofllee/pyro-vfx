@@ -10,6 +10,7 @@ import net.kofllee.pyrovfx.vfx.type.VfxEmitterLifetimeMode;
 import net.kofllee.pyrovfx.vfx.type.VfxSpawnAmountMode;
 import net.kofllee.pyrovfx.vfx.type.VfxRenderType;
 import net.kofllee.pyrovfx.vfx.type.VfxTriggerType;
+import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
@@ -322,6 +323,27 @@ public final class ClientVfxEmitter {
 
             int lifeTime = Math.max(1, (int) Math.round(definition.particleLifetime().maxAgeTicks().evaluate(particleSpawnContext)));
 
+            VfxExpressionContext initialRenderContext = ClientVfxExpressionContexts.particleTick(
+                    emitterContext,
+                    particlePosition,
+                    particlePosition,
+                    particlePosition,
+                    velocity,
+                    rotation,
+                    angularVelocity,
+                    0,
+                    lifeTime,
+                    particleRandom,
+                    new Vec3(1.0, 1.0, 1.0)
+            );
+
+            Vec3 initialScale = definition.render().appearance().scale()
+                    .evaluate(initialRenderContext)
+                    .toVec3();
+
+            VfxColor initialColor = definition.render().appearance().color()
+                    .evaluate(initialRenderContext);
+
             particles.add(new ClientVfxParticle(
                     definition,
                     particlePosition,
@@ -330,6 +352,8 @@ public final class ClientVfxEmitter {
                     angularVelocity,
                     lifeTime,
                     particleRandom,
+                    initialScale,
+                    initialColor,
                     particleSpawnContext
             ));
 

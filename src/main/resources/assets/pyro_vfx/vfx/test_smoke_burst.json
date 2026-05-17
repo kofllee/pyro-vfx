@@ -5,7 +5,7 @@
     "description": "Parameter test: smoke amount, speed and color are driven by param.*"
   },
   "parameters": {
-    "power": 10,
+    "power": 2.0,
     "red": 1.0,
     "green": 0.45,
     "blue": 0.12

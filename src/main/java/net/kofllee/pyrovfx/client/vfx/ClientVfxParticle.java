@@ -9,6 +9,8 @@ import net.kofllee.pyrovfx.vfx.type.VfxRotationMode;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.minecraft.world.phys.Vec3;
 
+import static org.joml.Math.lerp;
+
 public final class ClientVfxParticle {
     private final VfxEmitterDefinition emitterDefinition;
     private final Vec3 spawnPosition;
@@ -23,9 +25,12 @@ public final class ClientVfxParticle {
     private Vec3 previousRotation;
     private Vec3 angularVelocity;
 
-    private int age;
     private Vec3 scale;
+    private Vec3 previousScale;
     private VfxColor color;
+    private VfxColor previousColor;
+
+    private int age;
 
     private ClientVfxSpriteUvState spriteUv;
 
@@ -37,6 +42,8 @@ public final class ClientVfxParticle {
             Vec3 angularVelocity,
             int lifetime,
             double random,
+            Vec3 initialScale,
+            VfxColor initialColor,
             VfxExpressionContext particleSpawnContext
     )
     {
@@ -50,8 +57,10 @@ public final class ClientVfxParticle {
         this.angularVelocity = angularVelocity;
         this.lifetime = Math.max(1, lifetime);
         this.random = random;
-        this.color = new VfxColor(1.0, 1.0, 1.0, 1.0);
-        this.scale = new Vec3(1.0, 1.0, 1.0);
+        this.scale = initialScale;
+        this.previousScale = initialScale;
+        this.color = initialColor;
+        this.previousColor = initialColor;
 
         this.spriteUv = definition.render().sprite() == null
                 ? ClientVfxSpriteUvState.full()
@@ -65,6 +74,8 @@ public final class ClientVfxParticle {
     public void tick(VfxExpressionContext emitterContext){
         previousPosition = position;
         previousRotation = rotation;
+        previousScale = scale;
+        previousColor = color;
 
         VfxExpressionContext particleContext = ClientVfxExpressionContexts.particleTick(
                 emitterContext,
@@ -197,6 +208,19 @@ public final class ClientVfxParticle {
 
     public Vec3 interpolatedRotation(float partialTick) {
         return previousRotation.lerp(rotation, partialTick);
+    }
+
+    public Vec3 interpolatedScale(float partialTick) {
+        return previousScale.lerp(scale, partialTick);
+    }
+
+    public VfxColor interpolatedColor(float partialTick) {
+        return new VfxColor(
+                lerp(previousColor.r(), color.r(), partialTick),
+                lerp(previousColor.g(), color.g(), partialTick),
+                lerp(previousColor.b(), color.b(), partialTick),
+                lerp(previousColor.a(), color.a(), partialTick)
+        );
     }
 
     public int age() {
