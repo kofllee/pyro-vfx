@@ -5,15 +5,18 @@ import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.Map;
+
 public final class ClientVfxExpressionContexts {
     private ClientVfxExpressionContexts() {}
 
-    public static VfxExpressionContext effectStart(Vec3 effectPosition, RandomSource random) {
+    public static VfxExpressionContext effectStart(Vec3 effectPosition, double effectRandom, Map<String, Double> parameters) {
         return VfxContextBuilder.create()
+                .numbers("param", parameters)
                 .number("effect.age", 0)
                 .number("effect.active_age", 0)
                 .number("effect.normalized_age", 0)
-                .number("effect.random", random.nextDouble())
+                .number("effect.random", effectRandom)
                 .vec3("effect.pos", effectPosition)
                 .build();
     }
@@ -22,7 +25,9 @@ public final class ClientVfxExpressionContexts {
             Vec3 effectPosition,
             int effectAge,
             int effectDelayTicks,
-            int effectActiveTicks
+            int effectActiveTicks,
+            double effectRandom,
+            Map<String, Double> parameters
     ) {
         int effectActiveAge = Math.max(0, effectAge - effectDelayTicks);
         double effectNormalizedAge = effectActiveTicks <= 0
@@ -30,9 +35,11 @@ public final class ClientVfxExpressionContexts {
                 : Math.min(1.0, effectActiveAge / (double) effectActiveTicks);
 
         return VfxContextBuilder.create()
+                .numbers("param", parameters)
                 .number("effect.age", effectAge)
                 .number("effect.active_age", effectActiveAge)
                 .number("effect.normalized_age", effectNormalizedAge)
+                .number("effect.random", effectRandom)
                 .vec3("effect.pos", effectPosition)
                 .build();
     }

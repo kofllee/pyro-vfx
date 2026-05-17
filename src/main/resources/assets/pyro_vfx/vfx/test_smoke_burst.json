@@ -2,84 +2,77 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "UV animation test using vanilla Minecraft fire texture."
+    "description": "Parameter test: smoke amount, speed and color are driven by param.*"
+  },
+  "parameters": {
+    "power": 10,
+    "red": 1.0,
+    "green": 0.45,
+    "blue": 0.12
   },
   "lifetime": {
     "mode": "once",
     "delay_ticks": 0,
-    "active_ticks": 100
+    "active_ticks": 60
   },
   "emitters": [
     {
-      "id": "fire_uv_test",
+      "id": "param_smoke",
       "emitter_lifetime": {
         "mode": "once",
         "delay_ticks": 0,
-        "active_ticks": 100
+        "active_ticks": 1
       },
       "spawn_amount": {
-        "mode": "steady",
-        "rate": 8,
-        "max_particles": 80
+        "mode": "instant",
+        "amount": "8 + param.power * 12"
       },
-      "offset": [0, 0.1, 0],
+      "offset": [0, 0.2, 0],
       "spawn_shape": {
         "type": "sphere",
-        "radius": 0.08,
+        "radius": "0.1 + param.power * 0.05",
         "edge_thickness": 0.0
       },
       "particle_lifetime": {
-        "max_age_ticks": "18 + particle.random * 12"
+        "max_age_ticks": "30 + param.power * 12"
       },
       "motion": {
         "mode": "dynamic",
         "dynamic": {
-          "direction": "up",
-          "speed": "0.25 + particle.random * 0.25",
-          "acceleration": [0, 0.15, 0],
-          "linear_drag": 1.6
+          "direction": "outward",
+          "speed": "0.4 + param.power * 0.35",
+          "acceleration": [0, 0.35, 0],
+          "linear_drag": 1.4
         }
       },
       "rotation": {
         "mode": "dynamic",
         "dynamic": {
-          "start_rotation": [0, 0, 0],
-          "angular_velocity": [0, 0, 0],
+          "start_rotation": [0, "particle.random * 360", 0],
+          "angular_velocity": [0, "-40 + particle.random * 80", 0],
           "angular_acceleration": [0, 0, 0],
-          "angular_drag": 2.0
+          "angular_drag": 1.2
         }
       },
       "render": {
         "type": "sprite",
-        "facing": "camera",
-        "environment_lighting": false,
+        "facing": "camera_horizontal",
+        "environment_lighting": true,
         "material": {
           "blend_mode": "alpha"
         },
         "sprite": {
-          "texture": "minecraft:textures/block/fire_0.png",
-          "uv": {
-            "mode": "animated",
-            "texture_size": [16, 512, 0],
-            "uv_start": [0, 0, 0],
-            "uv_size": [16, 16, 0],
-            "uv_step": [0, 16, 0],
-            "frame_count": 32,
-            "fps": "16 + particle.random * 8",
-            "stretch_to_lifetime": true,
-            "loop": true,
-            "random_start_frame": true
-          }
+          "texture": "pyro_vfx:textures/vfx/smoke.png"
         },
         "color": [
-          1.0,
-          1.0,
-          1.0,
-          1.0
+          "param.red",
+          "param.green",
+          "param.blue",
+          "1.0 - particle.normalized_age"
         ],
         "scale": [
-          "0.18 + particle.normalized_age * 0.22",
-          "0.28 + particle.normalized_age * 0.32",
+          "0.2 + particle.normalized_age * param.power",
+          "0.2 + particle.normalized_age * param.power",
           1.0
         ]
       }

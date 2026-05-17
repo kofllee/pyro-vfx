@@ -2,6 +2,7 @@ package net.kofllee.pyrovfx.client.vfx;
 
 import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxLifetimeDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxParameterDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxTriggerDefinition;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.type.VfxLifetimeMode;
@@ -17,29 +18,42 @@ public final class ClientVfxInstance {
     private final Vec3 position;
     private final List<ClientVfxEmitter> emitters = new ArrayList<>();
     private final Map<String, ClientVfxEmitter> emittersById = new HashMap<>();
+    private final Map<String, Double> parameters;
     private final RandomSource random = RandomSource.create();
 
     private final int delayTicks;
     private final int activeTicks;
     private final int sleepTicks;
     private final int loops;
+    private final double effectRandom;
 
     private int age;
     private boolean creationTriggersFired = false;
     private boolean expirationTriggersFired = false;
 
+
     public ClientVfxInstance(VfxDefinition definition, Vec3 position){
         this.definition = definition;
         this.position = position;
 
-        VfxExpressionContext effectStartContext = ClientVfxExpressionContexts.effectStart(position, random);
+        this.effectRandom = random.nextDouble();
+
+        VfxExpressionContext parameterStartContext = ClientVfxExpressionContexts.effectStart(
+                position,
+                effectRandom,
+                Map.of()
+        );
+
+        this.parameters = resolveParameters(definition, parameterStartContext);
+
+        VfxExpressionContext effectStartContext = ClientVfxExpressionContexts.effectStart(position, effectRandom, parameters);
+
         VfxLifetimeDefinition lifetime = definition.lifetime();
 
         this.delayTicks = Math.max(0, (int) Math.round(lifetime.delayTicks().evaluate(effectStartContext)));
         this.activeTicks = Math.max(0, (int) Math.round(lifetime.activeTicks().evaluate(effectStartContext)));
         this.sleepTicks = Math.max(0, (int) Math.round(lifetime.sleepTicks().evaluate(effectStartContext)));
         this.loops = Math.max(0, (int) Math.round(lifetime.loops().evaluate(effectStartContext)));
-
 
         for(var emitterDef : definition.emitters()){
             ClientVfxEmitter emitter = new ClientVfxEmitter(emitterDef, position, effectStartContext, random);
@@ -49,12 +63,27 @@ public final class ClientVfxInstance {
         }
     }
 
+    private static Map<String, Double> resolveParameters(
+            VfxDefinition definition,
+            VfxExpressionContext effectStartContext
+    ) {
+        Map<String, Double> result = new HashMap<>();
+
+        for (VfxParameterDefinition parameter : definition.parameters().values()) {
+            result.put(parameter.id(), parameter.value().evaluate(effectStartContext));
+        }
+
+        return Map.copyOf(result);
+    }
+
     public void tick(ClientLevel level){
         VfxExpressionContext effectContext = ClientVfxExpressionContexts.effectTick(
                 position,
                 age,
                 delayTicks,
-                activeTicks
+                activeTicks,
+                effectRandom,
+                parameters
         );
 
         tickEffectTriggers(level, effectContext);

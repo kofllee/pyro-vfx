@@ -22,6 +22,14 @@ public final class VfxContextBuilder {
         return this;
     }
 
+    public VfxContextBuilder numbers(String prefix, java.util.Map<String, Double> values) {
+        for (java.util.Map.Entry<String, Double> entry : values.entrySet()) {
+            number(prefix + "." + entry.getKey(), entry.getValue());
+        }
+
+        return this;
+    }
+
     public VfxContextBuilder vec3(String name, Vec3 value){
         context.setNumber(name + ".x", value.x);
         context.setNumber(name + ".y", value.y);

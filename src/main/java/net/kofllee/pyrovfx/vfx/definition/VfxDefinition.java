@@ -10,6 +10,7 @@ public record VfxDefinition(
         String format,
         VfxMetadataDefinition metadata,
         VfxLifetimeDefinition lifetime,
+        Map<String, VfxParameterDefinition> parameters,
         List<VfxEmitterDefinition> emitters,
         Map<String, VfxEventDefinition> events,
         List<VfxTriggerDefinition> triggers

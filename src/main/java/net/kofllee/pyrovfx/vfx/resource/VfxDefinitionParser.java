@@ -30,6 +30,10 @@ public final class VfxDefinitionParser {
                 ? parseLifetime(getObject(json, "lifetime"))
                 : VfxLifetimeDefinition.none();
 
+        Map<String, VfxParameterDefinition> parameters = json.has("parameters")
+                ? parseParameters(getObject(json, "parameters"))
+                : Map.of();
+
         List<VfxEmitterDefinition> emitters = new ArrayList<>();
         JsonArray array = getArray(json, "emitters");
 
@@ -57,7 +61,41 @@ public final class VfxDefinitionParser {
         validateScopedTriggerReferences(triggers, events, "effect");
         validateEmitterTriggerReferences(emitters, events);
 
-        return new VfxDefinition(location, format, metadata, lifetime, emitters, events, triggers);
+        return new VfxDefinition(location, format, metadata, lifetime, parameters, emitters, events, triggers);
+    }
+
+    private static Map<String, VfxParameterDefinition> parseParameters(JsonObject json) {
+        Map<String, VfxParameterDefinition> parameters = new HashMap<>();
+
+        for(Map.Entry<String, JsonElement> entry : json.entrySet()) {
+            String id = entry.getKey();
+
+            if (id == null || id.isBlank()) {
+                throw new IllegalArgumentException("Parameter id must not be empty");
+            }
+
+            if (parameters.containsKey(id)) {
+                throw new IllegalArgumentException("Duplicate parameter id: " + id);
+            }
+
+            JsonElement value = entry.getValue();
+
+            VfxNumberExpression expression = null;
+
+            if (value.isJsonPrimitive()) {
+                if (value.getAsJsonPrimitive().isNumber()) {
+                    expression = VfxNumberExpression.constant(value.getAsDouble());
+                } else if (value.getAsJsonPrimitive().isString()) {
+                    expression = VfxNumberExpression.expression(value.getAsString());
+                } else {
+                    throw new IllegalArgumentException("Parameter must be number or expression string: " + id);
+                }
+            }
+
+            parameters.put(id, new VfxParameterDefinition(id, expression));
+        }
+
+        return Map.copyOf(parameters);
     }
 
     private static List<VfxTriggerDefinition> parseTriggers(JsonArray array) {
