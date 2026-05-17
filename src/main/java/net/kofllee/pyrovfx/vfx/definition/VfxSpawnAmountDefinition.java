@@ -1,6 +1,5 @@
 package net.kofllee.pyrovfx.vfx.definition;
 
-import net.kofllee.pyrovfx.vfx.expression.VfxEvaluationMode;
 import net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression;
 import net.kofllee.pyrovfx.vfx.type.VfxSpawnAmountMode;
 
@@ -14,13 +13,13 @@ public record VfxSpawnAmountDefinition(
         return new VfxSpawnAmountDefinition(
                 VfxSpawnAmountMode.INSTANT,
                 amount,
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START),
+                VfxNumberExpression.constant(0.0),
                 amount
         );
     }
 
     public static VfxSpawnAmountDefinition defaultInstant() {
-        return instant(VfxNumberExpression.constant(1.0, VfxEvaluationMode.EMITTER_START));
+        return instant(VfxNumberExpression.constant(1.0));
     }
 
     public static VfxSpawnAmountDefinition steady(
@@ -29,7 +28,7 @@ public record VfxSpawnAmountDefinition(
     ) {
         return new VfxSpawnAmountDefinition(
                 VfxSpawnAmountMode.STEADY,
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START),
+                VfxNumberExpression.constant(0.0),
                 rate,
                 maxParticles
         );
@@ -39,7 +38,7 @@ public record VfxSpawnAmountDefinition(
         return new VfxSpawnAmountDefinition(
                 VfxSpawnAmountMode.MANUAL,
                 amount,
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START),
+                VfxNumberExpression.constant(0.0),
                 amount
         );
     }

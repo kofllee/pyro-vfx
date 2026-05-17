@@ -218,11 +218,11 @@ public final class VfxDefinitionParser {
                 "effect lifetime mode"
         );
 
-        VfxNumberExpression delayTicks = getNumberExpression(json, "delay_ticks", 0.0, VfxEvaluationMode.EFFECT_START);
-        VfxNumberExpression activeTicks = getNumberExpression(json, "active_ticks", 1.0, VfxEvaluationMode.EFFECT_START);
-        VfxNumberExpression sleepTicks = getNumberExpression(json, "sleep_ticks", 0.0, VfxEvaluationMode.EFFECT_START);
+        VfxNumberExpression delayTicks = getNumberExpression(json, "delay_ticks", 0.0);
+        VfxNumberExpression activeTicks = getNumberExpression(json, "active_ticks", 1.0);
+        VfxNumberExpression sleepTicks = getNumberExpression(json, "sleep_ticks", 0.0);
 
-        VfxNumberExpression loops = getNumberExpression(json, "loops", 1.0, VfxEvaluationMode.EFFECT_START);
+        VfxNumberExpression loops = getNumberExpression(json, "loops", 1.0);
 
         return switch (mode) {
             case ONCE -> VfxLifetimeDefinition.once(delayTicks, activeTicks);
@@ -251,8 +251,7 @@ public final class VfxDefinitionParser {
         VfxVec3Expression offset = getVec3Expression(
                 json,
                 "offset",
-                VfxVec3.ZERO,
-                VfxEvaluationMode.EMITTER_TICK
+                VfxVec3.ZERO
         );
 
         VfxSpawnShapeDefinition spawnShape = parseSpawnShape(getObject(json, "spawn_shape"));
@@ -294,23 +293,23 @@ public final class VfxDefinitionParser {
 
     private static VfxDynamicRotationDefinition parseDynamicRotation(JsonObject json) {
         return VfxDynamicRotationDefinition.of(
-                getVec3Expression(json, "start_rotation", VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_SPAWN),
-                getVec3Expression(json, "angular_velocity", VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_SPAWN),
-                getVec3Expression(json, "angular_acceleration", VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_TICK),
-                getNumberExpression(json, "angular_drag", 0.0, VfxEvaluationMode.PARTICLE_TICK)
+                getVec3Expression(json, "start_rotation", VfxVec3.ZERO),
+                getVec3Expression(json, "angular_velocity", VfxVec3.ZERO),
+                getVec3Expression(json, "angular_acceleration", VfxVec3.ZERO),
+                getNumberExpression(json, "angular_drag", 0.0)
         );
     }
 
     private static VfxParametricRotationDefinition parseParametricRotation(JsonObject json) {
         return VfxParametricRotationDefinition.of(
-                getVec3Expression(json, "rotation", VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_TICK)
+                getVec3Expression(json, "rotation", VfxVec3.ZERO)
         );
     }
 
 
     private static VfxParticleLifetimeDefinition parseParticleLifetime(JsonObject json) {
         return VfxParticleLifetimeDefinition.of(
-                getNumberExpression(json, "max_age_ticks", 20.0, VfxEvaluationMode.PARTICLE_SPAWN)
+                getNumberExpression(json, "max_age_ticks", 20.0)
         );
     }
 
@@ -323,14 +322,14 @@ public final class VfxDefinitionParser {
 
         return switch (mode) {
             case INSTANT -> VfxSpawnAmountDefinition.instant(
-                    getNumberExpression(json, "amount", 1.0, VfxEvaluationMode.EMITTER_START)
+                    getNumberExpression(json, "amount", 1.0)
             );
             case STEADY -> VfxSpawnAmountDefinition.steady(
-                    getNumberExpression(json, "rate", 20.0, VfxEvaluationMode.EMITTER_TICK),
-                    getNumberExpression(json, "max_particles", 256.0, VfxEvaluationMode.EMITTER_START)
+                    getNumberExpression(json, "rate", 20.0),
+                    getNumberExpression(json, "max_particles", 256.0)
             );
             case MANUAL -> VfxSpawnAmountDefinition.manual(
-                    getNumberExpression(json, "amount", 1.0, VfxEvaluationMode.EMITTER_START)
+                    getNumberExpression(json, "amount", 1.0)
             );
         };
     }
@@ -341,11 +340,11 @@ public final class VfxDefinitionParser {
                 getString(json, "mode", "once"),
                 "emitter lifetime mode"
         );
-        VfxNumberExpression delayTicks = getNumberExpression(json, "delay_ticks", 0.0, VfxEvaluationMode.EMITTER_START);
-        VfxNumberExpression activeTicks = getNumberExpression(json, "active_ticks", 1.0, VfxEvaluationMode.EMITTER_START);
-        VfxNumberExpression sleepTicks = getNumberExpression(json, "sleep_ticks", 0.0, VfxEvaluationMode.EMITTER_START);
+        VfxNumberExpression delayTicks = getNumberExpression(json, "delay_ticks", 0.0);
+        VfxNumberExpression activeTicks = getNumberExpression(json, "active_ticks", 1.0);
+        VfxNumberExpression sleepTicks = getNumberExpression(json, "sleep_ticks", 0.0);
 
-        VfxNumberExpression loops = getNumberExpression(json, "loops", 1.0, VfxEvaluationMode.EMITTER_START);
+        VfxNumberExpression loops = getNumberExpression(json, "loops", 1.0);
 
         return switch(mode) {
             case ONCE -> VfxEmitterLifetimeDefinition.once(delayTicks, activeTicks);
@@ -380,8 +379,8 @@ public final class VfxDefinitionParser {
 
     private static VfxParametricMotionDefinition parseParametricMotion(JsonObject json) {
         return VfxParametricMotionDefinition.of(
-                getVec3Expression(json, "offset", VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_TICK),
-                getVec3Expression(json, "direction", new VfxVec3(0.0, 1.0, 0.0), VfxEvaluationMode.PARTICLE_TICK)
+                getVec3Expression(json, "offset", VfxVec3.ZERO),
+                getVec3Expression(json, "direction", new VfxVec3(0.0, 1.0, 0.0))
         );
     }
 
@@ -394,10 +393,10 @@ public final class VfxDefinitionParser {
 
         return VfxDynamicMotionDefinition.of(
                 direction,
-                getVec3Expression(json, "custom_direction", new VfxVec3(0.0, 1.0, 0.0), VfxEvaluationMode.PARTICLE_SPAWN),
-                getNumberExpression(json, "speed", 0.0, VfxEvaluationMode.PARTICLE_SPAWN),
-                getVec3Expression(json, "acceleration", VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_TICK),
-                getNumberExpression(json, "linear_drag", 0.0, VfxEvaluationMode.PARTICLE_TICK)
+                getVec3Expression(json, "custom_direction", new VfxVec3(0.0, 1.0, 0.0)),
+                getNumberExpression(json, "speed", 0.0),
+                getVec3Expression(json, "acceleration", VfxVec3.ZERO),
+                getNumberExpression(json, "linear_drag", 0.0)
         );
     }
 
@@ -413,9 +412,9 @@ public final class VfxDefinitionParser {
         return VfxMotionCollisionDefinition.of(
                 getBoolean(json, "collide", false),
                 collisionType,
-                getVec3Expression(json, "collision_size", defaultSize, VfxEvaluationMode.PARTICLE_SPAWN),
-                getNumberExpression(json, "collision_drag", 0.0, VfxEvaluationMode.PARTICLE_TICK),
-                getNumberExpression(json, "bounciness", 0.0, VfxEvaluationMode.PARTICLE_TICK),
+                getVec3Expression(json, "collision_size", defaultSize),
+                getNumberExpression(json, "collision_drag", 0.0),
+                getNumberExpression(json, "bounciness", 0.0),
                 getBoolean(json, "expire_on_contact", false)
         );
     }
@@ -545,14 +544,12 @@ public final class VfxDefinitionParser {
                 getColorExpression(
                         json,
                         "color",
-                        new VfxColor(1.0, 1.0, 1.0, 1.0),
-                        VfxEvaluationMode.PARTICLE_TICK
+                        new VfxColor(1.0, 1.0, 1.0, 1.0)
                 ),
                 getVec3Expression(
                         json,
                         "scale",
-                        new VfxVec3(1.0, 1.0, 1.0),
-                        VfxEvaluationMode.PARTICLE_TICK
+                        new VfxVec3(1.0, 1.0, 1.0)
                 )
         );
     }
@@ -580,43 +577,37 @@ public final class VfxDefinitionParser {
         VfxVec3Expression textureSize = getVec3Expression(
                 json,
                 "texture_size",
-                new VfxVec3(16.0, 16.0, 0.0),
-                VfxEvaluationMode.DEFINITION
+                new VfxVec3(16.0, 16.0, 0.0)
         );
 
         VfxVec3Expression uvStart = getVec3Expression(
                 json,
                 "uv_start",
-                VfxVec3.ZERO,
-                VfxEvaluationMode.PARTICLE_SPAWN
+                VfxVec3.ZERO
         );
 
         VfxVec3Expression uvSize = getVec3Expression(
                 json,
                 "uv_size",
-                new VfxVec3(16.0, 16.0, 0.0),
-                VfxEvaluationMode.PARTICLE_SPAWN
+                new VfxVec3(16.0, 16.0, 0.0)
         );
 
         VfxVec3Expression uvStep = getVec3Expression(
                 json,
                 "uv_step",
-                new VfxVec3(16.0, 0.0, 0.0),
-                VfxEvaluationMode.PARTICLE_SPAWN
+                new VfxVec3(16.0, 0.0, 0.0)
         );
 
         VfxNumberExpression frameCount = getNumberExpression(
                 json,
                 "frame_count",
-                1.0,
-                VfxEvaluationMode.PARTICLE_SPAWN
+                1.0
         );
 
         VfxNumberExpression fps = getNumberExpression(
                 json,
                 "fps",
-                0.0,
-                VfxEvaluationMode.PARTICLE_SPAWN
+                0.0
         );
 
         return new VfxSpriteUvDefinition(
@@ -650,18 +641,17 @@ public final class VfxDefinitionParser {
         VfxNumberExpression edgeThickness = getNumberExpression(
                 json,
                 "edge_thickness",
-                0.0,
-                VfxEvaluationMode.EMITTER_TICK
+                0.0
         );
 
         return switch (type) {
             case POINT -> VfxSpawnShapeDefinition.point();
             case SPHERE -> VfxSpawnShapeDefinition.sphere(
-                    getNumberExpression(json, "radius", 0.25, VfxEvaluationMode.EMITTER_TICK),
+                    getNumberExpression(json, "radius", 0.25),
                     edgeThickness
             );
             case BOX -> VfxSpawnShapeDefinition.box(
-                    getVec3Expression(json, "half_extents", new VfxVec3(0.25, 0.25, 0.25), VfxEvaluationMode.EMITTER_TICK),
+                    getVec3Expression(json, "half_extents", new VfxVec3(0.25, 0.25, 0.25)),
                     edgeThickness
             );
         };
@@ -797,21 +787,20 @@ public final class VfxDefinitionParser {
     private static VfxNumberExpression getNumberExpression(
             JsonObject json,
             String key,
-            double fallback,
-            VfxEvaluationMode evaluationMode
+            double fallback
     ) {
         if (!json.has(key)) {
-            return VfxNumberExpression.constant(fallback, evaluationMode);
+            return VfxNumberExpression.constant(fallback);
         }
 
         JsonElement element = json.get(key);
 
         if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
-            return VfxNumberExpression.constant(element.getAsDouble(), evaluationMode);
+            return VfxNumberExpression.constant(element.getAsDouble());
         }
 
         if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
-            return VfxNumberExpression.expression(element.getAsString(), evaluationMode);
+            return VfxNumberExpression.expression(element.getAsString());
         }
 
         throw new IllegalArgumentException("Expected number or expression string field: " + key);
@@ -820,11 +809,10 @@ public final class VfxDefinitionParser {
     private static VfxVec3Expression getVec3Expression(
             JsonObject json,
             String key,
-            VfxVec3 fallback,
-            VfxEvaluationMode evaluationMode
+            VfxVec3 fallback
     ) {
         if (!json.has(key)) {
-            return VfxVec3Expression.constant(fallback, evaluationMode);
+            return VfxVec3Expression.constant(fallback);
         }
 
         JsonElement element = json.get(key);
@@ -840,23 +828,21 @@ public final class VfxDefinitionParser {
         }
 
         return new VfxVec3Expression(
-                parseNumberExpressionElement(array.get(0), evaluationMode),
-                parseNumberExpressionElement(array.get(1), evaluationMode),
-                parseNumberExpressionElement(array.get(2), evaluationMode),
-                evaluationMode
+                parseNumberExpressionElement(array.get(0)),
+                parseNumberExpressionElement(array.get(1)),
+                parseNumberExpressionElement(array.get(2))
         );
     }
 
     private static VfxNumberExpression parseNumberExpressionElement(
-            JsonElement element,
-            VfxEvaluationMode evaluationMode
+            JsonElement element
     ) {
         if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
-            return VfxNumberExpression.constant(element.getAsDouble(), evaluationMode);
+            return VfxNumberExpression.constant(element.getAsDouble());
         }
 
         if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
-            return VfxNumberExpression.expression(element.getAsString(), evaluationMode);
+            return VfxNumberExpression.expression(element.getAsString());
         }
 
         throw new IllegalArgumentException("Expected number or expression string");
@@ -865,11 +851,10 @@ public final class VfxDefinitionParser {
     private static VfxColorExpression getColorExpression(
             JsonObject json,
             String key,
-            VfxColor fallback,
-            VfxEvaluationMode evaluationMode
+            VfxColor fallback
     ) {
         if (!json.has(key)) {
-            return constantColorExpression(fallback, evaluationMode);
+            return constantColorExpression(fallback);
         }
 
         JsonElement element = json.get(key);
@@ -878,7 +863,7 @@ public final class VfxDefinitionParser {
             String raw = element.getAsString();
 
             if (raw.startsWith("#")) {
-                return constantColorExpression(parseHexColor(raw), evaluationMode);
+                return constantColorExpression(parseHexColor(raw));
             }
 
             throw new IllegalArgumentException("Color string must be hex color: " + raw);
@@ -892,24 +877,22 @@ public final class VfxDefinitionParser {
             }
 
             return new VfxColorExpression(
-                    parseNumberExpressionElement(array.get(0), evaluationMode),
-                    parseNumberExpressionElement(array.get(1), evaluationMode),
-                    parseNumberExpressionElement(array.get(2), evaluationMode),
-                    parseNumberExpressionElement(array.get(3), evaluationMode),
-                    evaluationMode
+                    parseNumberExpressionElement(array.get(0)),
+                    parseNumberExpressionElement(array.get(1)),
+                    parseNumberExpressionElement(array.get(2)),
+                    parseNumberExpressionElement(array.get(3))
             );
         }
 
         throw new IllegalArgumentException("Expected hex color or color expression array field: " + key);
     }
 
-    private static VfxColorExpression constantColorExpression(VfxColor color, VfxEvaluationMode evaluationMode) {
+    private static VfxColorExpression constantColorExpression(VfxColor color) {
         return new VfxColorExpression(
-                VfxNumberExpression.constant(color.r(), evaluationMode),
-                VfxNumberExpression.constant(color.g(), evaluationMode),
-                VfxNumberExpression.constant(color.b(), evaluationMode),
-                VfxNumberExpression.constant(color.a(), evaluationMode),
-                evaluationMode
+                VfxNumberExpression.constant(color.r()),
+                VfxNumberExpression.constant(color.g()),
+                VfxNumberExpression.constant(color.b()),
+                VfxNumberExpression.constant(color.a())
         );
     }
 

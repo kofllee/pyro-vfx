@@ -7,20 +7,17 @@ public class VfxColorExpression implements VfxExpression<VfxColor>{
     private final VfxNumberExpression g;
     private final VfxNumberExpression b;
     private final VfxNumberExpression a;
-    private final VfxEvaluationMode evaluationMode;
 
     public VfxColorExpression(
             VfxNumberExpression r,
             VfxNumberExpression g,
             VfxNumberExpression b,
-            VfxNumberExpression a,
-            VfxEvaluationMode evaluationMode
+            VfxNumberExpression a
     ) {
         this.r = r;
         this.g = g;
         this.b = b;
         this.a = a;
-        this.evaluationMode = evaluationMode;
     }
 
     @Override
@@ -31,11 +28,6 @@ public class VfxColorExpression implements VfxExpression<VfxColor>{
                 b.evaluate(context),
                 a.evaluate(context)
         );
-    }
-
-    @Override
-    public VfxEvaluationMode evaluationMode() {
-        return evaluationMode;
     }
 
     @Override

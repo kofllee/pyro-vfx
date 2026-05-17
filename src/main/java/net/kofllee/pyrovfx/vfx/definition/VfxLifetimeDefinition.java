@@ -1,6 +1,5 @@
 package net.kofllee.pyrovfx.vfx.definition;
 
-import net.kofllee.pyrovfx.vfx.expression.VfxEvaluationMode;
 import net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression;
 import net.kofllee.pyrovfx.vfx.type.VfxLifetimeMode;
 
@@ -16,8 +15,8 @@ public record VfxLifetimeDefinition (
                 VfxLifetimeMode.ONCE,
                 delayTicks,
                 activeTicks,
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EFFECT_START),
-                VfxNumberExpression.constant(1.0, VfxEvaluationMode.EFFECT_START)
+                VfxNumberExpression.constant(0.0),
+                VfxNumberExpression.constant(1.0)
         );
     }
 
@@ -38,10 +37,10 @@ public record VfxLifetimeDefinition (
 
     public static VfxLifetimeDefinition none(){
         return new VfxLifetimeDefinition(VfxLifetimeMode.ONCE,
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EFFECT_START),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EFFECT_START),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EFFECT_START),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EFFECT_START));
+                VfxNumberExpression.constant(0.0),
+                VfxNumberExpression.constant(0.0),
+                VfxNumberExpression.constant(0.0),
+                VfxNumberExpression.constant(0.0));
     }
 
 }

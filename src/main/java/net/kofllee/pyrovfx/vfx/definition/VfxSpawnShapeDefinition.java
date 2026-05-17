@@ -1,6 +1,5 @@
 package net.kofllee.pyrovfx.vfx.definition;
 
-import net.kofllee.pyrovfx.vfx.expression.VfxEvaluationMode;
 import net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression;
 import net.kofllee.pyrovfx.vfx.expression.VfxVec3Expression;
 import net.kofllee.pyrovfx.vfx.type.VfxSpawnShapeType;
@@ -10,9 +9,9 @@ public record VfxSpawnShapeDefinition(VfxSpawnShapeType type, VfxNumberExpressio
     public static VfxSpawnShapeDefinition point() {
         return new VfxSpawnShapeDefinition(
                 VfxSpawnShapeType.POINT,
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_TICK),
-                VfxVec3Expression.constant(VfxVec3.ZERO, VfxEvaluationMode.EMITTER_TICK),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_TICK)
+                VfxNumberExpression.constant(0.0),
+                VfxVec3Expression.constant(VfxVec3.ZERO),
+                VfxNumberExpression.constant(0.0)
         );
     }
 
@@ -23,7 +22,7 @@ public record VfxSpawnShapeDefinition(VfxSpawnShapeType type, VfxNumberExpressio
         return new VfxSpawnShapeDefinition(
                 VfxSpawnShapeType.SPHERE,
                 radius,
-                VfxVec3Expression.constant(VfxVec3.ZERO, VfxEvaluationMode.EMITTER_TICK),
+                VfxVec3Expression.constant(VfxVec3.ZERO),
                 edgeThickness
         );
     }
@@ -34,7 +33,7 @@ public record VfxSpawnShapeDefinition(VfxSpawnShapeType type, VfxNumberExpressio
     ) {
         return new VfxSpawnShapeDefinition(
                 VfxSpawnShapeType.BOX,
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_TICK),
+                VfxNumberExpression.constant(0.0),
                 halfExtents,
                 edgeThickness
         );

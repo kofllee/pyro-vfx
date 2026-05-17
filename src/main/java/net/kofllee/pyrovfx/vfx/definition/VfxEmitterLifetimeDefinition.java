@@ -1,6 +1,5 @@
 package net.kofllee.pyrovfx.vfx.definition;
 
-import net.kofllee.pyrovfx.vfx.expression.VfxEvaluationMode;
 import net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression;
 import net.kofllee.pyrovfx.vfx.type.VfxEmitterLifetimeMode;
 
@@ -10,18 +9,18 @@ public record VfxEmitterLifetimeDefinition (VfxEmitterLifetimeMode mode, VfxNumb
                 VfxEmitterLifetimeMode.ONCE,
                 delayTicks,
                 activeTicks,
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START),
-                VfxNumberExpression.constant(1.0, VfxEvaluationMode.EMITTER_START)
+                VfxNumberExpression.constant(0.0),
+                VfxNumberExpression.constant(1.0)
                 );
     }
 
     public static VfxEmitterLifetimeDefinition none() {
         return new VfxEmitterLifetimeDefinition(
                 VfxEmitterLifetimeMode.ONCE,
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START)
+                VfxNumberExpression.constant(0.0),
+                VfxNumberExpression.constant(0.0),
+                VfxNumberExpression.constant(0.0),
+                VfxNumberExpression.constant(0.0)
         );
     }
 
@@ -38,10 +37,10 @@ public record VfxEmitterLifetimeDefinition (VfxEmitterLifetimeMode mode, VfxNumb
     public static VfxEmitterLifetimeDefinition manual() {
         return new VfxEmitterLifetimeDefinition(
                 VfxEmitterLifetimeMode.MANUAL,
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.EMITTER_START)
+                VfxNumberExpression.constant(0.0),
+                VfxNumberExpression.constant(0.0),
+                VfxNumberExpression.constant(0.0),
+                VfxNumberExpression.constant(0.0)
         );
     }
 

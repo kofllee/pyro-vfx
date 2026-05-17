@@ -6,27 +6,22 @@ public class VfxVec3Expression implements VfxExpression<VfxVec3> {
     private final VfxNumberExpression x;
     private final VfxNumberExpression y;
     private final VfxNumberExpression z;
-    private final VfxEvaluationMode evaluationMode;
-
 
     public VfxVec3Expression(
             VfxNumberExpression x,
             VfxNumberExpression y,
-            VfxNumberExpression z,
-            VfxEvaluationMode evaluationMode
+            VfxNumberExpression z
     ) {
         this.x = x;
         this.y = y;
         this.z = z;
-        this.evaluationMode = evaluationMode;
     }
 
-    public static VfxVec3Expression constant(VfxVec3 value, VfxEvaluationMode evaluationMode) {
+    public static VfxVec3Expression constant(VfxVec3 value) {
         return new VfxVec3Expression(
-                VfxNumberExpression.constant(value.x(), evaluationMode),
-                VfxNumberExpression.constant(value.y(), evaluationMode),
-                VfxNumberExpression.constant(value.z(), evaluationMode),
-                evaluationMode
+                VfxNumberExpression.constant(value.x()),
+                VfxNumberExpression.constant(value.y()),
+                VfxNumberExpression.constant(value.z())
         );
     }
 
@@ -37,11 +32,6 @@ public class VfxVec3Expression implements VfxExpression<VfxVec3> {
                 y.evaluate(context),
                 z.evaluate(context)
         );
-    }
-
-    @Override
-    public VfxEvaluationMode evaluationMode() {
-        return evaluationMode;
     }
 
     @Override

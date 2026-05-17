@@ -1,6 +1,5 @@
 package net.kofllee.pyrovfx.vfx.definition;
 
-import net.kofllee.pyrovfx.vfx.expression.VfxEvaluationMode;
 import net.kofllee.pyrovfx.vfx.expression.VfxVec3Expression;
 import net.kofllee.pyrovfx.vfx.value.VfxVec3;
 
@@ -9,7 +8,7 @@ public record VfxParametricRotationDefinition(
 ) {
     public static VfxParametricRotationDefinition none() {
         return new VfxParametricRotationDefinition(
-                VfxVec3Expression.constant(VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_TICK)
+                VfxVec3Expression.constant(VfxVec3.ZERO)
         );
     }
 

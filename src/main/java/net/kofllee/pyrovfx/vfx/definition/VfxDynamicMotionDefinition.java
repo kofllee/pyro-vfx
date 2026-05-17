@@ -1,6 +1,5 @@
 package net.kofllee.pyrovfx.vfx.definition;
 
-import net.kofllee.pyrovfx.vfx.expression.VfxEvaluationMode;
 import net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression;
 import net.kofllee.pyrovfx.vfx.expression.VfxVec3Expression;
 import net.kofllee.pyrovfx.vfx.type.VfxDirectionMode;
@@ -16,10 +15,10 @@ public record VfxDynamicMotionDefinition(
     public static VfxDynamicMotionDefinition none() {
         return new VfxDynamicMotionDefinition(
                 VfxDirectionMode.CUSTOM,
-                VfxVec3Expression.constant(VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_SPAWN),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.PARTICLE_SPAWN),
-                VfxVec3Expression.constant(VfxVec3.ZERO, VfxEvaluationMode.PARTICLE_TICK),
-                VfxNumberExpression.constant(0.0, VfxEvaluationMode.PARTICLE_TICK)
+                VfxVec3Expression.constant(VfxVec3.ZERO),
+                VfxNumberExpression.constant(0.0),
+                VfxVec3Expression.constant(VfxVec3.ZERO),
+                VfxNumberExpression.constant(0.0)
         );
     }
 
