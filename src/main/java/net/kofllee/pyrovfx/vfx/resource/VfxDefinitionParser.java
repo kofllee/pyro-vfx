@@ -60,8 +60,20 @@ public final class VfxDefinitionParser {
         validateEventEmitterReferences(events, emitters);
         validateScopedTriggerReferences(triggers, events, "effect");
         validateEmitterTriggerReferences(emitters, events);
+        validateEventParameterReferences(events, parameters);
 
         return new VfxDefinition(location, format, metadata, lifetime, parameters, emitters, events, triggers);
+    }
+
+    private static void validateEventParameterReferences(Map<String, VfxEventDefinition> events, Map<String, VfxParameterDefinition> parameters) {
+        for(Map.Entry<String, VfxEventDefinition> entry : events.entrySet()) {
+            VfxEventDefinition event = entry.getValue();
+
+            if (event.type() == VfxEventType.SET_PARAM
+                    && !parameters.containsKey(event.parameterId())) {
+                throw new IllegalArgumentException("Event parameter '" + entry.getKey() + "' does not exist");
+            }
+        }
     }
 
     private static Map<String, VfxParameterDefinition> parseParameters(JsonObject json) {
@@ -501,6 +513,11 @@ public final class VfxDefinitionParser {
 
             case RANDOMIZE -> VfxEventDefinition.randomize(
                     parseStringList(getArray(json, "events"), "randomize event list: " + id)
+            );
+
+            case SET_PARAM -> VfxEventDefinition.setParam(
+                    getRequiredString(json, "param"),
+                    getNumberExpression(json, "value", 0.0)
             );
         };
     }

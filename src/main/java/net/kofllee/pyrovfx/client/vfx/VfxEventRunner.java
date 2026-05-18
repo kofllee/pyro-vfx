@@ -22,6 +22,7 @@ public final class VfxEventRunner {
             Vec3 effectPosition,
             Vec3 callerPosition,
             VfxExpressionContext effectContext,
+            VfxEventRuntime runtime,
             RandomSource random
     ){
         run(
@@ -33,6 +34,7 @@ public final class VfxEventRunner {
                 callerPosition,
                 effectContext,
                 random,
+                runtime,
                 0
         );
 
@@ -46,6 +48,7 @@ public final class VfxEventRunner {
                             Vec3 callerPosition,
                             VfxExpressionContext effectContext,
                             RandomSource random,
+                            VfxEventRuntime runtime,
                             int depth){
         if(depth >= MAX_EVENT_DEPTH){
             return;
@@ -93,6 +96,7 @@ public final class VfxEventRunner {
                         callerPosition,
                         effectContext,
                         random,
+                        runtime,
                         depth + 1
                 );
             }
@@ -119,8 +123,17 @@ public final class VfxEventRunner {
                     callerPosition,
                     effectContext,
                     random,
+                    runtime,
                     depth + 1
             );
+            return;
+        }
+
+        if (event.type() == VfxEventType.SET_PARAM) {
+            double value = event.value().evaluate(effectContext);
+            runtime.setParameter(event.parameterId(), value);
+
+            return;
         }
     }
 }

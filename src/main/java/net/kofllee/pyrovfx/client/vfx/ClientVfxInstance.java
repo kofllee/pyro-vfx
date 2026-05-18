@@ -44,7 +44,7 @@ public final class ClientVfxInstance {
                 Map.of()
         );
 
-        this.parameters = resolveParameters(definition, parameterStartContext, options);
+        this.parameters = new HashMap<>(resolveParameters(definition, parameterStartContext, options));
 
         VfxExpressionContext effectStartContext = ClientVfxExpressionContexts.effectStart(position, effectRandom, parameters);
 
@@ -114,7 +114,7 @@ public final class ClientVfxInstance {
             Vec3 emitterOffset = emitter.definition().offset().evaluate(effectContext).toVec3();
             Vec3 emitterPosition = position.add(emitterOffset);
 
-            emitter.tick(level, position, emitterPosition, effectContext, isEffectActive(), definition.events(), emittersById, random);
+            emitter.tick(level, position, emitterPosition, effectContext, isEffectActive(), definition.events(), emittersById, this::setParameter, random);
         }
 
         age++;
@@ -154,6 +154,7 @@ public final class ClientVfxInstance {
                 position,
                 position,
                 effectContext,
+                this::setParameter,
                 random
         );
     }
@@ -253,5 +254,17 @@ public final class ClientVfxInstance {
         }
 
         return Collections.unmodifiableList(result);
+    }
+
+    public void setParameter(String id, double value) {
+        if (!definition.parameters().containsKey(id)) {
+            return;
+        }
+
+        parameters.put(id, value);
+    }
+
+    public Map<String, Double> parameters() {
+        return Collections.unmodifiableMap(parameters);
     }
 }

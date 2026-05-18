@@ -79,6 +79,7 @@ public final class ClientVfxEmitter {
             boolean canSpawn,
             Map<String, VfxEventDefinition> events,
             Map<String, ClientVfxEmitter> emittersById,
+            VfxEventRuntime eventRuntime,
             RandomSource random
     ) {
         VfxLifetimeState lifetimeState = VfxLifetimeRuntime.emitter(
@@ -106,7 +107,8 @@ public final class ClientVfxEmitter {
                 random,
                 events,
                 emittersById,
-                lifetimeState
+                lifetimeState,
+                eventRuntime
         );
 
         if (canSpawn && lifetimeState.active()) {
@@ -136,7 +138,8 @@ public final class ClientVfxEmitter {
             RandomSource random,
             Map<String, VfxEventDefinition> events,
             Map<String, ClientVfxEmitter> emittersById,
-            VfxLifetimeState lifetimeState
+            VfxLifetimeState lifetimeState,
+            VfxEventRuntime eventRuntime
     ) {
         if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.MANUAL) {
             return;
@@ -147,7 +150,7 @@ public final class ClientVfxEmitter {
 
             for (VfxTriggerDefinition trigger : definition.triggers()) {
                 if (trigger.type() == VfxTriggerType.ON_CREATION) {
-                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, effectContext, random);
+                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, effectContext, eventRuntime, random);
                 }
             }
         }
@@ -156,7 +159,7 @@ public final class ClientVfxEmitter {
             for (VfxTriggerDefinition trigger : definition.triggers()) {
                 if (trigger.type() == VfxTriggerType.TIMELINE
                         && age == trigger.timeTicks()) {
-                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, effectContext, random);
+                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, effectContext, eventRuntime, random);
                 }
             }
         }
@@ -166,7 +169,7 @@ public final class ClientVfxEmitter {
 
             for (VfxTriggerDefinition trigger : definition.triggers()) {
                 if (trigger.type() == VfxTriggerType.ON_EXPIRATION) {
-                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, effectContext, random);
+                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, effectContext, eventRuntime, random);
                 }
             }
         }

@@ -2,53 +2,68 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "Tests looping emitter evaluation: emitter.normalized_age and emitter.local_age must reset every loop."
+    "description": "set_param test: smoke changes power at timeline tick."
+  },
+  "parameters": {
+    "power": 0.4
   },
   "lifetime": {
     "mode": "once",
     "delay_ticks": 0,
-    "active_ticks": 180
+    "active_ticks": 80
   },
+  "events": {
+    "boost_power": {
+      "type": "set_param",
+      "param": "power",
+      "value": 2.5
+    }
+  },
+  "triggers": [
+    {
+      "type": "timeline",
+      "time_ticks": 30,
+      "event": "boost_power"
+    }
+  ],
   "emitters": [
     {
-      "id": "looping_pulse_smoke",
+      "id": "smoke",
       "emitter_lifetime": {
-        "mode": "looping",
+        "mode": "once",
         "delay_ticks": 0,
-        "active_ticks": 20,
-        "sleep_ticks": 20,
-        "loops": 4
+        "active_ticks": 80
       },
       "spawn_amount": {
         "mode": "steady",
-        "rate": "8 + emitter.normalized_age * 52",
-        "max_particles": 300
+        "rate": "6 + param.power * 16",
+        "max_particles": 160
       },
-      "offset": [0, 1.0, 0],
+      "offset": [0, 0.2, 0],
       "spawn_shape": {
         "type": "sphere",
-        "radius": "0.05 + emitter.normalized_age * 3",
+        "radius": "0.08 + param.power * 0.04",
         "edge_thickness": 0.0
       },
       "particle_lifetime": {
-        "max_age_ticks": "1000"
+        "max_age_ticks": "25 + param.power * 10"
       },
       "motion": {
         "mode": "dynamic",
         "dynamic": {
           "direction": "outward",
-          "speed": "0",
-          "acceleration": [0, 0.25, 0],
-          "linear_drag": 2.0
+          "speed": "0.25 + param.power * 0.25",
+          "acceleration": [0, 0.35, 0],
+          "linear_drag": 1.5
         }
       },
       "rotation": {
         "mode": "dynamic",
         "dynamic": {
           "start_rotation": [0, "particle.random * 360", 0],
-          "angular_velocity": [0, "-60 + particle.random * 120", 0],
+          "angular_velocity": [0, "-40 + particle.random * 80", 0],
           "angular_acceleration": [0, 0, 0],
-          "angular_drag": 1.5
+          "angular_drag": 1.0
         }
       },
       "render": {
@@ -62,14 +77,14 @@
           "texture": "minecraft:textures/particle/generic_0.png"
         },
         "color": [
-          "0.25 + emitter.normalized_age * 0.35",
-          "0.25 + emitter.normalized_age * 0.35",
-          "0.25 + emitter.normalized_age * 0.35",
-          "1.0"
+          0.35,
+          0.35,
+          0.35,
+          "1.0 - particle.normalized_age"
         ],
         "scale": [
-          "0.5",
-          "0.5",
+          "0.15 + particle.normalized_age * param.power",
+          "0.15 + particle.normalized_age * param.power",
           1.0
         ]
       }

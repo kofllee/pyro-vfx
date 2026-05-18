@@ -3,5 +3,6 @@ package net.kofllee.pyrovfx.vfx.type;
 public enum VfxEventType {
     EMIT,
     SEQUENCE,
-    RANDOMIZE
+    RANDOMIZE,
+    SET_PARAM
 }
