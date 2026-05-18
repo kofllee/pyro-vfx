@@ -2,56 +2,53 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "Parameter test: smoke amount, speed and color are driven by param.*"
-  },
-  "parameters": {
-    "power": 2.0,
-    "red": 1.0,
-    "green": 0.45,
-    "blue": 0.12
+    "description": "Tests looping emitter evaluation: emitter.normalized_age and emitter.local_age must reset every loop."
   },
   "lifetime": {
     "mode": "once",
     "delay_ticks": 0,
-    "active_ticks": 60
+    "active_ticks": 180
   },
   "emitters": [
     {
-      "id": "param_smoke",
+      "id": "looping_pulse_smoke",
       "emitter_lifetime": {
-        "mode": "once",
+        "mode": "looping",
         "delay_ticks": 0,
-        "active_ticks": 1
+        "active_ticks": 20,
+        "sleep_ticks": 20,
+        "loops": 4
       },
       "spawn_amount": {
-        "mode": "instant",
-        "amount": "8 + param.power * 12"
+        "mode": "steady",
+        "rate": "8 + emitter.normalized_age * 52",
+        "max_particles": 300
       },
-      "offset": [0, 0.2, 0],
+      "offset": [0, 1.0, 0],
       "spawn_shape": {
         "type": "sphere",
-        "radius": "0.1 + param.power * 0.05",
+        "radius": "0.05 + emitter.normalized_age * 3",
         "edge_thickness": 0.0
       },
       "particle_lifetime": {
-        "max_age_ticks": "30 + param.power * 12"
+        "max_age_ticks": "1000"
       },
       "motion": {
         "mode": "dynamic",
         "dynamic": {
           "direction": "outward",
-          "speed": "0.4 + param.power * 0.35",
-          "acceleration": [0, 0.35, 0],
-          "linear_drag": 1.4
+          "speed": "0",
+          "acceleration": [0, 0.25, 0],
+          "linear_drag": 2.0
         }
       },
       "rotation": {
         "mode": "dynamic",
         "dynamic": {
           "start_rotation": [0, "particle.random * 360", 0],
-          "angular_velocity": [0, "-40 + particle.random * 80", 0],
+          "angular_velocity": [0, "-60 + particle.random * 120", 0],
           "angular_acceleration": [0, 0, 0],
-          "angular_drag": 1.2
+          "angular_drag": 1.5
         }
       },
       "render": {
@@ -62,17 +59,17 @@
           "blend_mode": "alpha"
         },
         "sprite": {
-          "texture": "pyro_vfx:textures/vfx/smoke.png"
+          "texture": "minecraft:textures/particle/generic_0.png"
         },
         "color": [
-          "param.red",
-          "param.green",
-          "param.blue",
-          "1.0 - particle.normalized_age"
+          "0.25 + emitter.normalized_age * 0.35",
+          "0.25 + emitter.normalized_age * 0.35",
+          "0.25 + emitter.normalized_age * 0.35",
+          "1.0"
         ],
         "scale": [
-          "0.2 + particle.normalized_age * param.power",
-          "0.2 + particle.normalized_age * param.power",
+          "0.5",
+          "0.5",
           1.0
         ]
       }

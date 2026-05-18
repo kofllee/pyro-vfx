@@ -88,7 +88,7 @@ public final class ClientVfxParticle {
                 age,
                 lifetime,
                 random,
-                new Vec3(1.0, 1.0, 1.0)
+                scale
         );
 
         tickMotion(particleContext);

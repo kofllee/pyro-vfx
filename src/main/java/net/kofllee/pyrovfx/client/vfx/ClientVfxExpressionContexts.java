@@ -44,12 +44,12 @@ public final class ClientVfxExpressionContexts {
                 .build();
     }
 
-    public static VfxExpressionContext emitterStart(VfxExpressionContext effectContext, Vec3 emitterPosition, RandomSource random) {
+    public static VfxExpressionContext emitterStart(VfxExpressionContext effectContext, Vec3 emitterPosition, double emitterRandom) {
         return VfxContextBuilder.childOf(effectContext)
                 .number("emitter.age", 0)
                 .number("emitter.active_age", 0)
                 .number("emitter.normalized_age", 0)
-                .number("emitter.random", random.nextDouble())
+                .number("emitter.random", emitterRandom)
                 .number("emitter.spawned_particles", 0)
                 .vec3("emitter.pos", emitterPosition)
                 .build();
@@ -58,20 +58,16 @@ public final class ClientVfxExpressionContexts {
     public static VfxExpressionContext emitterTick(
             VfxExpressionContext effectContext,
             Vec3 emitterPosition,
-            int emitterAge,
-            int emitterDelayTicks,
-            int emitterActiveTicks,
-            int emittedParticles
+            VfxLifetimeState lifetime,
+            int emittedParticles,
+            double emitterRandom
     ) {
-        int emitterActiveAge = Math.max(0, emitterAge - emitterDelayTicks);
-        double emitterNormalizedAge = emitterActiveTicks <= 0
-                ? 1.0
-                : Math.min(1.0, emitterActiveAge / (double) emitterActiveTicks);
-
         return VfxContextBuilder.childOf(effectContext)
-                .number("emitter.age", emitterAge)
-                .number("emitter.active_age", emitterActiveAge)
-                .number("emitter.normalized_age", emitterNormalizedAge)
+                .number("emitter.age", lifetime.age())
+                .number("emitter.local_age", lifetime.localAge())
+                .number("emitter.active_age", lifetime.activeAge())
+                .number("emitter.normalized_age", lifetime.normalizedAge())
+                .number("emitter.random", emitterRandom)
                 .number("emitter.spawned_particles", emittedParticles)
                 .vec3("emitter.pos", emitterPosition)
                 .build();

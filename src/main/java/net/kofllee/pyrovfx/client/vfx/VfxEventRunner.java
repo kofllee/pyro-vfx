@@ -67,13 +67,14 @@ public final class VfxEventRunner {
             Vec3 emitterOffset = emitter.definition().offset().evaluate(effectContext).toVec3();
             Vec3 emitterPosition = callerPosition.add(emitterOffset);
 
+            VfxLifetimeState lifetimeState = emitter.lifetimeState();
+
             VfxExpressionContext emitterContext = ClientVfxExpressionContexts.emitterTick(
                     effectContext,
                     emitterPosition,
-                    emitter.age(),
-                    emitter.delayTicks(),
-                    emitter.activeTicks(),
-                    emitter.emittedParticles()
+                    lifetimeState,
+                    emitter.emittedParticles(),
+                    emitter.emitterRandom()
             );
 
             emitter.emitManual(level, effectPosition, emitterPosition, emitterContext, random);

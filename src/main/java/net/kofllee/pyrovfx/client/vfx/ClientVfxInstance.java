@@ -56,7 +56,15 @@ public final class ClientVfxInstance {
         this.loops = Math.max(0, (int) Math.round(lifetime.loops().evaluate(effectStartContext)));
 
         for(var emitterDef : definition.emitters()){
-            ClientVfxEmitter emitter = new ClientVfxEmitter(emitterDef, position, effectStartContext, random);
+            Vec3 emitterOffset = emitterDef.offset().evaluate(effectStartContext).toVec3();
+            Vec3 emitterStartPosition = position.add(emitterOffset);
+
+            ClientVfxEmitter emitter = new ClientVfxEmitter(
+                    emitterDef,
+                    emitterStartPosition,
+                    effectStartContext,
+                    random
+            );
 
             emitters.add(emitter);
             emittersById.put(emitterDef.id(), emitter);

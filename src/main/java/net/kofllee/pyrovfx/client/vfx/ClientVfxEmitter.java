@@ -37,6 +37,8 @@ public final class ClientVfxEmitter {
     private boolean creationTriggersFired = false;
     private boolean expirationTriggersFired = false;
 
+    private final double emitterRandom;
+
 
     private final List<ClientVfxParticle> particles = new ArrayList<>();
 
@@ -49,10 +51,12 @@ public final class ClientVfxEmitter {
 
         this.definition = definition;
 
+        this.emitterRandom = random.nextDouble();
+
         VfxExpressionContext emitterStartContext = ClientVfxExpressionContexts.emitterStart(
                 effectStartContext,
                 emitterPosition,
-                random
+                emitterRandom
         );
 
         VfxEmitterLifetimeDefinition lifetime = definition.emitterLifetime();
@@ -77,13 +81,21 @@ public final class ClientVfxEmitter {
             Map<String, ClientVfxEmitter> emittersById,
             RandomSource random
     ) {
-        VfxExpressionContext emitterContext = ClientVfxExpressionContexts.emitterTick(
-                effectContext,
-                emitterPosition,
+        VfxLifetimeState lifetimeState = VfxLifetimeRuntime.emitter(
+                definition.emitterLifetime().mode(),
                 age,
                 delayTicks,
                 activeTicks,
-                emittedParticles
+                sleepTicks,
+                loops
+        );
+
+        VfxExpressionContext emitterContext = ClientVfxExpressionContexts.emitterTick(
+                effectContext,
+                emitterPosition,
+                lifetimeState,
+                emittedParticles,
+                emitterRandom
         );
 
         tickTriggers(
@@ -93,24 +105,25 @@ public final class ClientVfxEmitter {
                 effectContext,
                 random,
                 events,
-                emittersById
+                emittersById,
+                lifetimeState
         );
 
-        if(canSpawn && isActive()){
+        if (canSpawn && lifetimeState.active()) {
             tickSpawnAmount(level, effectPosition, emitterPosition, emitterContext, random);
         }
 
-        for(var particleIterator = particles.iterator(); particleIterator.hasNext(); ) {
+        for (var particleIterator = particles.iterator(); particleIterator.hasNext(); ) {
             ClientVfxParticle particle = particleIterator.next();
 
             particle.tick(emitterContext);
 
-            if(particle.isDead()) {
+            if (particle.isDead()) {
                 particleIterator.remove();
             }
         }
 
-        if(canSpawn){
+        if (canSpawn) {
             age++;
         }
     }
@@ -122,7 +135,8 @@ public final class ClientVfxEmitter {
             VfxExpressionContext effectContext,
             RandomSource random,
             Map<String, VfxEventDefinition> events,
-            Map<String, ClientVfxEmitter> emittersById
+            Map<String, ClientVfxEmitter> emittersById,
+            VfxLifetimeState lifetimeState
     ) {
         if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.MANUAL) {
             return;
@@ -147,7 +161,7 @@ public final class ClientVfxEmitter {
             }
         }
 
-        if (!expirationTriggersFired && isEmitterLifetimeFinished()) {
+        if (!expirationTriggersFired && lifetimeState.finished()) {
             expirationTriggersFired = true;
 
             for (VfxTriggerDefinition trigger : definition.triggers()) {
@@ -161,7 +175,7 @@ public final class ClientVfxEmitter {
     private boolean isActive() {
         VfxEmitterLifetimeDefinition lifetime = definition.emitterLifetime();
 
-        if(lifetime.mode() == VfxEmitterLifetimeMode.MANUAL) {
+        if (lifetime.mode() == VfxEmitterLifetimeMode.MANUAL) {
             return false;
         }
 
@@ -207,11 +221,11 @@ public final class ClientVfxEmitter {
     ) {
         VfxSpawnAmountDefinition spawnAmount = definition.spawnAmount();
 
-        if(spawnAmount.mode() == VfxSpawnAmountMode.INSTANT){
+        if (spawnAmount.mode() == VfxSpawnAmountMode.INSTANT) {
             tickInstantSpawnAmount(level, effectPosition, emitterPosition, emitterContext, random);
         }
 
-        if(spawnAmount.mode() == VfxSpawnAmountMode.STEADY){
+        if (spawnAmount.mode() == VfxSpawnAmountMode.STEADY) {
             tickSteadySpawnAmount(level, effectPosition, emitterPosition, emitterContext, random);
         }
     }
@@ -223,7 +237,7 @@ public final class ClientVfxEmitter {
             VfxExpressionContext emitterContext,
             RandomSource random
     ) {
-        if(particles.size() >= maxParticles) {
+        if (particles.size() >= maxParticles) {
             return;
         }
 
@@ -232,7 +246,7 @@ public final class ClientVfxEmitter {
 
         int amount = (int) spawnAccumulator;
 
-        if(amount <= 0) {
+        if (amount <= 0) {
             return;
         }
 
@@ -252,7 +266,7 @@ public final class ClientVfxEmitter {
             VfxExpressionContext emitterContext,
             RandomSource random
     ) {
-        if(instantEmitted) {
+        if (instantEmitted) {
             return;
         }
 
@@ -269,7 +283,7 @@ public final class ClientVfxEmitter {
             RandomSource random,
             int count
     ) {
-        for(int i = 0; i < count; i++){
+        for (int i = 0; i < count; i++) {
             double particleRandom = random.nextDouble();
 
             VfxExpressionContext preSpawnContext = ClientVfxExpressionContexts.particleSpawn(
@@ -310,13 +324,13 @@ public final class ClientVfxEmitter {
                     particleSpawnContext
             );
 
-            if(definition.render().type() == VfxRenderType.MINECRAFT_PARTICLE){
+            if (definition.render().type() == VfxRenderType.MINECRAFT_PARTICLE) {
                 VanillaParticleBridge.spawn(level, definition.render(), particlePosition, velocity);
                 emittedParticles++;
                 continue;
             }
 
-            if(definition.render().type() != VfxRenderType.SPRITE){
+            if (definition.render().type() != VfxRenderType.SPRITE) {
                 emittedParticles++;
                 continue;
             }
@@ -367,24 +381,24 @@ public final class ClientVfxEmitter {
             Vec3 emitterPosition,
             VfxExpressionContext emitterContext,
             RandomSource random
-    ){
+    ) {
         VfxSpawnAmountDefinition spawnAmount = definition.spawnAmount();
 
         int amount = Math.max(0, (int) Math.round(spawnAmount.amount().evaluate(emitterContext)));
 
-        if(amount == 0) {
+        if (amount == 0) {
             return;
         }
 
         spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, amount);
     }
 
-    public boolean isFinished(){
-        if(definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.MANUAL) {
+    public boolean isFinished() {
+        if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.MANUAL) {
             return particles.isEmpty();
         }
 
-        if(definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.ONCE) {
+        if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.ONCE) {
             return age >= delayTicks + activeTicks;
         }
 
@@ -424,6 +438,7 @@ public final class ClientVfxEmitter {
     public int age() {
         return age;
     }
+
     public int activeTicks() {
         return activeTicks;
     }
@@ -434,5 +449,20 @@ public final class ClientVfxEmitter {
 
     public int emittedParticles() {
         return emittedParticles;
+    }
+
+    public VfxLifetimeState lifetimeState() {
+        return VfxLifetimeRuntime.emitter(
+                definition.emitterLifetime().mode(),
+                age,
+                delayTicks,
+                activeTicks,
+                sleepTicks,
+                loops
+        );
+    }
+
+    public double emitterRandom() {
+        return emitterRandom;
     }
 }
