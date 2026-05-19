@@ -5,7 +5,6 @@ import net.kofllee.pyrovfx.vfx.definition.VfxLifetimeDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxParameterDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxTriggerDefinition;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
-import net.kofllee.pyrovfx.vfx.type.VfxLifetimeMode;
 import net.kofllee.pyrovfx.vfx.type.VfxTriggerType;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.util.RandomSource;
@@ -31,6 +30,16 @@ public final class ClientVfxInstance {
     private boolean creationTriggersFired = false;
     private boolean expirationTriggersFired = false;
 
+    private VfxLifetimeState lifetimeState() {
+        return VfxLifetimeRuntime.effect(
+                definition.lifetime().mode(),
+                age,
+                delayTicks,
+                activeTicks,
+                sleepTicks,
+                loops
+        );
+    }
 
     public ClientVfxInstance(VfxDefinition definition, Vec3 position, VfxPlayOptions options){
         this.definition = definition;
@@ -44,7 +53,7 @@ public final class ClientVfxInstance {
                 Map.of()
         );
 
-        this.parameters = new HashMap<>(resolveParameters(definition, parameterStartContext, options));
+        this.parameters = resolveParameters(definition, parameterStartContext, options);
 
         VfxExpressionContext effectStartContext = ClientVfxExpressionContexts.effectStart(position, effectRandom, parameters);
 
@@ -94,33 +103,33 @@ public final class ClientVfxInstance {
             result.put(entry.getKey(), entry.getValue());
         }
 
-        return Map.copyOf(result);
+        return result;
     }
 
     public void tick(ClientLevel level){
+        VfxLifetimeState lifetimeState = lifetimeState();
+
         VfxExpressionContext effectContext = ClientVfxExpressionContexts.effectTick(
                 position,
-                age,
-                delayTicks,
-                activeTicks,
+                lifetimeState,
                 effectRandom,
                 parameters
         );
 
-        tickEffectTriggers(level, effectContext);
-        tickEffectExpirationTriggers(level, effectContext);
+        tickEffectTriggers(level, effectContext, lifetimeState);
+        tickEffectExpirationTriggers(level, effectContext, lifetimeState);
 
         for (var emitter : emitters) {
             Vec3 emitterOffset = emitter.definition().offset().evaluate(effectContext).toVec3();
             Vec3 emitterPosition = position.add(emitterOffset);
 
-            emitter.tick(level, position, emitterPosition, effectContext, isEffectActive(), definition.events(), emittersById, this::setParameter, random);
+            emitter.tick(level, position, emitterPosition, effectContext, lifetimeState.active(), definition.events(), emittersById, this::setParameter, random);
         }
 
         age++;
     }
 
-    private void tickEffectTriggers(ClientLevel level, VfxExpressionContext effectContext) {
+    private void tickEffectTriggers(ClientLevel level, VfxExpressionContext effectContext, VfxLifetimeState lifetimeState) {
         if (age == 0 && !creationTriggersFired) {
             creationTriggersFired = true;
 
@@ -131,12 +140,30 @@ public final class ClientVfxInstance {
             }
         }
 
-        if (isEffectActive()) {
+        if (lifetimeState.active()) {
             for (VfxTriggerDefinition trigger : definition.triggers()) {
                 if (trigger.type() == VfxTriggerType.TIMELINE
                         && age == trigger.timeTicks()) {
                     runEffectTrigger(level, effectContext, trigger);
                 }
+            }
+        }
+    }
+
+    private void tickEffectExpirationTriggers(ClientLevel level, VfxExpressionContext effectContext, VfxLifetimeState lifetimeState) {
+        if (expirationTriggersFired) {
+            return;
+        }
+
+        if (!lifetimeState.finished()) {
+            return;
+        }
+
+        expirationTriggersFired = true;
+
+        for (VfxTriggerDefinition trigger : definition.triggers()) {
+            if (trigger.type() == VfxTriggerType.ON_EXPIRATION) {
+                runEffectTrigger(level, effectContext, trigger);
             }
         }
     }
@@ -159,72 +186,8 @@ public final class ClientVfxInstance {
         );
     }
 
-    private void tickEffectExpirationTriggers(ClientLevel level, VfxExpressionContext effectContext) {
-        if (expirationTriggersFired) {
-            return;
-        }
-
-        if (!isEffectLifetimeFinished()) {
-            return;
-        }
-
-        expirationTriggersFired = true;
-
-        for (VfxTriggerDefinition trigger : definition.triggers()) {
-            if (trigger.type() == VfxTriggerType.ON_EXPIRATION) {
-                runEffectTrigger(level, effectContext, trigger);
-            }
-        }
-    }
-
-    private boolean isEffectActive() {
-        if (age < delayTicks) {
-            return false;
-        }
-
-        int localAge = age - delayTicks;
-
-        if(definition.lifetime().mode() == VfxLifetimeMode.ONCE) {
-            return localAge < activeTicks;
-        }
-
-        if(definition.lifetime().mode() == VfxLifetimeMode.LOOPING) {
-            int cycleTicks = activeTicks + sleepTicks;
-
-            if(cycleTicks <= 0){
-                return false;
-            }
-
-            if(loops > 0){
-                int completeCycles = localAge / cycleTicks;
-
-                if(completeCycles >= loops){
-                    return false;
-                }
-            }
-
-            int cycleAge = localAge % cycleTicks;
-            return cycleAge < activeTicks;
-        }
-
-        return false;
-    }
-
-    private boolean isEffectLifetimeFinished() {
-        if(definition.lifetime().mode() == VfxLifetimeMode.ONCE) {
-            return age >= delayTicks + activeTicks;
-        }
-
-        if(definition.lifetime().mode() == VfxLifetimeMode.LOOPING && loops > 0) {
-            int cycleTicks = activeTicks + sleepTicks;
-            return cycleTicks <= 0 || age >= delayTicks + cycleTicks * loops;
-        }
-
-        return false;
-    }
-
-    public boolean isFinished(){
-        if (!isEffectLifetimeFinished()) {
+    public boolean isFinished() {
+        if (!lifetimeState().finished()) {
             return false;
         }
 

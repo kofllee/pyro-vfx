@@ -23,25 +23,20 @@ public final class ClientVfxExpressionContexts {
 
     public static VfxExpressionContext effectTick(
             Vec3 effectPosition,
-            int effectAge,
-            int effectDelayTicks,
-            int effectActiveTicks,
+            VfxLifetimeState lifetime,
             double effectRandom,
             Map<String, Double> parameters
     ) {
-        int effectActiveAge = Math.max(0, effectAge - effectDelayTicks);
-        double effectNormalizedAge = effectActiveTicks <= 0
-                ? 1.0
-                : Math.min(1.0, effectActiveAge / (double) effectActiveTicks);
-
         return VfxContextBuilder.create()
                 .numbers("param", parameters)
-                .number("effect.age", effectAge)
-                .number("effect.active_age", effectActiveAge)
-                .number("effect.normalized_age", effectNormalizedAge)
+                .number("effect.age", lifetime.age())
+                .number("effect.local_age", lifetime.localAge())
+                .number("effect.active_age", lifetime.activeAge())
+                .number("effect.normalized_age", lifetime.normalizedAge())
                 .number("effect.random", effectRandom)
                 .vec3("effect.pos", effectPosition)
                 .build();
+
     }
 
     public static VfxExpressionContext emitterStart(VfxExpressionContext effectContext, Vec3 emitterPosition, double emitterRandom) {
