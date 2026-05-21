@@ -28,6 +28,17 @@ public final class VfxRenderer {
                             partialTick
                     );
                 }
+
+
+                if (particle.emitterDefinition().render().type() == VfxRenderType.MODEL) {
+                    ModelVfxParticleRenderer.render(
+                            particle,
+                            poseStack,
+                            bufferSource,
+                            camera,
+                            partialTick
+                    );
+                }
             }
         }
 

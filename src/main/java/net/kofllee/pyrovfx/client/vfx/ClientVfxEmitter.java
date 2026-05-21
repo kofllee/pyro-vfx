@@ -310,7 +310,8 @@ public final class ClientVfxEmitter {
                 continue;
             }
 
-            if (definition.render().type() != VfxRenderType.SPRITE) {
+            if (definition.render().type() != VfxRenderType.SPRITE
+                    && definition.render().type() != VfxRenderType.MODEL) {
                 emittedParticles++;
                 continue;
             }

@@ -580,8 +580,27 @@ public final class VfxDefinitionParser {
                     parseSpriteRender(getObject(json, "sprite")),
                     parseParticleAppearance(json)
             );
-            case MODEL -> throw new IllegalArgumentException("Model render is not implemented yet");
+            case MODEL -> VfxRenderDefinition.model(
+                    material,
+                    environmentLighting,
+                    parseModelRender(getObject(json, "model")),
+                    parseParticleAppearance(json)
+            );
         };
+    }
+
+    private static VfxModelRenderDefinition parseModelRender(JsonObject json) {
+        ResourceLocation model = ResourceLocation.parse(
+                getString(json, "model", "minecraft:block/stone")
+        );
+
+        VfxModelRenderLayer renderLayer = parseEnum(
+                VfxModelRenderLayer.class,
+                getString(json, "render_layer", "cutout"),
+                "model render layer"
+        );
+
+        return new VfxModelRenderDefinition(model, renderLayer);
     }
 
     private static VfxMaterialDefinition parseMaterial(JsonObject json) {

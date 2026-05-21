@@ -10,6 +10,7 @@ public record VfxRenderDefinition (
         boolean environmentLighting,
         VfxMinecraftParticleRenderDefinition minecraftParticle,
         VfxSpriteRenderDefinition sprite,
+        VfxModelRenderDefinition model,
         VfxParticleAppearanceDefinition appearance
 ) {
     public static VfxRenderDefinition minecraftParticle(VfxMinecraftParticleRenderDefinition minecraftParticle) {
@@ -19,6 +20,7 @@ public record VfxRenderDefinition (
                 VfxMaterialDefinition.defaultMaterial(),
                 true,
                 minecraftParticle,
+                null,
                 null,
                 VfxParticleAppearanceDefinition.defaultAppearance()
         );
@@ -38,6 +40,25 @@ public record VfxRenderDefinition (
                 environmentLighting,
                 null,
                 sprite,
+                null,
+                appearance
+        );
+    }
+
+    public static VfxRenderDefinition model(
+            VfxMaterialDefinition material,
+            boolean environmentLighting,
+            VfxModelRenderDefinition model,
+            VfxParticleAppearanceDefinition appearance
+    ) {
+        return new VfxRenderDefinition(
+                VfxRenderType.MODEL,
+                VfxFacingMode.WORLD_Z,
+                material,
+                environmentLighting,
+                null,
+                null,
+                model,
                 appearance
         );
     }

@@ -4,10 +4,13 @@ import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.render.VfxRenderer;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import net.kofllee.pyrovfx.vfx.resource.VfxReloadListener;
+import net.minecraft.client.resources.model.ModelResourceLocation;
+import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 
@@ -35,5 +38,12 @@ public final class PyroVfxClient {
         }
 
         VfxRenderer.render(event.getPoseStack(), event.getCamera(), event.getPartialTick().getGameTimeDeltaPartialTick(false));
+    }
+
+    @SubscribeEvent
+    public static void registerAdditionalModels(ModelEvent.RegisterAdditional event) {
+        event.register(ModelResourceLocation.standalone(
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "vfx/stone_chunk")
+        ));
     }
 }
