@@ -169,7 +169,7 @@ public final class ClientVfxEmitter {
 
             for (VfxTriggerDefinition trigger : definition.triggers()) {
                 if (trigger.type() == VfxTriggerType.ON_EXPIRATION) {
-                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, effectContext, eventRuntime, random);
+                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, emitterContext, eventRuntime, random);
                 }
             }
         }
