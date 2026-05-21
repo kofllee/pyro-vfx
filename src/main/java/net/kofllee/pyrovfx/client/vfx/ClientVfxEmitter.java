@@ -23,7 +23,7 @@ import java.util.Map;
 public final class ClientVfxEmitter {
     private final VfxEmitterDefinition definition;
     private int age;
-    private boolean instantEmitted;
+    private int lastInstantAge = -1;
     private int emittedParticles;
     private float spawnAccumulator;
 
@@ -103,7 +103,7 @@ public final class ClientVfxEmitter {
                 level,
                 effectPosition,
                 emitterPosition,
-                effectContext,
+                emitterContext,
                 random,
                 events,
                 emittersById,
@@ -112,7 +112,7 @@ public final class ClientVfxEmitter {
         );
 
         if (canSpawn && lifetimeState.active()) {
-            tickSpawnAmount(level, effectPosition, emitterPosition, emitterContext, random);
+            tickSpawnAmount(level, effectPosition, emitterPosition, emitterContext, lifetimeState, random);
         }
 
         for (var particleIterator = particles.iterator(); particleIterator.hasNext(); ) {
@@ -134,7 +134,7 @@ public final class ClientVfxEmitter {
             ClientLevel level,
             Vec3 effectPosition,
             Vec3 emitterPosition,
-            VfxExpressionContext effectContext,
+            VfxExpressionContext emitterContext,
             RandomSource random,
             Map<String, VfxEventDefinition> events,
             Map<String, ClientVfxEmitter> emittersById,
@@ -150,16 +150,16 @@ public final class ClientVfxEmitter {
 
             for (VfxTriggerDefinition trigger : definition.triggers()) {
                 if (trigger.type() == VfxTriggerType.ON_CREATION) {
-                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, effectContext, eventRuntime, random);
+                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, emitterContext, eventRuntime, random);
                 }
             }
         }
 
-        if (isActive()) {
+        if (lifetimeState.active()) {
             for (VfxTriggerDefinition trigger : definition.triggers()) {
                 if (trigger.type() == VfxTriggerType.TIMELINE
                         && age == trigger.timeTicks()) {
-                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, effectContext, eventRuntime, random);
+                    VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, emitterContext, eventRuntime, random);
                 }
             }
         }
@@ -175,57 +175,18 @@ public final class ClientVfxEmitter {
         }
     }
 
-    private boolean isActive() {
-        VfxEmitterLifetimeDefinition lifetime = definition.emitterLifetime();
-
-        if (lifetime.mode() == VfxEmitterLifetimeMode.MANUAL) {
-            return false;
-        }
-
-        if (age < delayTicks) {
-            return false;
-        }
-
-        int localAge = age - delayTicks;
-
-        if (lifetime.mode() == VfxEmitterLifetimeMode.ONCE) {
-            return localAge < activeTicks;
-        }
-
-        if (lifetime.mode() == VfxEmitterLifetimeMode.LOOPING) {
-            int cycleTicks = activeTicks + sleepTicks;
-
-            if (cycleTicks <= 0) {
-                return false;
-            }
-
-            if (loops > 0) {
-                int completedCycles = localAge / cycleTicks;
-
-                if (completedCycles >= loops) {
-                    return false;
-                }
-            }
-
-            int cycleAge = localAge % cycleTicks;
-            return cycleAge < activeTicks;
-        }
-
-        return false;
-    }
-
-
     private void tickSpawnAmount(
             ClientLevel level,
             Vec3 effectPosition,
             Vec3 emitterPosition,
             VfxExpressionContext emitterContext,
+            VfxLifetimeState lifetimeState,
             RandomSource random
     ) {
         VfxSpawnAmountDefinition spawnAmount = definition.spawnAmount();
 
         if (spawnAmount.mode() == VfxSpawnAmountMode.INSTANT) {
-            tickInstantSpawnAmount(level, effectPosition, emitterPosition, emitterContext, random);
+            tickInstantSpawnAmount(level, effectPosition, emitterPosition, emitterContext, lifetimeState, random);
         }
 
         if (spawnAmount.mode() == VfxSpawnAmountMode.STEADY) {
@@ -267,13 +228,29 @@ public final class ClientVfxEmitter {
             Vec3 effectPosition,
             Vec3 emitterPosition,
             VfxExpressionContext emitterContext,
+            VfxLifetimeState lifetimeState,
             RandomSource random
     ) {
-        if (instantEmitted) {
+        if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.LOOPING) {
+            if (lifetimeState.localAge() != 0) {
+                return;
+            }
+
+            if (lastInstantAge == age) {
+                return;
+            }
+
+            lastInstantAge = age;
+
+            spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, instantAmount);
             return;
         }
 
-        instantEmitted = true;
+        if (lastInstantAge >= 0) {
+            return;
+        }
+
+        lastInstantAge = lifetimeState.localAge();
 
         spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, instantAmount);
     }
@@ -401,33 +378,7 @@ public final class ClientVfxEmitter {
             return particles.isEmpty();
         }
 
-        if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.ONCE) {
-            return age >= delayTicks + activeTicks;
-        }
-
-        if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.LOOPING && loops > 0) {
-            int cycleTicks = activeTicks + sleepTicks;
-            return cycleTicks <= 0 || age >= delayTicks + cycleTicks * loops;
-        }
-
-        return false;
-    }
-
-    private boolean isEmitterLifetimeFinished() {
-        if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.MANUAL) {
-            return false;
-        }
-
-        if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.ONCE) {
-            return age >= delayTicks + activeTicks;
-        }
-
-        if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.LOOPING && loops > 0) {
-            int cycleTicks = activeTicks + sleepTicks;
-            return cycleTicks <= 0 || age >= delayTicks + cycleTicks * loops;
-        }
-
-        return false;
+        return lifetimeState().finished() && particles.isEmpty();
     }
 
     public VfxEmitterDefinition definition() {
