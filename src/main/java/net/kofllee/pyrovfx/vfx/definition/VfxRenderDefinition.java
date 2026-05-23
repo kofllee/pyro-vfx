@@ -6,7 +6,6 @@ import net.kofllee.pyrovfx.vfx.type.VfxRenderType;
 public record VfxRenderDefinition (
         VfxRenderType type,
         VfxFacingMode facing,
-        VfxMaterialDefinition material,
         boolean environmentLighting,
         VfxMinecraftParticleRenderDefinition minecraftParticle,
         VfxSpriteRenderDefinition sprite,
@@ -17,7 +16,6 @@ public record VfxRenderDefinition (
         return new VfxRenderDefinition(
                 VfxRenderType.MINECRAFT_PARTICLE,
                 VfxFacingMode.CAMERA,
-                VfxMaterialDefinition.defaultMaterial(),
                 true,
                 minecraftParticle,
                 null,
@@ -28,7 +26,6 @@ public record VfxRenderDefinition (
 
     public static VfxRenderDefinition sprite(
             VfxFacingMode facing,
-            VfxMaterialDefinition material,
             boolean environmentLighting,
             VfxSpriteRenderDefinition sprite,
             VfxParticleAppearanceDefinition appearance
@@ -36,7 +33,6 @@ public record VfxRenderDefinition (
         return new VfxRenderDefinition(
                 VfxRenderType.SPRITE,
                 facing,
-                material,
                 environmentLighting,
                 null,
                 sprite,
@@ -46,7 +42,6 @@ public record VfxRenderDefinition (
     }
 
     public static VfxRenderDefinition model(
-            VfxMaterialDefinition material,
             boolean environmentLighting,
             VfxModelRenderDefinition model,
             VfxParticleAppearanceDefinition appearance
@@ -54,7 +49,6 @@ public record VfxRenderDefinition (
         return new VfxRenderDefinition(
                 VfxRenderType.MODEL,
                 VfxFacingMode.WORLD_Z,
-                material,
                 environmentLighting,
                 null,
                 null,

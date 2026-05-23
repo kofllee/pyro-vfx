@@ -2,16 +2,16 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "Basic vanilla block model particle test."
+    "description": "2D sprite particle render test."
   },
   "lifetime": {
     "mode": "once",
     "delay_ticks": 0,
-    "active_ticks": 80
+    "active_ticks": 60
   },
   "emitters": [
     {
-      "id": "model_chunks",
+      "id": "sprite_test",
       "emitter_lifetime": {
         "mode": "once",
         "delay_ticks": 0,
@@ -19,64 +19,53 @@
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": 12
+        "amount": 16
       },
       "offset": [0, 1.0, 0],
       "spawn_shape": {
         "type": "sphere",
-        "radius": 0.25,
+        "radius": 0.15,
         "edge_thickness": 0.0
       },
       "particle_lifetime": {
-        "max_age_ticks": "35 + particle.random * 35"
+        "max_age_ticks": "35 + particle.random * 25"
       },
       "motion": {
         "mode": "dynamic",
         "dynamic": {
           "direction": "outward",
-          "speed": "0.8 + particle.random * 1.2",
-          "acceleration": [0, -1.2, 0],
-          "linear_drag": 0.7
+          "speed": "0.35 + particle.random * 0.8",
+          "acceleration": [0, 0.25, 0],
+          "linear_drag": 1.4
         }
       },
       "rotation": {
         "mode": "dynamic",
         "dynamic": {
-          "start_rotation": [
-            "particle.random * 360",
-            "particle.random * 360",
-            "particle.random * 360"
-          ],
-          "angular_velocity": [
-            "-180 + particle.random * 360",
-            "-180 + particle.random * 360",
-            "-180 + particle.random * 360"
-          ],
+          "start_rotation": [0, "particle.random * 360", 0],
+          "angular_velocity": [0, "-60 + particle.random * 120", 0],
           "angular_acceleration": [0, 0, 0],
           "angular_drag": 1.5
         }
       },
       "render": {
-        "type": "model",
+        "type": "sprite",
+        "facing": "camera",
         "environment_lighting": true,
-        "material": {
-          "blend_mode": "alpha"
-        },
-        "model": {
-          "source": "custom",
-          "model": "pyro_vfx:vfx/stone_chunk",
-          "render_layer": "translucent"
+        "sprite": {
+          "texture": "pyro_vfx:textures/vfx/smoke.png",
+          "blend_mode": "additive"
         },
         "color": [
-          "1",
-          "1",
-          "1",
+          "0.35 + particle.random * 0.08",
+          "0.35 + particle.random * 0.08",
+          "0.35 + particle.random * 0.08",
           "1.0 - particle.normalized_age"
         ],
         "scale": [
-          "0.15 + particle.normalized_age * 0.25",
-          "0.15 + particle.normalized_age * 0.25",
-          "0.15 + particle.normalized_age * 0.25"
+          "0.18 + particle.normalized_age * 0.75",
+          "0.18 + particle.normalized_age * 0.75",
+          1.0
         ]
       }
     }

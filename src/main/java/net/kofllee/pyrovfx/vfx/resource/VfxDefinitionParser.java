@@ -564,24 +564,17 @@ public final class VfxDefinitionParser {
 
         boolean environmentLighting = getBoolean(json, "environment_lighting", false);
 
-        VfxMaterialDefinition material = json.has("material")
-                ? parseMaterial(getObject(json, "material"))
-                : VfxMaterialDefinition.defaultMaterial();
-
-
         return switch (type) {
             case MINECRAFT_PARTICLE -> VfxRenderDefinition.minecraftParticle(
                     parseMinecraftParticleRender(getObject(json, "minecraft_particle"))
             );
             case SPRITE -> VfxRenderDefinition.sprite(
                     facing,
-                    material,
                     environmentLighting,
                     parseSpriteRender(getObject(json, "sprite")),
                     parseParticleAppearance(json)
             );
             case MODEL -> VfxRenderDefinition.model(
-                    material,
                     environmentLighting,
                     parseModelRender(getObject(json, "model")),
                     parseParticleAppearance(json)
@@ -597,7 +590,7 @@ public final class VfxDefinitionParser {
         );
 
         ResourceLocation model = ResourceLocation.parse(
-                getString(json, "model", "minecraft:block/stone")
+                getRequiredString(json, "model")
         );
 
         VfxModelRenderLayer renderLayer = parseEnum(
@@ -607,16 +600,6 @@ public final class VfxDefinitionParser {
         );
 
         return new VfxModelRenderDefinition(source, model, renderLayer);
-    }
-
-    private static VfxMaterialDefinition parseMaterial(JsonObject json) {
-        VfxBlendMode blendMode = parseEnum(
-                VfxBlendMode.class,
-                getString(json, "blend_mode", "alpha"),
-                "material blend mode"
-        );
-
-        return new VfxMaterialDefinition(blendMode);
     }
 
     private static VfxParticleAppearanceDefinition parseParticleAppearance(JsonObject json) {
@@ -639,7 +622,8 @@ public final class VfxDefinitionParser {
                 ResourceLocation.parse(getString(json, "texture", "minecraft:textures/particle/generic_0.png")),
                 json.has("uv")
                         ? parseSpriteUv(getObject(json, "uv"))
-                        : VfxSpriteUvDefinition.full()
+                        : VfxSpriteUvDefinition.full(),
+                parseEnum(VfxBlendMode.class, getString(json, "blend_mode", "alpha"), "sprite blend mode")
         );
     }
 

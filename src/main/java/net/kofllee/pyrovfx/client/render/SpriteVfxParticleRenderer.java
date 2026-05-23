@@ -51,7 +51,7 @@ public final class SpriteVfxParticleRenderer {
 
         VertexConsumer consumer = bufferSource.getBuffer(VfxSpriteRenderTypes.get(
                 particle.emitterDefinition().render().sprite().texture(),
-                particle.emitterDefinition().render().material()
+                particle.emitterDefinition().render().sprite().blendMode()
         ));
 
         poseStack.pushPose();

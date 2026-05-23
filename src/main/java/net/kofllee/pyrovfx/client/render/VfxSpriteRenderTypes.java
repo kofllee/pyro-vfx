@@ -2,7 +2,6 @@ package net.kofllee.pyrovfx.client.render;
 
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import net.kofllee.pyrovfx.vfx.definition.VfxMaterialDefinition;
 import net.kofllee.pyrovfx.vfx.type.VfxBlendMode;
 import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
@@ -18,8 +17,8 @@ public final class VfxSpriteRenderTypes extends RenderStateShard {
         super("pyro_vfx_sprite_render_types", () -> {}, () -> {});
     }
 
-    public static RenderType get(ResourceLocation texture, VfxMaterialDefinition material) {
-        Key key = new Key(texture, material.blendMode());
+    public static RenderType get(ResourceLocation texture, VfxBlendMode blendMode) {
+        Key key = new Key(texture, blendMode);
 
         return CACHE.computeIfAbsent(key, VfxSpriteRenderTypes::create);
     }

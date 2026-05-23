@@ -11,6 +11,7 @@ public final class VfxModelRenderTypes {
             case SOLID -> net.minecraft.client.renderer.Sheets.solidBlockSheet();
             case CUTOUT -> net.minecraft.client.renderer.Sheets.cutoutBlockSheet();
             case TRANSLUCENT -> net.minecraft.client.renderer.Sheets.translucentCullBlockSheet();
+            case ADDITIVE -> net.minecraft.client.renderer.Sheets.translucentCullBlockSheet();
         };
     }
 }
