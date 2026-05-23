@@ -590,6 +590,12 @@ public final class VfxDefinitionParser {
     }
 
     private static VfxModelRenderDefinition parseModelRender(JsonObject json) {
+        VfxModelSourceType source = parseEnum(
+                VfxModelSourceType.class,
+                getString(json, "source", "custom"),
+                "model source"
+        );
+
         ResourceLocation model = ResourceLocation.parse(
                 getString(json, "model", "minecraft:block/stone")
         );
@@ -600,7 +606,7 @@ public final class VfxDefinitionParser {
                 "model render layer"
         );
 
-        return new VfxModelRenderDefinition(model, renderLayer);
+        return new VfxModelRenderDefinition(source, model, renderLayer);
     }
 
     private static VfxMaterialDefinition parseMaterial(JsonObject json) {

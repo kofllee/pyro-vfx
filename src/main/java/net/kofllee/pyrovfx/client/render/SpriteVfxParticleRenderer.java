@@ -7,11 +7,9 @@ import net.kofllee.pyrovfx.client.vfx.ClientVfxParticle;
 import net.kofllee.pyrovfx.vfx.type.VfxFacingMode;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.minecraft.client.Camera;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.texture.OverlayTexture;
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -68,7 +66,7 @@ public final class SpriteVfxParticleRenderer {
         float halfHeight = height * 0.5F;
 
         int light = particle.emitterDefinition().render().environmentLighting()
-                ? getEnvironmentLight(particle, partialTick)
+                ? VfxRenderLight.getParticleLight(particle, partialTick)
                 : LightTexture.FULL_BRIGHT;
 
         VfxSpriteUvRect uv = VfxSpriteUvSampler.sample(particle);
@@ -167,18 +165,5 @@ public final class SpriteVfxParticleRenderer {
         value = Math.clamp(value, 0.0, 1.0);
 
         return (int) (value * 255);
-    }
-
-    private static int getEnvironmentLight(ClientVfxParticle particle, float partialTick) {
-        Minecraft minecraft = Minecraft.getInstance();
-
-        if (minecraft.level == null) {
-            return LightTexture.FULL_BRIGHT;
-        }
-
-        Vec3 position = particle.interpolatedPosition(partialTick);
-        BlockPos blockPos = BlockPos.containing(position.x, position.y, position.z);
-
-        return net.minecraft.client.renderer.LevelRenderer.getLightColor(minecraft.level, blockPos);
     }
 }

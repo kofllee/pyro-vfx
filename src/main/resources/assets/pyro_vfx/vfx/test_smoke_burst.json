@@ -63,13 +63,14 @@
           "blend_mode": "alpha"
         },
         "model": {
+          "source": "custom",
           "model": "pyro_vfx:vfx/stone_chunk",
-          "render_layer": "solid"
+          "render_layer": "translucent"
         },
         "color": [
-          "0.35 + particle.random * 0.12",
-          "0.35 + particle.random * 0.12",
-          "0.35 + particle.random * 0.12",
+          "1",
+          "1",
+          "1",
           "1.0 - particle.normalized_age"
         ],
         "scale": [
