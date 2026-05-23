@@ -23,8 +23,8 @@ public final class ModelVfxParticleRenderer {
 
         switch (model.source()) {
             case CUSTOM -> CustomModelVfxParticleRenderer.render(particle, poseStack, bufferSource, camera, partialTick);
-            /*case BLOCK -> BlockModelVfxParticleRenderer.render(particle, poseStack, bufferSource, camera, partialTick);
-            case ITEM -> ItemModelVfxParticleRenderer.render(particle, poseStack, bufferSource, camera, partialTick);
+            case BLOCK -> BlockModelVfxParticleRenderer.render(particle, poseStack, bufferSource, camera, partialTick);
+            /*case ITEM -> ItemModelVfxParticleRenderer.render(particle, poseStack, bufferSource, camera, partialTick);
             case ENTITY -> EntityModelVfxParticleRenderer.render(particle, poseStack, bufferSource, camera, partialTick);*/
         }
     }

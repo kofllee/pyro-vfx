@@ -2,19 +2,16 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "Additive custom model ember burst test with particle count parameter."
-  },
-  "parameters": {
-    "particle_count": 18
+    "description": "Test block model particle with tinted oak leaves block_state."
   },
   "lifetime": {
     "mode": "once",
     "delay_ticks": 0,
-    "active_ticks": 50
+    "active_ticks": 90
   },
   "emitters": [
     {
-      "id": "additive_model_embers",
+      "id": "leaf_fragments",
       "emitter_lifetime": {
         "mode": "once",
         "delay_ticks": 0,
@@ -22,24 +19,24 @@
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": "param.particle_count"
+        "amount": 16
       },
       "offset": [0, 1.0, 0],
       "spawn_shape": {
         "type": "sphere",
-        "radius": 0.08,
+        "radius": 0.35,
         "edge_thickness": 0.0
       },
       "particle_lifetime": {
-        "max_age_ticks": "18 + particle.random * 18"
+        "max_age_ticks": "45 + particle.random * 35"
       },
       "motion": {
         "mode": "dynamic",
         "dynamic": {
           "direction": "outward",
-          "speed": "0.8 + particle.random * 1.4",
-          "acceleration": [0, -1.2, 0],
-          "linear_drag": 1.8
+          "speed": "0.45 + particle.random * 0.85",
+          "acceleration": [0, -0.85, 0],
+          "linear_drag": 1.4
         }
       },
       "rotation": {
@@ -51,32 +48,28 @@
             "particle.random * 360"
           ],
           "angular_velocity": [
-            "-180 + particle.random * 360",
-            "-180 + particle.random * 360",
-            "-180 + particle.random * 360"
+            "-90 + particle.random * 180",
+            "-140 + particle.random * 280",
+            "-90 + particle.random * 180"
           ],
           "angular_acceleration": [0, 0, 0],
-          "angular_drag": 2.0
+          "angular_drag": 1.8
         }
       },
       "render": {
         "type": "model",
-        "environment_lighting": false,
+        "environment_lighting": true,
         "model": {
-          "source": "custom",
-          "model": "pyro_vfx:vfx/ember_cube",
-          "render_layer": "additive"
+          "source": "block",
+          "model": "minecraft:oak_leaves",
+          "block_state": "minecraft:oak_leaves[distance=1,persistent=true,waterlogged=false]",
+          "render_layer": "cutout"
         },
-        "color": [
-          1.0,
-          "0.45 + particle.random * 0.25",
-          0.08,
-          "1.0 - particle.normalized_age"
-        ],
+        "color": [1.0, 0.0, 0.0, "1.0 - particle.normalized_age"],
         "scale": [
-          "0.06 + particle.random * 0.05",
-          "0.06 + particle.random * 0.05",
-          "0.06 + particle.random * 0.05"
+          "0.12 + particle.random * 0.08",
+          "0.12 + particle.random * 0.08",
+          "0.12 + particle.random * 0.08"
         ]
       }
     }

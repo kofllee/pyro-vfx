@@ -593,13 +593,15 @@ public final class VfxDefinitionParser {
                 getRequiredString(json, "model")
         );
 
+        String blockState = getString(json, "block_state", "");
+
         VfxModelRenderLayer renderLayer = parseEnum(
                 VfxModelRenderLayer.class,
                 getString(json, "render_layer", "cutout"),
                 "model render layer"
         );
 
-        return new VfxModelRenderDefinition(source, model, renderLayer);
+        return new VfxModelRenderDefinition(source, model, blockState, renderLayer);
     }
 
     private static VfxParticleAppearanceDefinition parseParticleAppearance(JsonObject json) {
