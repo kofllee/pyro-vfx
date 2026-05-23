@@ -2,16 +2,19 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "2D sprite particle render test."
+    "description": "Additive custom model ember burst test with particle count parameter."
+  },
+  "parameters": {
+    "particle_count": 18
   },
   "lifetime": {
     "mode": "once",
     "delay_ticks": 0,
-    "active_ticks": 60
+    "active_ticks": 50
   },
   "emitters": [
     {
-      "id": "sprite_test",
+      "id": "additive_model_embers",
       "emitter_lifetime": {
         "mode": "once",
         "delay_ticks": 0,
@@ -19,53 +22,61 @@
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": 16
+        "amount": "param.particle_count"
       },
       "offset": [0, 1.0, 0],
       "spawn_shape": {
         "type": "sphere",
-        "radius": 0.15,
+        "radius": 0.08,
         "edge_thickness": 0.0
       },
       "particle_lifetime": {
-        "max_age_ticks": "35 + particle.random * 25"
+        "max_age_ticks": "18 + particle.random * 18"
       },
       "motion": {
         "mode": "dynamic",
         "dynamic": {
           "direction": "outward",
-          "speed": "0.35 + particle.random * 0.8",
-          "acceleration": [0, 0.25, 0],
-          "linear_drag": 1.4
+          "speed": "0.8 + particle.random * 1.4",
+          "acceleration": [0, -1.2, 0],
+          "linear_drag": 1.8
         }
       },
       "rotation": {
         "mode": "dynamic",
         "dynamic": {
-          "start_rotation": [0, "particle.random * 360", 0],
-          "angular_velocity": [0, "-60 + particle.random * 120", 0],
+          "start_rotation": [
+            "particle.random * 360",
+            "particle.random * 360",
+            "particle.random * 360"
+          ],
+          "angular_velocity": [
+            "-180 + particle.random * 360",
+            "-180 + particle.random * 360",
+            "-180 + particle.random * 360"
+          ],
           "angular_acceleration": [0, 0, 0],
-          "angular_drag": 1.5
+          "angular_drag": 2.0
         }
       },
       "render": {
-        "type": "sprite",
-        "facing": "camera",
-        "environment_lighting": true,
-        "sprite": {
-          "texture": "pyro_vfx:textures/vfx/smoke.png",
-          "blend_mode": "additive"
+        "type": "model",
+        "environment_lighting": false,
+        "model": {
+          "source": "custom",
+          "model": "pyro_vfx:vfx/ember_cube",
+          "render_layer": "additive"
         },
         "color": [
-          "0.35 + particle.random * 0.08",
-          "0.35 + particle.random * 0.08",
-          "0.35 + particle.random * 0.08",
+          1.0,
+          "0.45 + particle.random * 0.25",
+          0.08,
           "1.0 - particle.normalized_age"
         ],
         "scale": [
-          "0.18 + particle.normalized_age * 0.75",
-          "0.18 + particle.normalized_age * 0.75",
-          1.0
+          "0.06 + particle.random * 0.05",
+          "0.06 + particle.random * 0.05",
+          "0.06 + particle.random * 0.05"
         ]
       }
     }
