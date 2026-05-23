@@ -2,16 +2,16 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "Test block model particle with tinted oak leaves block_state."
+    "description": "Test entity model particle without color tint."
   },
   "lifetime": {
     "mode": "once",
     "delay_ticks": 0,
-    "active_ticks": 90
+    "active_ticks": 100
   },
   "emitters": [
     {
-      "id": "leaf_fragments",
+      "id": "entity_particles",
       "emitter_lifetime": {
         "mode": "once",
         "delay_ticks": 0,
@@ -19,57 +19,55 @@
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": 16
+        "amount": 4
       },
-      "offset": [0, 1.0, 0],
+      "offset": [0, 1.2, 0],
       "spawn_shape": {
         "type": "sphere",
-        "radius": 0.35,
+        "radius": 0.4,
         "edge_thickness": 0.0
       },
       "particle_lifetime": {
-        "max_age_ticks": "45 + particle.random * 35"
+        "max_age_ticks": "65 + particle.random * 25"
       },
       "motion": {
         "mode": "dynamic",
         "dynamic": {
           "direction": "outward",
-          "speed": "0.45 + particle.random * 0.85",
-          "acceleration": [0, -0.85, 0],
-          "linear_drag": 1.4
+          "speed": "0.35 + particle.random * 0.55",
+          "acceleration": [0, -0.6, 0],
+          "linear_drag": 0.8
         }
       },
       "rotation": {
         "mode": "dynamic",
         "dynamic": {
           "start_rotation": [
+            0,
             "particle.random * 360",
-            "particle.random * 360",
-            "particle.random * 360"
+            0
           ],
           "angular_velocity": [
+            0,
             "-90 + particle.random * 180",
-            "-140 + particle.random * 280",
-            "-90 + particle.random * 180"
+            0
           ],
           "angular_acceleration": [0, 0, 0],
-          "angular_drag": 1.8
+          "angular_drag": 1.0
         }
       },
       "render": {
         "type": "model",
         "environment_lighting": true,
         "model": {
-          "source": "block",
-          "model": "minecraft:oak_leaves",
-          "block_state": "minecraft:oak_leaves[distance=1,persistent=true,waterlogged=false]",
-          "render_layer": "cutout"
+          "source": "entity",
+          "model": "minecraft:chicken",
+          "render_layer": "solid"
         },
-        "color": [1.0, 0.0, 0.0, "1.0 - particle.normalized_age"],
         "scale": [
-          "0.12 + particle.random * 0.08",
-          "0.12 + particle.random * 0.08",
-          "0.12 + particle.random * 0.08"
+          "0.18 + particle.random * 0.05",
+          "0.18 + particle.random * 0.05",
+          "0.18 + particle.random * 0.05"
         ]
       }
     }
