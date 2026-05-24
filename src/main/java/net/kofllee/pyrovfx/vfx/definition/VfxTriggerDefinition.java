@@ -39,4 +39,12 @@ public record VfxTriggerDefinition (VfxTriggerType type, String eventId, int tim
         );
     }
 
+    public static VfxTriggerDefinition onCollision(String eventId) {
+        return new VfxTriggerDefinition(
+                VfxTriggerType.ON_COLLISION,
+                eventId,
+                0,
+                0.0
+        );
+    }
 }

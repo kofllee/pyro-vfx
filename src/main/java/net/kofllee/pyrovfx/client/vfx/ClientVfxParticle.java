@@ -39,6 +39,9 @@ public final class ClientVfxParticle {
     private int age;
     private boolean dead;
 
+    private boolean collidedThisTick;
+    private Vec3 collisionPosition;
+
     private ClientVfxSpriteUvState spriteUv;
 
     public ClientVfxParticle(
@@ -83,6 +86,9 @@ public final class ClientVfxParticle {
         previousRotation = rotation;
         previousScale = scale;
         previousColor = color;
+
+        collidedThisTick = false;
+        collisionPosition = null;
 
         VfxExpressionContext particleContext = ClientVfxExpressionContexts.particleTick(
                 emitterContext,
@@ -163,6 +169,9 @@ public final class ClientVfxParticle {
             position = nextPosition;
             return;
         }
+
+        collidedThisTick = true;
+        collisionPosition = nextPosition;
 
         if(collision.expireOnContact()){
             position = nextPosition;
@@ -350,5 +359,13 @@ public final class ClientVfxParticle {
 
     public ClientVfxSpriteUvState spriteUv() {
         return spriteUv;
+    }
+
+    public boolean collidedThisTick() {
+        return collidedThisTick;
+    }
+
+    public Vec3 collisionPosition() {
+        return collisionPosition == null ? position : collisionPosition;
     }
 }

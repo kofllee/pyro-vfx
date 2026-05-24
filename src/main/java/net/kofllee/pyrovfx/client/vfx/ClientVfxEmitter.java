@@ -120,6 +120,17 @@ public final class ClientVfxEmitter {
 
             particle.tick(level, emitterContext);
 
+            tickParticleTriggers(
+                    level,
+                    effectPosition,
+                    particle,
+                    emitterContext,
+                    random,
+                    events,
+                    emittersById,
+                    eventRuntime
+            );
+
             if (particle.isDead()) {
                 particleIterator.remove();
             }
@@ -172,6 +183,38 @@ public final class ClientVfxEmitter {
                     VfxEventRunner.run(trigger.eventId(), events, emittersById, level, effectPosition, emitterPosition, emitterContext, eventRuntime, random);
                 }
             }
+        }
+    }
+
+    private void tickParticleTriggers(
+            ClientLevel level,
+            Vec3 effectPosition,
+            ClientVfxParticle particle,
+            VfxExpressionContext emitterContext,
+            RandomSource random,
+            Map<String, VfxEventDefinition> events,
+            Map<String, ClientVfxEmitter> emittersById,
+            VfxEventRuntime eventRuntime
+    ) {
+        if (!particle.collidedThisTick()) {
+            return;
+        }
+
+        for (VfxTriggerDefinition trigger : definition.particleTriggers()) {
+            if (trigger.type() != VfxTriggerType.ON_COLLISION) {
+                continue;
+            }
+            VfxEventRunner.run(
+                    trigger.eventId(),
+                    events,
+                    emittersById,
+                    level,
+                    effectPosition,
+                    particle.collisionPosition(),
+                    emitterContext,
+                    eventRuntime,
+                    random
+            );
         }
     }
 

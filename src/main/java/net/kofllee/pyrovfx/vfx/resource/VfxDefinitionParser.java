@@ -167,6 +167,8 @@ public final class VfxDefinitionParser {
 
                 yield VfxTriggerDefinition.travelDistance(distance, eventId, true);
             }
+
+            case ON_COLLISION -> VfxTriggerDefinition.onCollision(eventId);
         };
     }
 
