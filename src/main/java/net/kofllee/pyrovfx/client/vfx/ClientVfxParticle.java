@@ -18,6 +18,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import static org.joml.Math.lerp;
 
 public final class ClientVfxParticle {
+
     private final VfxEmitterDefinition emitterDefinition;
     private final Vec3 spawnPosition;
     private final int lifetime;
@@ -173,45 +174,76 @@ public final class ClientVfxParticle {
         collidedThisTick = true;
         collisionPosition = nextPosition;
 
-        if(collision.expireOnContact()){
-            position = nextPosition;
-            dead = true;
-            return;
-        }
-
         double collisionDrag = Math.max(0.0, collision.collisionDrag().evaluate(particleContext));
         double bounciness = Math.max(0.0, collision.bounciness().evaluate(particleContext));
 
-        Vec3 resolvedVelocity = resolveVelocityByAxis(level, position, velocity, collision.collisionType(), collisionSize, bounciness);
+        CollisionMoveResult result = resolveMovementByAxis(
+                level,
+                position,
+                velocity,
+                nextBox,
+                bounciness
+        );
+
+        position = result.position();
+
+        if (!result.collided()) {
+            return;
+        }
+
+        velocity = result.velocity();
 
         double dragMultiplier = Math.exp(-collisionDrag * VfxTime.SECONDS_PER_TICK);
-        velocity = resolvedVelocity.scale(dragMultiplier);
+        velocity = velocity.scale(dragMultiplier);
 
-        position = position.add(velocity);
+        collidedThisTick = true;
+        collisionPosition = result.position();
+
+        if (collision.expireOnContact()) {
+            dead = true;
+        }
     }
 
-    private Vec3 resolveVelocityByAxis(ClientLevel level, Vec3 position, Vec3 velocity, VfxCollisionType collisionType, Vec3 collisionSize, double bounciness) {
+    private CollisionMoveResult resolveMovementByAxis(ClientLevel level, Vec3 position, Vec3 velocity, AABB box, double bounciness) {
+        Vec3 currentPosition = position;
+
         double vx = velocity.x;
         double vy = velocity.y;
         double vz = velocity.z;
 
-        Vec3 testX = position.add(vx, 0, 0);
-        if (intersectsBlockCollision(level, createCollisionBox(testX, collisionType, collisionSize))) {
+        boolean collided = false;
+
+        Vec3 xPosition = currentPosition.add(vx, 0.0, 0.0);
+        if (intersectsBlockCollision(level, box)) {
             vx = -vx * bounciness;
+            collided = true;
+        } else {
+            currentPosition = xPosition;
         }
 
-        Vec3 testY = position.add(0.0, vy, 0.0);
-        if (intersectsBlockCollision(level, createCollisionBox(testY, collisionType, collisionSize))) {
+        Vec3 yPosition = currentPosition.add(0.0, vy, 0.0);
+        if (intersectsBlockCollision(level, box)) {
             vy = -vy * bounciness;
+            collided = true;
+        } else {
+            currentPosition = yPosition;
         }
 
-        Vec3 testZ = position.add(0.0, 0.0, vz);
-        if (intersectsBlockCollision(level, createCollisionBox(testZ, collisionType, collisionSize))) {
+        Vec3 zPosition = currentPosition.add(0.0, 0.0, vz);
+        if (intersectsBlockCollision(level, box)) {
             vz = -vz * bounciness;
+            collided = true;
+        } else {
+            currentPosition = zPosition;
         }
 
-        return new Vec3(vx, vy, vz);
+        return new CollisionMoveResult(
+                currentPosition,
+                new Vec3(vx, vy, vz),
+                collided
+        );
     }
+
 
     private boolean intersectsBlockCollision(ClientLevel level, AABB box) {
         int minX = (int) Math.floor(box.minX);
@@ -367,5 +399,13 @@ public final class ClientVfxParticle {
 
     public Vec3 collisionPosition() {
         return collisionPosition == null ? position : collisionPosition;
+    }
+
+    private record CollisionMoveResult(
+            Vec3 position,
+            Vec3 velocity,
+            boolean collided
+    ){
+
     }
 }
