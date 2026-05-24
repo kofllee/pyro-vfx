@@ -118,7 +118,7 @@ public final class ClientVfxEmitter {
         for (var particleIterator = particles.iterator(); particleIterator.hasNext(); ) {
             ClientVfxParticle particle = particleIterator.next();
 
-            particle.tick(emitterContext);
+            particle.tick(level, emitterContext);
 
             if (particle.isDead()) {
                 particleIterator.remove();

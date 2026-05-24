@@ -3,11 +3,17 @@ package net.kofllee.pyrovfx.client.vfx;
 import net.kofllee.pyrovfx.client.render.ClientVfxSpriteUvResolver;
 import net.kofllee.pyrovfx.client.render.ClientVfxSpriteUvState;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
+import net.kofllee.pyrovfx.vfx.definition.VfxMotionCollisionDefinition;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
+import net.kofllee.pyrovfx.vfx.type.VfxCollisionType;
 import net.kofllee.pyrovfx.vfx.type.VfxMotionMode;
 import net.kofllee.pyrovfx.vfx.type.VfxRotationMode;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 import static org.joml.Math.lerp;
 
@@ -31,6 +37,7 @@ public final class ClientVfxParticle {
     private VfxColor previousColor;
 
     private int age;
+    private boolean dead;
 
     private ClientVfxSpriteUvState spriteUv;
 
@@ -71,7 +78,7 @@ public final class ClientVfxParticle {
         );
     }
 
-    public void tick(VfxExpressionContext emitterContext){
+    public void tick(ClientLevel level, VfxExpressionContext emitterContext){
         previousPosition = position;
         previousRotation = rotation;
         previousScale = scale;
@@ -91,7 +98,7 @@ public final class ClientVfxParticle {
                 scale
         );
 
-        tickMotion(particleContext);
+        tickMotion(level, particleContext);
         tickRotation(particleContext);
 
         VfxExpressionContext renderContext = ClientVfxExpressionContexts.particleTick(
@@ -114,7 +121,7 @@ public final class ClientVfxParticle {
         age++;
     }
 
-    private void tickMotion(VfxExpressionContext particleContext){
+    private void tickMotion(ClientLevel level, VfxExpressionContext particleContext){
         if(emitterDefinition.motion().mode() == VfxMotionMode.STATIC)
             return;
 
@@ -135,8 +142,118 @@ public final class ClientVfxParticle {
             double dragMultiplier = Math.exp(-drag * VfxTime.SECONDS_PER_TICK);
 
             velocity = velocity.add(acceleration).scale(dragMultiplier);
-            position = position.add(velocity);
+
+            Vec3 nextPosition = position.add(velocity);
+            if(emitterDefinition.motion().collision().collide()){
+                applyCollision(level, particleContext, nextPosition);
+                return;
+            }
+
+            position = nextPosition;
         }
+    }
+
+    private void applyCollision(ClientLevel level, VfxExpressionContext particleContext, Vec3 nextPosition) {
+        VfxMotionCollisionDefinition collision = emitterDefinition.motion().collision();
+
+        Vec3 collisionSize = collision.collisionSize().evaluate(particleContext).toVec3();
+
+        AABB nextBox = createCollisionBox(nextPosition, collision.collisionType(), collisionSize);
+        if (!intersectsBlockCollision(level, nextBox)) {
+            position = nextPosition;
+            return;
+        }
+
+        if(collision.expireOnContact()){
+            position = nextPosition;
+            dead = true;
+            return;
+        }
+
+        double collisionDrag = Math.max(0.0, collision.collisionDrag().evaluate(particleContext));
+        double bounciness = Math.max(0.0, collision.bounciness().evaluate(particleContext));
+
+        Vec3 resolvedVelocity = resolveVelocityByAxis(level, position, velocity, collision.collisionType(), collisionSize, bounciness);
+
+        double dragMultiplier = Math.exp(-collisionDrag * VfxTime.SECONDS_PER_TICK);
+        velocity = resolvedVelocity.scale(dragMultiplier);
+
+        position = position.add(velocity);
+    }
+
+    private Vec3 resolveVelocityByAxis(ClientLevel level, Vec3 position, Vec3 velocity, VfxCollisionType collisionType, Vec3 collisionSize, double bounciness) {
+        double vx = velocity.x;
+        double vy = velocity.y;
+        double vz = velocity.z;
+
+        Vec3 testX = position.add(vx, 0, 0);
+        if (intersectsBlockCollision(level, createCollisionBox(testX, collisionType, collisionSize))) {
+            vx = -vx * bounciness;
+        }
+
+        Vec3 testY = position.add(0.0, vy, 0.0);
+        if (intersectsBlockCollision(level, createCollisionBox(testY, collisionType, collisionSize))) {
+            vy = -vy * bounciness;
+        }
+
+        Vec3 testZ = position.add(0.0, 0.0, vz);
+        if (intersectsBlockCollision(level, createCollisionBox(testZ, collisionType, collisionSize))) {
+            vz = -vz * bounciness;
+        }
+
+        return new Vec3(vx, vy, vz);
+    }
+
+    private boolean intersectsBlockCollision(ClientLevel level, AABB box) {
+        int minX = (int) Math.floor(box.minX);
+        int minY = (int) Math.floor(box.minY);
+        int minZ = (int) Math.floor(box.minZ);
+        int maxX = (int) Math.floor(box.maxX);
+        int maxY = (int) Math.floor(box.maxY);
+        int maxZ = (int) Math.floor(box.maxZ);
+
+        BlockPos.MutableBlockPos mutablePos = new BlockPos.MutableBlockPos();
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    mutablePos.set(x, y, z);
+                    VoxelShape shape = level.getBlockState(mutablePos)
+                            .getCollisionShape(level, mutablePos);
+
+                    if (!shape.isEmpty() && shape.bounds().move(mutablePos).intersects(box)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private AABB createCollisionBox(Vec3 center, VfxCollisionType collisionType, Vec3 collisionSize) {
+        double x = Math.max(0.001, Math.abs(collisionSize.x));
+        double y = Math.max(0.001, Math.abs(collisionSize.y));
+        double z = Math.max(0.001, Math.abs(collisionSize.z));
+
+        if (collisionType == VfxCollisionType.SPHERE) {
+            double radius = Math.max(x, Math.max(y, z));
+            return new AABB(
+                    center.x - radius,
+                    center.y - radius,
+                    center.z - radius,
+                    center.x + radius,
+                    center.y + radius,
+                    center.z + radius
+            );
+        }
+
+        return new AABB(
+                center.x - x,
+                center.y - y,
+                center.z - z,
+                center.x + x,
+                center.y + y,
+                center.z + z
+        );
     }
 
     private void tickRotation(VfxExpressionContext particleContext){
@@ -163,7 +280,7 @@ public final class ClientVfxParticle {
     }
 
     public boolean isDead(){
-        return age >= lifetime;
+        return dead || age >= lifetime;
     }
 
     public Vec3 position(){

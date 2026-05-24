@@ -2,16 +2,16 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "Test entity model particle without color tint."
+    "description": "Large visible dynamic particles with block collision. Use this to test bounce, drag and contact behavior."
   },
   "lifetime": {
     "mode": "once",
     "delay_ticks": 0,
-    "active_ticks": 100
+    "active_ticks": 120
   },
   "emitters": [
     {
-      "id": "entity_particles",
+      "id": "large_collision_sparks",
       "emitter_lifetime": {
         "mode": "once",
         "delay_ticks": 0,
@@ -19,55 +19,136 @@
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": 4
+        "amount": 70
       },
-      "offset": [0, 1.2, 0],
+      "offset": [0, 1.4, 0],
       "spawn_shape": {
         "type": "sphere",
-        "radius": 0.4,
+        "radius": 0.18,
         "edge_thickness": 0.0
       },
       "particle_lifetime": {
-        "max_age_ticks": "65 + particle.random * 25"
+        "max_age_ticks": "55 + particle.random * 45"
       },
       "motion": {
         "mode": "dynamic",
         "dynamic": {
           "direction": "outward",
-          "speed": "0.35 + particle.random * 0.55",
-          "acceleration": [0, -0.6, 0],
-          "linear_drag": 0.8
+          "speed": "1.8 + particle.random * 2.8",
+          "acceleration": [0, -5.5, 0],
+          "linear_drag": 0.35
+        },
+        "collision": {
+          "collide": true,
+          "collision_type": "sphere",
+          "collision_size": [0.12, 0.12, 0.12],
+          "collision_drag": 3.5,
+          "bounciness": 0.45,
+          "expire_on_contact": false
         }
       },
       "rotation": {
         "mode": "dynamic",
         "dynamic": {
           "start_rotation": [
-            0,
             "particle.random * 360",
-            0
+            "particle.random * 360",
+            "particle.random * 360"
           ],
           "angular_velocity": [
-            0,
-            "-90 + particle.random * 180",
-            0
+            "-420 + particle.random * 840",
+            "-420 + particle.random * 840",
+            "-420 + particle.random * 840"
           ],
           "angular_acceleration": [0, 0, 0],
-          "angular_drag": 1.0
+          "angular_drag": 1.8
         }
       },
       "render": {
-        "type": "model",
-        "environment_lighting": true,
-        "model": {
-          "source": "entity",
-          "model": "minecraft:chicken",
-          "render_layer": "solid"
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
         },
+        "color": [
+          1.0,
+          "0.55 + particle.random * 0.25",
+          "0.15 + particle.random * 0.2",
+          "1.0 - particle.normalized_age"
+        ],
         "scale": [
-          "0.18 + particle.random * 0.05",
-          "0.18 + particle.random * 0.05",
-          "0.18 + particle.random * 0.05"
+          "0.22 + particle.random * 0.14",
+          "0.22 + particle.random * 0.14",
+          1.0
+        ]
+      }
+    },
+    {
+      "id": "large_fading_embers",
+      "emitter_lifetime": {
+        "mode": "once",
+        "delay_ticks": 1,
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 35
+      },
+      "offset": [0, 1.25, 0],
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.12,
+        "edge_thickness": 0.0
+      },
+      "particle_lifetime": {
+        "max_age_ticks": "70 + particle.random * 50"
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": "0.8 + particle.random * 1.6",
+          "acceleration": [0, -3.2, 0],
+          "linear_drag": 0.8
+        },
+        "collision": {
+          "collide": true,
+          "collision_type": "sphere",
+          "collision_size": [0.16, 0.16, 0.16],
+          "collision_drag": 5.0,
+          "bounciness": 0.18,
+          "expire_on_contact": false
+        }
+      },
+      "rotation": {
+        "mode": "dynamic",
+        "dynamic": {
+          "start_rotation": [0, "particle.random * 360", 0],
+          "angular_velocity": [0, "-180 + particle.random * 360", 0],
+          "angular_acceleration": [0, 0, 0],
+          "angular_drag": 2.4
+        }
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": [
+          1.0,
+          "0.32 + particle.random * 0.25",
+          "0.08 + particle.random * 0.12",
+          "0.85 - particle.normalized_age * 0.85"
+        ],
+        "scale": [
+          "0.32 + particle.normalized_age * 0.18",
+          "0.32 + particle.normalized_age * 0.18",
+          1.0
         ]
       }
     }
