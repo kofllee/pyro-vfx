@@ -108,6 +108,10 @@ public final class ClientVfxParticle {
         tickMotion(level, particleContext);
         tickRotation(particleContext);
 
+        if (age == 0 && emitterDefinition.rotation().mode() == VfxRotationMode.PARAMETRIC) {
+            previousRotation = rotation;
+        }
+
         VfxExpressionContext renderContext = ClientVfxExpressionContexts.particleTick(
                 emitterContext,
                 spawnPosition,

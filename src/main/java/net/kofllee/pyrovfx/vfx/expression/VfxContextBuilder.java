@@ -1,5 +1,7 @@
 package net.kofllee.pyrovfx.vfx.expression;
 
+import net.kofllee.pyrovfx.vfx.curve.VfxCurveSet;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 
 public final class VfxContextBuilder {
@@ -34,6 +36,16 @@ public final class VfxContextBuilder {
         context.setNumber(name + ".x", value.x);
         context.setNumber(name + ".y", value.y);
         context.setNumber(name + ".z", value.z);
+        return this;
+    }
+
+    public VfxContextBuilder curves(VfxCurveSet curves) {
+        context.setCurves(curves);
+        return this;
+    }
+
+    public VfxContextBuilder random(RandomSource random) {
+        context.setRandom(random);
         return this;
     }
 

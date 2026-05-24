@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.kofllee.pyrovfx.vfx.definition.*;
 import net.kofllee.pyrovfx.vfx.expression.*;
+import net.kofllee.pyrovfx.vfx.curve.*;
 import net.kofllee.pyrovfx.vfx.type.*;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.kofllee.pyrovfx.vfx.value.VfxVec3;
@@ -34,6 +35,10 @@ public final class VfxDefinitionParser {
                 ? parseParameters(getObject(json, "parameters"))
                 : Map.of();
 
+        VfxCurveSet curves = json.has("curves")
+                ? parseCurves(getObject(json, "curves"))
+                : VfxCurveSet.EMPTY;
+
         List<VfxEmitterDefinition> emitters = new ArrayList<>();
         JsonArray array = getArray(json, "emitters");
 
@@ -62,7 +67,65 @@ public final class VfxDefinitionParser {
         validateEmitterTriggerReferences(emitters, events);
         validateEventParameterReferences(events, parameters);
 
-        return new VfxDefinition(location, format, metadata, lifetime, parameters, emitters, events, triggers);
+        return new VfxDefinition(location, format, metadata, lifetime, parameters, curves, emitters, events, triggers);
+    }
+
+    private static VfxCurveSet parseCurves(JsonObject json) {
+        Map<String, VfxCurveDefinition> curves = new HashMap<>();
+
+        for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
+            String id  = entry.getKey();
+
+            if(id == null || id.isBlank()) {
+                throw new IllegalArgumentException("Curve id must be non-blank");
+            }
+
+            if (curves.containsKey(id)) {
+                throw new IllegalArgumentException("Duplicate curve id: " + id);
+            }
+
+            if (!entry.getValue().isJsonObject()) {
+                throw new IllegalArgumentException("Curve must be an object: " + id);
+            }
+
+            curves.put(id, parseCurve(entry.getValue().getAsJsonObject(), id));
+        }
+
+        return new VfxCurveSet(curves);
+    }
+
+    private static VfxCurveDefinition parseCurve(JsonObject json, String id) {
+        VfxCurveType type = parseEnum(
+                VfxCurveType.class,
+                getString(json, "type", "linear"),
+                "curve type"
+        );
+
+        JsonArray pointsArray = getArray(json, "points");
+        List<VfxCurvePoint> points = new ArrayList<>();
+
+        for (JsonElement element : pointsArray) {
+            if (!element.isJsonArray()) {
+                throw new IllegalArgumentException("Curve point must be [x, y] in curve: " + id);
+            }
+
+            JsonArray pointArray = element.getAsJsonArray();
+
+            if (pointArray.size() != 2) {
+                throw new IllegalArgumentException("Curve point must have 2 values in curve: " + id);
+            }
+
+            points.add(new VfxCurvePoint(
+                    pointArray.get(0).getAsDouble(),
+                    pointArray.get(1).getAsDouble()
+            ));
+        }
+
+        if(points.isEmpty()) {
+            throw new IllegalArgumentException("Curve point must have at least one point: " + id);
+        }
+
+        return new VfxCurveDefinition(type, points);
     }
 
     private static void validateEventParameterReferences(Map<String, VfxEventDefinition> events, Map<String, VfxParameterDefinition> parameters) {

@@ -1,7 +1,9 @@
 package net.kofllee.pyrovfx.client.vfx;
 
+import net.kofllee.pyrovfx.vfx.curve.VfxCurveSet;
 import net.kofllee.pyrovfx.vfx.expression.VfxContextBuilder;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Map;
@@ -9,8 +11,10 @@ import java.util.Map;
 public final class ClientVfxExpressionContexts {
     private ClientVfxExpressionContexts() {}
 
-    public static VfxExpressionContext effectStart(Vec3 effectPosition, double effectRandom, Map<String, Double> parameters) {
+    public static VfxExpressionContext effectStart(Vec3 effectPosition, double effectRandom, Map<String, Double> parameters, VfxCurveSet curves, RandomSource random) {
         return VfxContextBuilder.create()
+                .curves(curves)
+                .random(random)
                 .numbers("param", parameters)
                 .number("effect.age", 0)
                 .number("effect.local_age", 0)
@@ -25,9 +29,13 @@ public final class ClientVfxExpressionContexts {
             Vec3 effectPosition,
             VfxLifetimeState lifetime,
             double effectRandom,
-            Map<String, Double> parameters
+            Map<String, Double> parameters,
+            VfxCurveSet curves,
+            RandomSource random
     ) {
         return VfxContextBuilder.create()
+                .curves(curves)
+                .random(random)
                 .numbers("param", parameters)
                 .number("effect.age", lifetime.age())
                 .number("effect.local_age", lifetime.localAge())

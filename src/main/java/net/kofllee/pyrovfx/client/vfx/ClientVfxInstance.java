@@ -50,12 +50,14 @@ public final class ClientVfxInstance {
         VfxExpressionContext parameterStartContext = ClientVfxExpressionContexts.effectStart(
                 position,
                 effectRandom,
-                Map.of()
+                Map.of(),
+                definition.curves(),
+                random
         );
 
         this.parameters = resolveParameters(definition, parameterStartContext, options);
 
-        VfxExpressionContext effectStartContext = ClientVfxExpressionContexts.effectStart(position, effectRandom, parameters);
+        VfxExpressionContext effectStartContext = ClientVfxExpressionContexts.effectStart(position, effectRandom, parameters, definition.curves(), random);
 
         VfxLifetimeDefinition lifetime = definition.lifetime();
 
@@ -113,7 +115,9 @@ public final class ClientVfxInstance {
                 position,
                 lifetimeState,
                 effectRandom,
-                parameters
+                parameters,
+                definition.curves(),
+                random
         );
 
         tickEffectTriggers(level, effectContext, lifetimeState);

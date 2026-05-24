@@ -1,122 +1,29 @@
 {
   "format": "pyro_vfx:1",
-  "metadata": {
-    "author": "kofllee",
-    "description": "Collision trigger test: bouncing sparks spawn a small puff on impact."
-  },
-  "lifetime": {
-    "mode": "once",
-    "delay_ticks": 0,
-    "active_ticks": 100
-  },
-  "events": {
-    "impact_puff": {
-      "type": "emit",
-      "emitter": "impact_puff"
-    }
-  },
+  "lifetime": { "mode": "once", "delay_ticks": 0, "active_ticks": 40 },
   "emitters": [
     {
-      "id": "sparks",
-      "particle_triggers": [
-        {
-          "type": "on_collision",
-          "event": "impact_puff"
-        }
-      ],
-      "emitter_lifetime": {
-        "mode": "once",
-        "delay_ticks": 0,
-        "active_ticks": 1
-      },
-      "spawn_amount": {
-        "mode": "instant",
-        "amount": 12
-      },
-      "offset": [0, 2.0, 0],
-      "spawn_shape": {
-        "type": "sphere",
-        "radius": 0.05,
-        "edge_thickness": 0.0
-      },
-      "particle_lifetime": {
-        "max_age_ticks": 60
-      },
-      "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": "0.8 + particle.random * 1.2",
-          "acceleration": [0, -5.0, 0],
-          "linear_drag": 0.2
-        },
-        "collision": {
-          "collide": true,
-          "collision_type": "sphere",
-          "collision_size": [0.035, 0.035, 0.035],
-          "collision_drag": 5.0,
-          "bounciness": 0.25,
-          "expire_on_contact": false
-        }
-      },
-      "rotation": {
-        "mode": "none"
-      },
+      "id": "lerp_scale",
+      "emitter_lifetime": { "mode": "once", "delay_ticks": 0, "active_ticks": 1 },
+      "spawn_amount": { "mode": "instant", "amount": 1 },
+      "offset": [0, 1, 0],
+      "spawn_shape": { "type": "point" },
+      "particle_lifetime": { "max_age_ticks": 40 },
+      "motion": { "mode": "static" },
+      "rotation": { "mode": "none" },
       "render": {
         "type": "sprite",
         "facing": "camera",
         "environment_lighting": false,
         "sprite": {
-          "texture": "pyro_vfx:textures/vfx/smoke.png",
+          "texture": "minecraft:textures/particle/generic_0.png",
           "blend_mode": "additive"
         },
-        "color": [1.0, 0.7, 0.25, "1.0 - particle.normalized_age"],
-        "scale": [0.06, 0.06, 1.0]
-      }
-    },
-    {
-      "id": "impact_puff",
-      "emitter_lifetime": {
-        "mode": "manual"
-      },
-      "spawn_amount": {
-        "mode": "manual",
-        "amount": 3
-      },
-      "offset": [0, 0.03, 0],
-      "spawn_shape": {
-        "type": "sphere",
-        "radius": 0.04,
-        "edge_thickness": 0.0
-      },
-      "particle_lifetime": {
-        "max_age_ticks": "10 + particle.random * 8"
-      },
-      "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": "0.15 + particle.random * 0.25",
-          "acceleration": [0, 0.15, 0],
-          "linear_drag": 3.0
-        }
-      },
-      "rotation": {
-        "mode": "none"
-      },
-      "render": {
-        "type": "sprite",
-        "facing": "camera",
-        "environment_lighting": true,
-        "sprite": {
-          "texture": "pyro_vfx:textures/vfx/smoke.png",
-          "blend_mode": "alpha"
-        },
-        "color": [0.45, 0.42, 0.36, "1.0 - particle.normalized_age"],
+        "color": [1, 1, 1, 1],
         "scale": [
-          "0.08 + particle.normalized_age * 0.18",
-          "0.08 + particle.normalized_age * 0.18",
-          1.0
+          "math.lerp(0.1, 1.2, particle.normalized_age)",
+          "math.lerp(0.1, 1.2, particle.normalized_age)",
+          1
         ]
       }
     }
