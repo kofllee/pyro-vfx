@@ -4,6 +4,7 @@ import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.render.VfxRenderer;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import net.kofllee.pyrovfx.vfx.resource.VfxReloadListener;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.model.ModelResourceLocation;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
@@ -42,8 +43,18 @@ public final class PyroVfxClient {
 
     @SubscribeEvent
     public static void registerAdditionalModels(ModelEvent.RegisterAdditional event) {
-        event.register(ModelResourceLocation.standalone(
-                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "vfx/stone_chunk")
-        ));
+        Minecraft minecraft = Minecraft.getInstance();
+
+        minecraft.getResourceManager()
+                .listResources("models/vfx", id -> id.getPath().endsWith(".json"))
+                .keySet()
+                .forEach(id -> {
+                    String path = id.getPath();
+                    String modelPath = path.substring("models/".length(), path.length() - ".json".length());
+
+                    event.register(ModelResourceLocation.standalone(
+                            ResourceLocation.fromNamespaceAndPath(id.getNamespace(), modelPath)
+                    ));
+                });
     }
 }

@@ -25,11 +25,15 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.model.data.ModelData;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class BlockModelVfxParticleRenderer {
     private BlockModelVfxParticleRenderer() {
     }
+
+    private static final Map<VfxModelRenderDefinition, BlockState> BLOCK_STATE_CACHE = new HashMap<>();
 
     public static void render(
             ClientVfxParticle particle,
@@ -40,7 +44,10 @@ public final class BlockModelVfxParticleRenderer {
     ) {
         var modelDefinition = particle.emitterDefinition().render().model();
 
-        BlockState state = resolveBlockState(modelDefinition);
+        BlockState state = BLOCK_STATE_CACHE.computeIfAbsent(
+                modelDefinition,
+                BlockModelVfxParticleRenderer::resolveBlockState
+        );
 
         Minecraft minecraft = Minecraft.getInstance();
 

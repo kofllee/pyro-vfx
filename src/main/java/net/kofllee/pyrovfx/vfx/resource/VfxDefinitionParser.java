@@ -92,16 +92,16 @@ public final class VfxDefinitionParser {
 
             JsonElement value = entry.getValue();
 
-            VfxNumberExpression expression = null;
+            VfxNumberExpression expression;
 
-            if (value.isJsonPrimitive()) {
-                if (value.getAsJsonPrimitive().isNumber()) {
-                    expression = VfxNumberExpression.constant(value.getAsDouble());
-                } else if (value.getAsJsonPrimitive().isString()) {
-                    expression = VfxNumberExpression.expression(value.getAsString());
-                } else {
-                    throw new IllegalArgumentException("Parameter must be number or expression string: " + id);
-                }
+            if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isNumber()) {
+                expression = VfxNumberExpression.constant(value.getAsDouble());
+            } else if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()) {
+                expression = VfxNumberExpression.expression(value.getAsString());
+            } else {
+                throw new IllegalArgumentException(
+                        "Parameter '" + id + "' must be number or expression string"
+                );
             }
 
             parameters.put(id, new VfxParameterDefinition(id, expression));

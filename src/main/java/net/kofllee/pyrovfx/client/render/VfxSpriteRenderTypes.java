@@ -42,7 +42,7 @@ public final class VfxSpriteRenderTypes extends RenderStateShard {
                 .createCompositeState(true);
 
         return RenderType.create(
-                "pyro_vfx_alpha_",
+                "pyro_vfx_alpha_" + safeName(texture),
                 DefaultVertexFormat.NEW_ENTITY,
                 VertexFormat.Mode.QUADS,
                 1536,
@@ -59,11 +59,11 @@ public final class VfxSpriteRenderTypes extends RenderStateShard {
                 .setTransparencyState(RenderStateShard.ADDITIVE_TRANSPARENCY)
                 .setCullState(NO_CULL)
                 .setLightmapState(LIGHTMAP)
-                .setOverlayState(OVERLAY)
+                .setOverlayState(NO_OVERLAY)
                 .createCompositeState(true);
 
         return RenderType.create(
-                "pyro_vfx_additive",
+                "pyro_vfx_additive_" + safeName(texture),
                 DefaultVertexFormat.NEW_ENTITY,
                 VertexFormat.Mode.QUADS,
                 1536,
@@ -71,6 +71,13 @@ public final class VfxSpriteRenderTypes extends RenderStateShard {
                 true,
                 state
         );
+    }
+
+    private static String safeName(ResourceLocation texture) {
+        return texture.toString()
+                .replace(':', '_')
+                .replace('/', '_')
+                .replace('.', '_');
     }
 
     private record Key(

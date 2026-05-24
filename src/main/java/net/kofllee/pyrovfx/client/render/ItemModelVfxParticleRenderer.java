@@ -14,15 +14,19 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.model.data.ModelData;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class ItemModelVfxParticleRenderer {
     private ItemModelVfxParticleRenderer() {}
+
+    private static final Map<ResourceLocation, ItemStack> ITEM_STACK_CACHE = new HashMap<>();
 
     public static void render(
             ClientVfxParticle particle,
@@ -33,8 +37,10 @@ public final class ItemModelVfxParticleRenderer {
     ) {
         var modelDefinition = particle.emitterDefinition().render().model();
 
-        Item item = BuiltInRegistries.ITEM.get(modelDefinition.model());
-        ItemStack stack = new ItemStack(item);
+        ItemStack stack = ITEM_STACK_CACHE.computeIfAbsent(
+                modelDefinition.model(),
+                id -> new ItemStack(BuiltInRegistries.ITEM.get(id))
+        );
 
         Minecraft minecraft = Minecraft.getInstance();
         int light = particle.emitterDefinition().render().environmentLighting()

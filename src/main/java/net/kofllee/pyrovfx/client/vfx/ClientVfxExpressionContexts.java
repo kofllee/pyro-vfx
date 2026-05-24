@@ -2,7 +2,6 @@ package net.kofllee.pyrovfx.client.vfx;
 
 import net.kofllee.pyrovfx.vfx.expression.VfxContextBuilder;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.Map;
@@ -14,6 +13,7 @@ public final class ClientVfxExpressionContexts {
         return VfxContextBuilder.create()
                 .numbers("param", parameters)
                 .number("effect.age", 0)
+                .number("effect.local_age", 0)
                 .number("effect.active_age", 0)
                 .number("effect.normalized_age", 0)
                 .number("effect.random", effectRandom)
@@ -42,6 +42,7 @@ public final class ClientVfxExpressionContexts {
     public static VfxExpressionContext emitterStart(VfxExpressionContext effectContext, Vec3 emitterPosition, double emitterRandom) {
         return VfxContextBuilder.childOf(effectContext)
                 .number("emitter.age", 0)
+                .number("emitter.local_age", 0)
                 .number("emitter.active_age", 0)
                 .number("emitter.normalized_age", 0)
                 .number("emitter.random", emitterRandom)
