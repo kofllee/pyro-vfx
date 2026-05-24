@@ -185,7 +185,8 @@ public final class ClientVfxParticle {
                 level,
                 position,
                 velocity,
-                nextBox,
+                collision.collisionType(),
+                collisionSize,
                 bounciness
         );
 
@@ -208,7 +209,7 @@ public final class ClientVfxParticle {
         }
     }
 
-    private CollisionMoveResult resolveMovementByAxis(ClientLevel level, Vec3 position, Vec3 velocity, AABB box, double bounciness) {
+    private CollisionMoveResult resolveMovementByAxis(ClientLevel level, Vec3 position, Vec3 velocity, VfxCollisionType collisionType, Vec3 collisionSize, double bounciness) {
         Vec3 currentPosition = position;
 
         double vx = velocity.x;
@@ -218,7 +219,9 @@ public final class ClientVfxParticle {
         boolean collided = false;
 
         Vec3 xPosition = currentPosition.add(vx, 0.0, 0.0);
-        if (intersectsBlockCollision(level, box)) {
+        AABB xBox = createCollisionBox(xPosition, collisionType, collisionSize);
+
+        if (intersectsBlockCollision(level, xBox)) {
             vx = -vx * bounciness;
             collided = true;
         } else {
@@ -226,7 +229,10 @@ public final class ClientVfxParticle {
         }
 
         Vec3 yPosition = currentPosition.add(0.0, vy, 0.0);
-        if (intersectsBlockCollision(level, box)) {
+        AABB yBox = createCollisionBox(yPosition, collisionType, collisionSize);
+
+
+        if (intersectsBlockCollision(level, yBox)) {
             vy = -vy * bounciness;
             collided = true;
         } else {
@@ -234,7 +240,10 @@ public final class ClientVfxParticle {
         }
 
         Vec3 zPosition = currentPosition.add(0.0, 0.0, vz);
-        if (intersectsBlockCollision(level, box)) {
+        AABB zBox = createCollisionBox(zPosition, collisionType, collisionSize);
+
+
+        if (intersectsBlockCollision(level, zBox)) {
             vz = -vz * bounciness;
             collided = true;
         } else {
