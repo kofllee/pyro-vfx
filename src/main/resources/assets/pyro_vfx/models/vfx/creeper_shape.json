@@ -1,0 +1,137 @@
+{
+  "credit": "Generated creeper-shaped VFX spawn model",
+  "textures": {
+    "particle": "minecraft:block/lime_concrete",
+    "body": "minecraft:block/lime_concrete",
+    "dark": "minecraft:block/green_concrete",
+    "face": "minecraft:block/black_concrete"
+  },
+  "elements": [
+    {
+      "name": "head",
+      "from": [4, 18, 4],
+      "to": [12, 26, 12],
+      "faces": {
+        "north": { "uv": [0, 0, 16, 16], "texture": "#body" },
+        "south": { "uv": [0, 0, 16, 16], "texture": "#body" },
+        "east": { "uv": [0, 0, 16, 16], "texture": "#body" },
+        "west": { "uv": [0, 0, 16, 16], "texture": "#body" },
+        "up": { "uv": [0, 0, 16, 16], "texture": "#body" },
+        "down": { "uv": [0, 0, 16, 16], "texture": "#body" }
+      }
+    },
+    {
+      "name": "body",
+      "from": [5, 6, 5],
+      "to": [11, 18, 11],
+      "faces": {
+        "north": { "uv": [0, 0, 16, 16], "texture": "#body" },
+        "south": { "uv": [0, 0, 16, 16], "texture": "#body" },
+        "east": { "uv": [0, 0, 16, 16], "texture": "#body" },
+        "west": { "uv": [0, 0, 16, 16], "texture": "#body" },
+        "up": { "uv": [0, 0, 16, 16], "texture": "#body" },
+        "down": { "uv": [0, 0, 16, 16], "texture": "#body" }
+      }
+    },
+    {
+      "name": "front_left_leg",
+      "from": [3.5, 0, 3.5],
+      "to": [7.5, 6, 7.5],
+      "faces": {
+        "north": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "south": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "east": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "west": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "up": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "down": { "uv": [0, 0, 16, 16], "texture": "#dark" }
+      }
+    },
+    {
+      "name": "front_right_leg",
+      "from": [8.5, 0, 3.5],
+      "to": [12.5, 6, 7.5],
+      "faces": {
+        "north": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "south": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "east": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "west": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "up": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "down": { "uv": [0, 0, 16, 16], "texture": "#dark" }
+      }
+    },
+    {
+      "name": "back_left_leg",
+      "from": [3.5, 0, 8.5],
+      "to": [7.5, 6, 12.5],
+      "faces": {
+        "north": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "south": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "east": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "west": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "up": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "down": { "uv": [0, 0, 16, 16], "texture": "#dark" }
+      }
+    },
+    {
+      "name": "back_right_leg",
+      "from": [8.5, 0, 8.5],
+      "to": [12.5, 6, 12.5],
+      "faces": {
+        "north": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "south": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "east": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "west": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "up": { "uv": [0, 0, 16, 16], "texture": "#dark" },
+        "down": { "uv": [0, 0, 16, 16], "texture": "#dark" }
+      }
+    },
+
+    {
+      "name": "left_eye",
+      "from": [4.8, 22.2, 3.9],
+      "to": [6.6, 24.0, 4.05],
+      "faces": {
+        "north": { "uv": [0, 0, 16, 16], "texture": "#face" }
+      }
+    },
+    {
+      "name": "right_eye",
+      "from": [9.4, 22.2, 3.9],
+      "to": [11.2, 24.0, 4.05],
+      "faces": {
+        "north": { "uv": [0, 0, 16, 16], "texture": "#face" }
+      }
+    },
+    {
+      "name": "nose",
+      "from": [7.0, 20.4, 3.9],
+      "to": [9.0, 22.0, 4.05],
+      "faces": {
+        "north": { "uv": [0, 0, 16, 16], "texture": "#face" }
+      }
+    },
+    {
+      "name": "mouth_left",
+      "from": [5.6, 18.4, 3.9],
+      "to": [7.2, 20.2, 4.05],
+      "faces": {
+        "north": { "uv": [0, 0, 16, 16], "texture": "#face" }
+      }
+    },
+    {
+      "name": "mouth_right",
+      "from": [8.8, 18.4, 3.9],
+      "to": [10.4, 20.2, 4.05],
+      "faces": {
+        "north": { "uv": [0, 0, 16, 16], "texture": "#face" }
+      }
+    }
+  ],
+  "display": {
+    "gui": {
+      "rotation": [30, 225, 0],
+      "translation": [0, -2, 0],
+      "scale": [0.55, 0.55, 0.55]
+    }
+  }
+}

@@ -37,7 +37,139 @@ public final class VfxSpawnPositionSampler {
             );
         }
 
+        if (spawnShape.type() == VfxSpawnShapeType.LINE) {
+            return sampleLine(
+                    emitterPosition,
+                    spawnShape.height().evaluate(context),
+                    spawnShape.axis().evaluate(context).toVec3(),
+                    random
+            );
+        }
+
+        if (spawnShape.type() == VfxSpawnShapeType.DISC) {
+            return sampleDisc(
+                    emitterPosition,
+                    spawnShape.radius().evaluate(context),
+                    spawnShape.axis().evaluate(context).toVec3(),
+                    spawnShape.edgeThickness().evaluate(context),
+                    random
+            );
+        }
+
+        if (spawnShape.type() == VfxSpawnShapeType.RING) {
+            return sampleRing(
+                    emitterPosition,
+                    spawnShape.innerRadius().evaluate(context),
+                    spawnShape.radius().evaluate(context),
+                    spawnShape.axis().evaluate(context).toVec3(),
+                    random
+            );
+        }
+
+        if (spawnShape.type() == VfxSpawnShapeType.CONE) {
+            return sampleCone(
+                    emitterPosition,
+                    spawnShape.radius().evaluate(context),
+                    spawnShape.height().evaluate(context),
+                    spawnShape.axis().evaluate(context).toVec3(),
+                    spawnShape.edgeThickness().evaluate(context),
+                    random
+            );
+        }
+
+        if (spawnShape.type() == VfxSpawnShapeType.MODEL) {
+            Vec3 local = VfxModelSpawnShapeSampler.sample(
+                    spawnShape.model(),
+                    spawnShape.edgeThickness().evaluate(context),
+                    random
+            );
+
+
+
+            Vec3 scale = spawnShape.scale().evaluate(context).toVec3();
+
+            return emitterPosition.add(
+                    local.x * scale.x,
+                    local.y * scale.y,
+                    local.z * scale.z
+            );
+        }
+
         return emitterPosition;
+    }
+
+    private static Vec3 sampleCone(Vec3 center, double radius, double height, Vec3 axis, double edgeThickness, RandomSource random) {
+        if (radius <= 0.0 || height <= 0.0) {
+            return center;
+        }
+
+        Vec3 normal = axis.normalize();
+        Basis basis = Basis.fromNormal(normal);
+
+        double y = random.nextDouble() * height;
+        double t = y / height;
+        double sliceRadius = radius * (1.0 - t);
+
+        double distance;
+        if(edgeThickness <= 0.0) {
+            distance = sliceRadius;
+        }
+        else {
+            double inner = sliceRadius * (1 - edgeThickness);
+            distance = Math.sqrt(VfxRandom.between(random, inner * inner, sliceRadius * sliceRadius));
+        }
+
+        double angle = random.nextDouble() * 2 * Math.PI;
+        return center.add(basis.xAxis.scale(Math.cos(angle) * distance)).add(basis.zAxis.scale(Math.sin(angle) * distance)).add(normal.scale(y));
+    }
+
+    private static Vec3 sampleRing(Vec3 center, double innerRadius, double outerRadius, Vec3 axis, RandomSource random) {
+        if (outerRadius <= 0.0) {
+            return center;
+        }
+
+        double inner = Math.clamp(innerRadius, 0.0, outerRadius);
+        Vec3 normal = axis.normalize();
+        Basis basis = Basis.fromNormal(normal);
+
+        double angle = random.nextDouble() * 2 * Math.PI;
+        double minArea = inner * inner;
+        double maxArea = outerRadius * outerRadius;
+        double distance = Math.sqrt(VfxRandom.between(random, minArea, maxArea));
+
+        return center.add(basis.xAxis.scale(Math.cos(angle) * distance)).add(basis.zAxis.scale(Math.sin(angle) * distance));
+    }
+
+    private static Vec3 sampleDisc(Vec3 center, double radius, Vec3 axis, double edgeThickness, RandomSource random) {
+        if (radius <= 0.0) {
+            return center;
+        }
+
+        Vec3 normal = axis.normalize();
+        Basis basis = Basis.fromNormal(normal);
+
+        double angle = random.nextDouble() * 2 * Math.PI;
+
+        double distance;
+        if(edgeThickness <= 0.0) {
+            distance = Math.sqrt(random.nextDouble()) * radius;
+        }
+        else{
+            double inner = radius * (1.0 - edgeThickness);
+            double minArea = inner * inner;
+            double maxArea = radius * radius;
+            double area = VfxRandom.between(random, minArea, maxArea);
+            distance = Math.sqrt(area);
+        }
+
+        return center.add(basis.xAxis.scale(Math.cos(angle) * distance)).add(basis.zAxis.scale(Math.sin(angle) * distance));
+    }
+
+    private static Vec3 sampleLine(Vec3 emitterPosition, Double evaluate, Vec3 axis, RandomSource random) {
+        Vec3 normal = axis.normalize();
+        double halfLength = evaluate * 0.5;
+        double distance = VfxRandom.between(random, -halfLength, halfLength);
+        return emitterPosition.add(normal.scale(distance));
     }
 
     private static Vec3 sampleBox(Vec3 center, Vec3 halfExtents, double edgeThickness, RandomSource random) {
@@ -104,5 +236,18 @@ public final class VfxSpawnPositionSampler {
         double distance = Math.cbrt(volume);
 
         return center.add(direction.scale(distance));
+    }
+
+    private record Basis(Vec3 xAxis, Vec3 zAxis) {
+        public static Basis fromNormal(Vec3 normal) {
+            Vec3 helper = Math.abs(normal.y) > 0.9
+                    ? new Vec3(1.0, 0.0, 0.0)
+                    : new Vec3(0.0, 1.0, 0.0);
+
+            Vec3 xAxis = helper.cross(normal).normalize();
+            Vec3 zAxis = normal.cross(xAxis).normalize();
+
+            return new Basis(xAxis, zAxis);
+        }
     }
 }

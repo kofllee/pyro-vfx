@@ -1,30 +1,91 @@
 {
   "format": "pyro_vfx:1",
-  "lifetime": { "mode": "once", "delay_ticks": 0, "active_ticks": 40 },
+  "metadata": {
+    "author": "kofllee",
+    "description": "Vanilla Minecraft model spawn shape test. Particles spawn from the surface/shell of a baked model."
+  },
+  "lifetime": {
+    "mode": "once",
+    "delay_ticks": 0,
+    "active_ticks": 120
+  },
   "emitters": [
     {
-      "id": "lerp_scale",
-      "emitter_lifetime": { "mode": "once", "delay_ticks": 0, "active_ticks": 1 },
-      "spawn_amount": { "mode": "instant", "amount": 1 },
-      "offset": [0, 1, 0],
-      "spawn_shape": { "type": "point" },
-      "particle_lifetime": { "max_age_ticks": 40 },
-      "motion": { "mode": "static" },
-      "rotation": { "mode": "none" },
+      "id": "emerald_block_model_surface",
+      "emitter_lifetime": {
+        "mode": "once",
+        "delay_ticks": 0,
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 220
+      },
+      "offset": [-1.5, 1.5, 0],
+      "spawn_shape": {
+        "type": "model",
+        "model": "pyro_vfx:vfx/stone_chunk",
+        "scale": [1.5, 1.5, 1.5],
+        "edge_thickness": 0.0
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 120
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
       "render": {
         "type": "sprite",
         "facing": "camera",
         "environment_lighting": false,
         "sprite": {
           "texture": "minecraft:textures/particle/generic_0.png",
-          "blend_mode": "additive"
+          "blend_mode": "alpha"
         },
-        "color": [1, 1, 1, 1],
-        "scale": [
-          "math.lerp(0.1, 1.2, particle.normalized_age)",
-          "math.lerp(0.1, 1.2, particle.normalized_age)",
-          1
-        ]
+        "color": [0.25, 1.0, 0.65, 0.85],
+        "scale": [0.5, 0.5, 1.0]
+      }
+    },
+    {
+      "id": "diamond_ore_model_shell",
+      "emitter_lifetime": {
+        "mode": "once",
+        "delay_ticks": 30,
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 260
+      },
+      "offset": [1.5, 1.5, 0],
+      "spawn_shape": {
+        "type": "model",
+        "model": "pyro_vfx:vfx/stone_chunk",
+        "scale": [1.5, 1.5, 1.5],
+        "edge_thickness": 0.18
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 120
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": [0.35, 0.8, 1.0, 0.85],
+        "scale": [0.5, 0.5, 1.0]
       }
     }
   ]

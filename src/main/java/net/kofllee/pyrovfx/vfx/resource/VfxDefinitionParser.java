@@ -785,6 +785,31 @@ public final class VfxDefinitionParser {
                     getVec3Expression(json, "half_extents", new VfxVec3(0.25, 0.25, 0.25)),
                     edgeThickness
             );
+            case LINE -> VfxSpawnShapeDefinition.line(
+                    getNumberExpression(json, "length", 1.0),
+                    getVec3Expression(json, "axis", new VfxVec3(0.0, 1.0, 0.0))
+            );
+            case DISC -> VfxSpawnShapeDefinition.disc(
+                    getNumberExpression(json, "radius", 0.5),
+                    getVec3Expression(json, "axis", new VfxVec3(0.0, 1.0, 0.0)),
+                    edgeThickness
+            );
+            case RING -> VfxSpawnShapeDefinition.ring(
+                    getNumberExpression(json, "radius", 0.5),
+                    getNumberExpression(json, "inner_radius", 0.45),
+                    getVec3Expression(json, "axis", new VfxVec3(0.0, 1.0, 0.0))
+            );
+            case CONE -> VfxSpawnShapeDefinition.cone(
+                    getNumberExpression(json, "radius", 0.5),
+                    getNumberExpression(json, "height", 1.0),
+                    getVec3Expression(json, "axis", new VfxVec3(0.0, 1.0, 0.0)),
+                    edgeThickness
+            );
+            case MODEL -> VfxSpawnShapeDefinition.model(
+                    ResourceLocation.parse(getRequiredString(json, "model")),
+                    getVec3Expression(json, "scale", new VfxVec3(1.0, 1.0, 1.0)),
+                    edgeThickness
+            );
         };
 
     }
