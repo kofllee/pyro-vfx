@@ -16,15 +16,15 @@ public record VfxCurveDefinition(VfxCurveType type, List<VfxCurvePoint> points) 
 
     public double sample(double x){
         if(points.size() == 1) {
-            return points.getFirst().x();
+            return points.getFirst().y();
         }
 
         if(x <= points.getFirst().x()){
-            return points.getFirst().x();
+            return points.getFirst().y();
         }
 
         if(x >= points.getLast().x()){
-            return points.getLast().x();
+            return points.getLast().y();
         }
 
         int rightIndex = findRightIndex(x);
