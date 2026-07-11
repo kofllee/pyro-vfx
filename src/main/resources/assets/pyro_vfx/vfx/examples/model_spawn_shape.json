@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "kofllee",
-    "description": "Vanilla Minecraft model spawn shape test. Particles spawn from the surface/shell of a baked model."
+    "description": "Particles spawn from the surface and shell of a baked model."
   },
   "lifetime": {
     "mode": "once",
@@ -11,7 +11,7 @@
   },
   "emitters": [
     {
-      "id": "emerald_block_model_surface",
+      "id": "model_surface",
       "emitter_lifetime": {
         "mode": "once",
         "delay_ticks": 0,
@@ -21,11 +21,19 @@
         "mode": "instant",
         "amount": 220
       },
-      "offset": [-1.5, 1.5, 0],
+      "offset": [
+        -1.5,
+        1.5,
+        0
+      ],
       "spawn_shape": {
         "type": "model",
-        "model": "pyro_vfx:vfx/stone_chunk",
-        "scale": [1.5, 1.5, 1.5],
+        "model": "pyro_vfx:vfx/ember_cube",
+        "scale": [
+          1.5,
+          1.5,
+          1.5
+        ],
         "edge_thickness": 0.0
       },
       "particle_lifetime": {
@@ -45,12 +53,21 @@
           "texture": "minecraft:textures/particle/generic_0.png",
           "blend_mode": "alpha"
         },
-        "color": [0.25, 1.0, 0.65, 0.85],
-        "scale": [0.5, 0.5, 1.0]
+        "color": [
+          0.25,
+          1.0,
+          0.65,
+          0.85
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          1.0
+        ]
       }
     },
     {
-      "id": "diamond_ore_model_shell",
+      "id": "model_shell",
       "emitter_lifetime": {
         "mode": "once",
         "delay_ticks": 30,
@@ -60,12 +77,20 @@
         "mode": "instant",
         "amount": 260
       },
-      "offset": [1.5, 1.5, 0],
+      "offset": [
+        1.5,
+        1.5,
+        0
+      ],
       "spawn_shape": {
         "type": "model",
-        "model": "pyro_vfx:vfx/stone_chunk",
-        "scale": [1.5, 1.5, 1.5],
-        "edge_thickness": 0.18
+        "model": "pyro_vfx:vfx/ember_cube",
+        "scale": [
+          1.5,
+          1.5,
+          1.5
+        ],
+        "edge_thickness": 0.8
       },
       "particle_lifetime": {
         "max_age_ticks": 120
@@ -84,8 +109,17 @@
           "texture": "minecraft:textures/particle/generic_0.png",
           "blend_mode": "alpha"
         },
-        "color": [0.35, 0.8, 1.0, 0.85],
-        "scale": [0.5, 0.5, 1.0]
+        "color": [
+          0.35,
+          0.8,
+          1.0,
+          0.85
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          1.0
+        ]
       }
     }
   ]

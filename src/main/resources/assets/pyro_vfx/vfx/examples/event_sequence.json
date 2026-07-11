@@ -1,0 +1,142 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "kofllee",
+    "description": "Creation trigger starts a flash and smoke sequence."
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 50
+  },
+  "events": {
+    "emit_flash": {
+      "type": "emit",
+      "emitter": "flash"
+    },
+    "emit_smoke": {
+      "type": "emit",
+      "emitter": "smoke"
+    },
+    "start": {
+      "type": "sequence",
+      "events": [
+        "emit_flash",
+        "emit_smoke"
+      ]
+    }
+  },
+  "triggers": [
+    {
+      "type": "on_creation",
+      "event": "start"
+    }
+  ],
+  "emitters": [
+    {
+      "id": "flash",
+      "emitter_lifetime": {
+        "mode": "manual"
+      },
+      "spawn_amount": {
+        "mode": "manual",
+        "amount": 1
+      },
+      "offset": [
+        0,
+        1,
+        0
+      ],
+      "spawn_shape": {
+        "type": "point"
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 4
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": [
+          1.0,
+          0.8,
+          0.4,
+          "1.0 - particle.normalized_age"
+        ],
+        "scale": [
+          1.5,
+          1.5,
+          1
+        ]
+      }
+    },
+    {
+      "id": "smoke",
+      "emitter_lifetime": {
+        "mode": "manual"
+      },
+      "spawn_amount": {
+        "mode": "manual",
+        "amount": 16
+      },
+      "offset": [
+        0,
+        1,
+        0
+      ],
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.1,
+        "edge_thickness": 0.0
+      },
+      "particle_lifetime": {
+        "max_age_ticks": "25 + particle.random * 20"
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": "0.15 + particle.random * 0.35",
+          "acceleration": [
+            0,
+            0.1,
+            0
+          ],
+          "linear_drag": 1.2
+        }
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": true,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": [
+          0.45,
+          0.45,
+          0.45,
+          "1.0 - particle.normalized_age"
+        ],
+        "scale": [
+          "0.1 + particle.normalized_age * 0.5",
+          "0.1 + particle.normalized_age * 0.5",
+          1
+        ]
+      }
+    }
+  ]
+}

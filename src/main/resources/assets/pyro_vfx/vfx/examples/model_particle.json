@@ -1,0 +1,98 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "kofllee",
+    "description": "Small rotating custom model burst."
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 80
+  },
+  "emitters": [
+    {
+      "id": "debris",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 8
+      },
+      "offset": [
+        0,
+        1,
+        0
+      ],
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.1,
+        "edge_thickness": 0.0
+      },
+      "particle_lifetime": {
+        "max_age_ticks": "40 + particle.random * 30"
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": "1.0 + particle.random * 1.5",
+          "acceleration": [
+            0,
+            -4.0,
+            0
+          ],
+          "linear_drag": 0.3
+        },
+        "collision": {
+          "collide": true,
+          "collision_type": "box",
+          "collision_size": [
+            0.08,
+            0.08,
+            0.08
+          ],
+          "collision_drag": 2.0,
+          "bounciness": 0.2,
+          "expire_on_contact": false
+        }
+      },
+      "rotation": {
+        "mode": "dynamic",
+        "dynamic": {
+          "start_rotation": [
+            "particle.random * 360",
+            "particle.random * 360",
+            "particle.random * 360"
+          ],
+          "angular_velocity": [
+            "-180 + particle.random * 360",
+            "-180 + particle.random * 360",
+            "-180 + particle.random * 360"
+          ],
+          "angular_acceleration": [
+            0,
+            0,
+            0
+          ],
+          "angular_drag": 0.5
+        }
+      },
+      "render": {
+        "type": "model",
+        "environment_lighting": true,
+        "model": {
+          "source": "custom",
+          "model": "pyro_vfx:vfx/ember_cube",
+          "render_layer": "cutout"
+        },
+        "color": "#FFFFFFFF",
+        "scale": [
+          0.2,
+          0.2,
+          0.2
+        ]
+      }
+    }
+  ]
+}

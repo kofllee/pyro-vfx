@@ -1,0 +1,73 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "kofllee",
+    "description": "Simple expanding sprite burst."
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 40
+  },
+  "emitters": [
+    {
+      "id": "main",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 24
+      },
+      "offset": [
+        0,
+        1,
+        0
+      ],
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.1,
+        "edge_thickness": 0.0
+      },
+      "particle_lifetime": {
+        "max_age_ticks": "20 + particle.random * 20"
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": "0.3 + particle.random * 0.7",
+          "acceleration": [
+            0,
+            0.15,
+            0
+          ],
+          "linear_drag": 1.5
+        }
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": [
+          0.7,
+          0.7,
+          0.7,
+          "1.0 - particle.normalized_age"
+        ],
+        "scale": [
+          "0.08 + particle.normalized_age * 0.3",
+          "0.08 + particle.normalized_age * 0.3",
+          1
+        ]
+      }
+    }
+  ]
+}

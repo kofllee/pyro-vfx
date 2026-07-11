@@ -1,0 +1,117 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "kofllee",
+    "description": "Sprite appearance controlled by named curves."
+  },
+  "curves": {
+    "size": {
+      "type": "catmull",
+      "points": [
+        [
+          0.0,
+          0.05
+        ],
+        [
+          0.25,
+          0.3
+        ],
+        [
+          0.75,
+          0.55
+        ],
+        [
+          1.0,
+          0.65
+        ]
+      ]
+    },
+    "alpha": {
+      "type": "linear",
+      "points": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.15,
+          0.8
+        ],
+        [
+          0.7,
+          0.5
+        ],
+        [
+          1.0,
+          0.0
+        ]
+      ]
+    }
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 60
+  },
+  "emitters": [
+    {
+      "id": "main",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 12
+      },
+      "offset": [
+        0,
+        1,
+        0
+      ],
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.15,
+        "edge_thickness": 0.0
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 60
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "up",
+          "speed": "0.15 + particle.random * 0.2",
+          "acceleration": [
+            0,
+            0.05,
+            0
+          ],
+          "linear_drag": 0.8
+        }
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": true,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": [
+          0.5,
+          0.5,
+          0.5,
+          "curve.alpha(particle.normalized_age)"
+        ],
+        "scale": [
+          "curve.size(particle.normalized_age)",
+          "curve.size(particle.normalized_age)",
+          1
+        ]
+      }
+    }
+  ]
+}

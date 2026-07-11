@@ -1,8 +1,8 @@
 {
   "parent": "minecraft:block/block",
   "textures": {
-    "particle": "pyro_vfx:vfx/ember_cube",
-    "all": "pyro_vfx:vfx/ember_cube"
+    "particle": "minecraft:block/stone",
+    "all": "minecraft:block/stone"
   },
   "elements": [
     {

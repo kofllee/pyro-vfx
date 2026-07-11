@@ -1,0 +1,18 @@
+{
+  "recommended_commit": "Document and preserve Pyro VFX prototype",
+  "recommended_tag": "0.1.0-prototype",
+  "files": [
+    ".github/workflows/build.yml",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md",
+    "docs/ARCHITECTURE.md",
+    "docs/EXAMPLES.md",
+    "docs/EXPRESSIONS.md",
+    "docs/JSON_FORMAT.md",
+    "docs/PERFORMANCE.md",
+    "docs/REPOSITORY_CHANGES.md",
+    "docs/ROADMAP.md",
+    "docs/STATUS.md"
+  ]
+}

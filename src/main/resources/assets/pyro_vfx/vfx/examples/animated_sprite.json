@@ -1,0 +1,106 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "kofllee",
+    "description": "Animated sprite-sheet particle example."
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 40
+  },
+  "emitters": [
+    {
+      "id": "animated",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 8
+      },
+      "offset": [
+        0,
+        1,
+        0
+      ],
+      "spawn_shape": {
+        "type": "disc",
+        "radius": 0.4,
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "edge_thickness": 0.0
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 32
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "up",
+          "speed": "0.2 + particle.random * 0.3",
+          "acceleration": [
+            0,
+            0.05,
+            0
+          ],
+          "linear_drag": 1.0
+        }
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha",
+          "uv": {
+            "mode": "animated",
+            "texture_size": [
+              16,
+              16,
+              0
+            ],
+            "uv_start": [
+              0,
+              0,
+              0
+            ],
+            "uv_size": [
+              16,
+              16,
+              0
+            ],
+            "uv_step": [
+              0,
+              0,
+              0
+            ],
+            "frame_count": 1,
+            "fps": 20,
+            "stretch_to_lifetime": true,
+            "loop": false,
+            "random_start_frame": false
+          }
+        },
+        "color": [
+          0.8,
+          0.8,
+          0.8,
+          "1.0 - particle.normalized_age"
+        ],
+        "scale": [
+          "0.15 + particle.normalized_age * 0.25",
+          "0.15 + particle.normalized_age * 0.25",
+          1
+        ]
+      }
+    }
+  ]
+}
