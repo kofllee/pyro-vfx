@@ -1,0 +1,40 @@
+{
+  "parent": "pyro_vfx:bench/parent_cube",
+  "textures": {
+    "particle": "minecraft:block/stone"
+  },
+  "elements": [
+    {
+      "from": [
+        12,
+        0,
+        7.99
+      ],
+      "to": [
+        12.01,
+        16,
+        8.01
+      ],
+      "faces": {
+        "north": {
+          "texture": "#particle"
+        },
+        "south": {
+          "texture": "#particle"
+        },
+        "east": {
+          "texture": "#particle"
+        },
+        "west": {
+          "texture": "#particle"
+        },
+        "up": {
+          "texture": "#particle"
+        },
+        "down": {
+          "texture": "#particle"
+        }
+      }
+    }
+  ]
+}

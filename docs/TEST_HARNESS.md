@@ -29,6 +29,7 @@ Or run the regular Gradle `runClient` configuration, open an integrated-server w
 /pyrovfx bench collision_1k
 /pyrovfx bench self_emit_collision
 /pyrovfx bench model_rotation
+/pyrovfx bench model_inheritance
 /pyrovfx bench event_order
 /pyrovfx bench model_1k
 /pyrovfx bench sprite_10k

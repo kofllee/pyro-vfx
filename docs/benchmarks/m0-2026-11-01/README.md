@@ -22,3 +22,6 @@ The RED test demonstrates `ConcurrentModificationException` when on_collision em
 - `event-order-GREEN.json`: `completed` after synchronizing the active expression context with each parameter update.
 
 These are **functional RED/GREEN test results**, not performance speedup claims. `docs/M0_PROGRESS.md` describes the remaining verification gaps.
+
+- `model-inheritance-RED.json`: `invalid`, parent cube geometry was mixed into a child's explicit narrow-pillar `elements`.
+- `model-inheritance-GREEN.json`: `completed`, explicit child elements override inherited geometry; the rotation regression also passed in the same client run.

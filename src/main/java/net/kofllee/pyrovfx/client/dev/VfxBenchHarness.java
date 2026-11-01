@@ -155,6 +155,17 @@ public final class VfxBenchHarness {
                     }
                 }
             }
+            if (run.scenario.name().equals("model_inheritance")) {
+                ResourceLocation child = ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/child_pillar");
+                RandomSource rng = RandomSource.create(run.scenario.seed());
+                for (int i = 0; i < 32; i++) {
+                    Vec3 point = VfxModelSpawnShapeSampler.sample(child, 0.0, rng);
+                    if (point.x < 0.245 || point.x > 0.255 || Math.abs(point.z) > 0.005) {
+                        run.error = "Child elements were mixed with parent geometry: " + point;
+                        break;
+                    }
+                }
+            }
             // A single seeded effect allows reproducible spawn RNG without changing normal play().
             long start = System.nanoTime();
             VfxPlayOptions options = run.scenario.particles() > 0

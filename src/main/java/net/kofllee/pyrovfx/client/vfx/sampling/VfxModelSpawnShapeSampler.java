@@ -142,13 +142,17 @@ public final class VfxModelSpawnShapeSampler {
         try(Reader reader = new InputStreamReader(resource.get().open(), StandardCharsets.UTF_8)){
             JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
 
-            if(json.has("parent")){
-                ResourceLocation parent = ResourceLocation.parse(json.get("parent").getAsString());
-                loadJsonModelElements(parent, elements, depth + 1);
-            }
-
-            if (!json.has("elements") || !json.get("elements").isJsonArray()) {
+            // Minecraft model semantics: child elements replace, not append to,
+            // inherited parent elements. Only inherit geometry when omitted.
+            if (!json.has("elements")) {
+                if (json.has("parent")) {
+                    ResourceLocation parent = ResourceLocation.parse(json.get("parent").getAsString());
+                    loadJsonModelElements(parent, elements, depth + 1);
+                }
                 return;
+            }
+            if (!json.get("elements").isJsonArray()) {
+                throw new IllegalArgumentException("Model elements must be an array: " + modelId);
             }
 
             JsonArray rawElements = json.getAsJsonArray("elements");
