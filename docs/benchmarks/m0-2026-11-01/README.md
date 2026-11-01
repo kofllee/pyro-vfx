@@ -13,3 +13,12 @@ Three independent client starts per workload before and after the self-emission 
 M0 single-run comparator flagged P95 outliers (especially model render P95); post-fix model render P95 is higher on its 3-run median despite nearly unchanged median render submission. This is **unresolved**, not evidence of an overall speedup. Small relative GPU changes in the 1?10 microsecond regime are quantization/noise-sensitive. No claim of GPU gain.
 
 The RED test demonstrates `ConcurrentModificationException` when on_collision emits into the same emitter. Both GREEN tests complete with `collisionEventObserved=true`. No 100k/1M test was run.
+
+## Subsequent M0 regression captures
+
+- `model-rotation-RED.json`: `invalid` because the rotated model sampler returned zero geometry.
+- `model-rotation-GREEN.json`: `completed` after reading rotation properties from the correct JSON object.
+- `event-order-RED.json`: `invalid` because sequential `set_param` events observed stale `stage=1` instead of `stage=2`.
+- `event-order-GREEN.json`: `completed` after synchronizing the active expression context with each parameter update.
+
+These are **functional RED/GREEN test results**, not performance speedup claims. `docs/M0_PROGRESS.md` describes the remaining verification gaps.

@@ -9,6 +9,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
@@ -17,14 +19,13 @@ import java.util.*;
 import static net.kofllee.pyrovfx.client.vfx.sampling.VfxRandom.between;
 
 public final class VfxModelSpawnShapeSampler {
+    private static final Logger LOGGER = LoggerFactory.getLogger(VfxModelSpawnShapeSampler.class);
     private static final Map<ResourceLocation, CachedModelShape> CACHE = new HashMap<>();
 
     private VfxModelSpawnShapeSampler() {}
 
     public static Vec3 sample(ResourceLocation modelId, double edgeThickness, RandomSource random) {
         CachedModelShape shape = CACHE.computeIfAbsent(modelId, VfxModelSpawnShapeSampler::loadShape);
-
-        System.out.println("Sampling model: " + modelId + " with " + shape.elements().size() + " elements and total surface area: " + shape.totalSurfaceArea());
 
         if (shape.elements().isEmpty() || shape.totalSurfaceArea() <= 0.0) {
             return Vec3.ZERO;
@@ -164,7 +165,8 @@ public final class VfxModelSpawnShapeSampler {
                 }
             }
         }
-        catch (Exception ignored){
+        catch (Exception exception){
+            LOGGER.warn("Failed to load VFX spawn model {}", modelResource, exception);
         }
     }
 
@@ -189,16 +191,16 @@ public final class VfxModelSpawnShapeSampler {
             JsonObject rotationJson = json.getAsJsonObject("rotation");
 
             Vec3 origin = rotationJson.has("origin")
-                    ? readVec3(json.getAsJsonArray("origin")).scale(1.0 / 16.0)
+                    ? readVec3(rotationJson.getAsJsonArray("origin")).scale(1.0 / 16.0)
                     : new Vec3(0.5, 0.5, 0.5);
 
 
             String axis = rotationJson.has("axis")
-                    ? json.get("axis").getAsString()
+                    ? rotationJson.get("axis").getAsString()
                     : "y";
 
             double angle = rotationJson.has("angle")
-                    ? json.get("angle").getAsDouble()
+                    ? rotationJson.get("angle").getAsDouble()
                     : 0.0;
 
             rotation = new ModelElementRotation(origin, axis, Math.toRadians(angle));

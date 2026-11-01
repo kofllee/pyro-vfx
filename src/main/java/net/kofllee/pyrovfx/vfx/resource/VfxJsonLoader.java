@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class VfxJsonLoader {
@@ -24,9 +25,8 @@ public final class VfxJsonLoader {
     private VfxJsonLoader() {}
 
     public static void reload(ResourceManager resourceManager) {
-        VfxRegistry.clear();
-
         Map<ResourceLocation, Resource> resources = resourceManager.listResources(DIRECTORY, id -> id.getPath().endsWith(EXTENSION));
+        Map<ResourceLocation, VfxDefinition> loaded = new LinkedHashMap<>();
 
         for(Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
             ResourceLocation fileId = entry.getKey();
@@ -40,16 +40,22 @@ public final class VfxJsonLoader {
                 }
 
                 VfxDefinition definition = VfxDefinitionParser.parse(effectId, json);
-                VfxRegistry.register(definition);
+                loaded.put(effectId, definition);
 
                 LOGGER.info("Loaded Pyro VFX: {}", effectId);
 
             } catch (Exception exception) {
                 LOGGER.error("Failed to load Pyro VFX {} from {}", effectId, fileId, exception);
+                // A broken edit must not erase the last working version of this effect.
+                VfxDefinition previous = VfxRegistry.get(effectId);
+                if (previous != null) {
+                    loaded.put(effectId, previous);
+                }
             }
         }
 
-        LOGGER.info("Loaded {} Pyro VFX definitions", VfxRegistry.ids().size());
+        VfxRegistry.replaceAll(loaded);
+        LOGGER.info("Loaded {} Pyro VFX definitions", loaded.size());
     }
 
     private static ResourceLocation toEffectId(ResourceLocation fileId) {

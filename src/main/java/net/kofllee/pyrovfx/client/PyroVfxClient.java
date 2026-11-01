@@ -4,6 +4,7 @@ import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.dev.VfxBenchHarness;
 import net.kofllee.pyrovfx.client.render.VfxRenderer;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
+import net.kofllee.pyrovfx.client.vfx.sampling.VfxModelSpawnShapeSampler;
 import net.kofllee.pyrovfx.vfx.resource.VfxReloadListener;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.model.ModelResourceLocation;
@@ -25,7 +26,7 @@ public final class PyroVfxClient {
 
     @SubscribeEvent
     public static void registerReloadListeners(RegisterClientReloadListenersEvent event) {
-        event.registerReloadListener(new VfxReloadListener());
+        event.registerReloadListener(new VfxReloadListener(VfxModelSpawnShapeSampler::clearCache));
     }
 
     @SubscribeEvent

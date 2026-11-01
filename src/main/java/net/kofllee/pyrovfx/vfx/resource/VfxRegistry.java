@@ -11,12 +11,19 @@ import java.util.Map;
 
 public final class VfxRegistry {
 
-    private static final Map<ResourceLocation, VfxDefinition> DEFINITIONS = new LinkedHashMap<>();
+    // Publish a complete immutable snapshot, never an in-place partially reloaded map.
+    private static volatile Map<ResourceLocation, VfxDefinition> DEFINITIONS = Map.of();
 
     private VfxRegistry() {}
 
-    public static void register(VfxDefinition definition) {
-        DEFINITIONS.put(definition.id(), definition);
+    public static synchronized void register(VfxDefinition definition) {
+        Map<ResourceLocation, VfxDefinition> next = new LinkedHashMap<>(DEFINITIONS);
+        next.put(definition.id(), definition);
+        replaceAll(next);
+    }
+
+    public static synchronized void replaceAll(Map<ResourceLocation, VfxDefinition> definitions) {
+        DEFINITIONS = Collections.unmodifiableMap(new LinkedHashMap<>(definitions));
     }
 
     public static VfxDefinition get(ResourceLocation id) {
@@ -28,10 +35,10 @@ public final class VfxRegistry {
     }
 
     public static Collection<ResourceLocation> ids() {
-        return Collections.unmodifiableSet(DEFINITIONS.keySet());
+        return DEFINITIONS.keySet();
     }
 
-    public static void clear() {
-        DEFINITIONS.clear();
+    public static synchronized void clear() {
+        DEFINITIONS = Map.of();
     }
 }

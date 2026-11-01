@@ -3,12 +3,15 @@ package net.kofllee.pyrovfx.client.dev;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.sun.management.ThreadMXBean;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
+import net.kofllee.pyrovfx.client.vfx.sampling.VfxModelSpawnShapeSampler;
 import net.kofllee.pyrovfx.client.vfx.VfxPlayOptions;
 import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.kofllee.pyrovfx.vfx.resource.VfxRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.RandomSource;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
@@ -139,6 +142,19 @@ public final class VfxBenchHarness {
             if (++run.setupTicks < 40) {
                 return 0;
             }
+            if (run.scenario.name().equals("model_rotation")) {
+                // A narrow pillar 4/16 away from its pivot, rotated by +45 degrees
+                // around Y, must sample near (0.1768, *, -0.1768).
+                ResourceLocation fixture = ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/rotated_shape");
+                RandomSource rng = RandomSource.create(run.scenario.seed());
+                for (int i = 0; i < 16; i++) {
+                    Vec3 point = VfxModelSpawnShapeSampler.sample(fixture, 0.0, rng);
+                    if (point.x < 0.16 || point.x > 0.20 || point.z > -0.15 || point.z < -0.20) {
+                        run.error = "Rotated model sampling failed: " + point;
+                        break;
+                    }
+                }
+            }
             // A single seeded effect allows reproducible spawn RNG without changing normal play().
             long start = System.nanoTime();
             VfxPlayOptions options = run.scenario.particles() > 0
@@ -190,6 +206,12 @@ public final class VfxBenchHarness {
                 run.error = "Self-emission during collision removed the active instance";
             } else if (ClientVfxManager.instances().getFirst().parameters().getOrDefault("hit", 0.0) > 0.5) {
                 run.collisionEventObserved = true;
+            }
+        }
+        if (run.scenario.name().equals("event_order") && index == 0) {
+            double stage = ClientVfxManager.instances().getFirst().parameters().getOrDefault("stage", -1.0);
+            if (stage != 2.0) {
+                run.error = "Nested set_param events did not observe earlier mutation: stage=" + stage;
             }
         }
         if (run.elapsedTicks >= run.scenario.warmupTicks() + run.scenario.sampleTicks()) {

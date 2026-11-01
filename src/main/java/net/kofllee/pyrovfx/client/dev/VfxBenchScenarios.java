@@ -25,6 +25,8 @@ public final class VfxBenchScenarios {
         add(scenarios, "dynamic_1k", "bench/dynamic", 1_000);
         add(scenarios, "collision_1k", "bench/collision", 1_000);
         add(scenarios, "self_emit_collision", "bench/self_emit_collision", 1);
+        add(scenarios, "model_rotation", "bench/static", 1);
+        add(scenarios, "event_order", "bench/event_order", 1);
         add(scenarios, "model_1k", "bench/model", 1_000);
         add(scenarios, "curves", "examples/curves", 0);
         add(scenarios, "events", "examples/event_sequence", 0);

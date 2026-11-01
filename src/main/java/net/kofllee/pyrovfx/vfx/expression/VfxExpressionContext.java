@@ -54,6 +54,18 @@ public final class VfxExpressionContext{
         return this;
     }
 
+    /** Update the owning scope rather than shadowing a parameter in a child context. */
+    public VfxExpressionContext updateNumber(String name, double value) {
+        if (numbers.containsKey(name)) {
+            numbers.put(name, value);
+        } else if (parent != null) {
+            parent.updateNumber(name, value);
+        } else {
+            throw new IllegalArgumentException("Unknown expression variable: " + name);
+        }
+        return this;
+    }
+
     public VfxExpressionContext setCurves(VfxCurveSet curves) {
         this.curves = curves == null ? VfxCurveSet.EMPTY : curves;
         return this;

@@ -8,6 +8,8 @@ import net.kofllee.pyrovfx.vfx.curve.VfxCurvePoint;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression;
 import net.kofllee.pyrovfx.vfx.resource.VfxDefinitionParser;
+import net.kofllee.pyrovfx.vfx.resource.VfxRegistry;
+import net.kofllee.pyrovfx.vfx.resource.VfxJsonLoader;
 import net.kofllee.pyrovfx.vfx.type.VfxCurveType;
 import net.kofllee.pyrovfx.vfx.type.VfxEmitterLifetimeMode;
 import net.kofllee.pyrovfx.vfx.type.VfxLifetimeMode;
@@ -15,10 +17,18 @@ import net.kofllee.pyrovfx.vfx.type.VfxSpawnShapeType;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.PackResources;
+import net.minecraft.server.packs.resources.Resource;
+import net.minecraft.server.packs.resources.ResourceManager;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.lang.reflect.Proxy;
 
 @GameTestHolder(PyroVfx.MOD_ID)
 @PrefixGameTestTemplate(false)
@@ -33,6 +43,16 @@ public final class PyroVfxGameTests {
         checkClose(4.0, VfxNumberExpression.expression("param.power * 2 + math.sin(effect.age)").evaluate(context));
         context.setNumber("param.power", 3.0);
         checkClose(6.0, VfxNumberExpression.expression("param.power * 2").evaluate(context));
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void childParameterMutationUpdatesOwningScope(GameTestHelper helper) {
+        VfxExpressionContext effect = VfxExpressionContext.root().setNumber("param.stage", 1.0);
+        VfxExpressionContext emitter = effect.child().setNumber("emitter.age", 10);
+        emitter.updateNumber("param.stage", 2.0);
+        checkClose(2.0, effect.getNumber("param.stage"));
+        checkClose(2.0, emitter.getNumber("param.stage"));
         helper.succeed();
     }
 
@@ -173,6 +193,83 @@ public final class PyroVfxGameTests {
             }
         }
         helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void registrySnapshotDoesNotChangeMidReload(GameTestHelper helper) {
+        var previous = new LinkedHashMap<net.minecraft.resources.ResourceLocation,
+                net.kofllee.pyrovfx.vfx.definition.VfxDefinition>();
+        for (var id : VfxRegistry.ids()) {
+            previous.put(id, VfxRegistry.get(id));
+        }
+        try {
+            var snapshot = VfxRegistry.ids();
+            var test = VfxDefinitionParser.parse(
+                    ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "registry_snapshot_test"),
+                    JsonParser.parseString("""
+                            {"format":"pyro_vfx:1","emitters":[]}
+                            """).getAsJsonObject());
+            VfxRegistry.register(test);
+            if (snapshot.contains(test.id())) {
+                throw new AssertionError("Previously returned registry snapshot mutated during reload");
+            }
+        } finally {
+            VfxRegistry.clear();
+            previous.values().forEach(VfxRegistry::register);
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void invalidReloadKeepsLastValidEffect(GameTestHelper helper) {
+        Map<ResourceLocation, net.kofllee.pyrovfx.vfx.definition.VfxDefinition> previous = new LinkedHashMap<>();
+        for (ResourceLocation id : VfxRegistry.ids()) {
+            previous.put(id, VfxRegistry.get(id));
+        }
+        ResourceLocation original = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "vfx/reload_original.json");
+        ResourceLocation added = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "vfx/reload_added.json");
+        String valid = "{\"format\":\"pyro_vfx:1\",\"emitters\":[]}";
+        try {
+            VfxJsonLoader.reload(inMemoryResources(Map.of(original, valid)));
+            ResourceLocation originalId = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "reload_original");
+            ResourceLocation addedId = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "reload_added");
+            var priorDefinition = VfxRegistry.get(originalId);
+            if (priorDefinition == null) {
+                throw new AssertionError("Initial valid resource did not load");
+            }
+            VfxJsonLoader.reload(inMemoryResources(Map.of(original, "{invalid json", added, valid)));
+            if (VfxRegistry.get(originalId) != priorDefinition || !VfxRegistry.contains(addedId)) {
+                throw new AssertionError("Reload lost the last valid definition or the newly loaded effect");
+            }
+            VfxJsonLoader.reload(inMemoryResources(Map.of(added, valid)));
+            if (VfxRegistry.contains(originalId) || !VfxRegistry.contains(addedId)) {
+                throw new AssertionError("Reload failed to remove a resource that no longer exists");
+            }
+        } finally {
+            VfxRegistry.replaceAll(previous);
+        }
+        helper.succeed();
+    }
+
+    private static ResourceManager inMemoryResources(Map<ResourceLocation, String> sources) {
+        PackResources pack = (PackResources) Proxy.newProxyInstance(
+                PackResources.class.getClassLoader(),
+                new Class<?>[]{PackResources.class},
+                (proxy, method, args) -> null);
+        Map<ResourceLocation, Resource> resources = new LinkedHashMap<>();
+        for (var entry : sources.entrySet()) {
+            byte[] bytes = entry.getValue().getBytes(StandardCharsets.UTF_8);
+            resources.put(entry.getKey(), new Resource(pack, () -> new ByteArrayInputStream(bytes)));
+        }
+        return (ResourceManager) Proxy.newProxyInstance(
+                ResourceManager.class.getClassLoader(),
+                new Class<?>[]{ResourceManager.class},
+                (proxy, method, args) -> {
+                    if (method.getName().equals("listResources")) {
+                        return resources;
+                    }
+                    throw new UnsupportedOperationException("Unexpected resource manager call: " + method.getName());
+                });
     }
 
     private static void checkClose(double expected, double actual) {
