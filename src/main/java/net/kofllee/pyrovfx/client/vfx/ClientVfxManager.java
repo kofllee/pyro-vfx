@@ -27,6 +27,10 @@ public final class ClientVfxManager {
         INSTANCES.add(new ClientVfxInstance(definition, position, options));
     }
 
+    public static void playSeeded(VfxDefinition definition, Vec3 position, VfxPlayOptions options, long seed) {
+        INSTANCES.add(new ClientVfxInstance(definition, position, options, seed));
+    }
+
     public static void tick(){
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel level = minecraft.level;

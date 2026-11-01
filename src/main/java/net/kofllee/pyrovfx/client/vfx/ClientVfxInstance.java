@@ -18,7 +18,7 @@ public final class ClientVfxInstance {
     private final List<ClientVfxEmitter> emitters = new ArrayList<>();
     private final Map<String, ClientVfxEmitter> emittersById = new HashMap<>();
     private final Map<String, Double> parameters;
-    private final RandomSource random = RandomSource.create();
+    private final RandomSource random;
 
     private final int delayTicks;
     private final int activeTicks;
@@ -42,8 +42,17 @@ public final class ClientVfxInstance {
     }
 
     public ClientVfxInstance(VfxDefinition definition, Vec3 position, VfxPlayOptions options){
+        this(definition, position, options, RandomSource.create());
+    }
+
+    public ClientVfxInstance(VfxDefinition definition, Vec3 position, VfxPlayOptions options, long seed) {
+        this(definition, position, options, RandomSource.create(seed));
+    }
+
+    private ClientVfxInstance(VfxDefinition definition, Vec3 position, VfxPlayOptions options, RandomSource random) {
         this.definition = definition;
         this.position = position;
+        this.random = random;
 
         this.effectRandom = random.nextDouble();
 

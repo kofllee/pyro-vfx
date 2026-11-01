@@ -86,6 +86,30 @@ public final class PyroVfxClientCommands {
                                 )
                         )
         );
+        if (VfxBenchHarness.enabled()) {
+            event.getDispatcher().register(
+                    literal("pyrovfx").then(literal("bench")
+                            .then(argument("scenario", StringArgumentType.word())
+                                    .suggests((context, builder) -> {
+                                        String remaining = builder.getRemaining().toLowerCase(Locale.ROOT);
+                                        for (String name : VfxBenchScenarios.all().keySet()) {
+                                            if (name.startsWith(remaining)) {
+                                                builder.suggest(name);
+                                            }
+                                        }
+                                        return builder.buildFuture();
+                                    })
+                                    .executes(context -> {
+                                        String result = VfxBenchHarness.start(StringArgumentType.getString(context, "scenario"));
+                                        Minecraft minecraft = Minecraft.getInstance();
+                                        if (minecraft.player != null) {
+                                            minecraft.player.displayClientMessage(Component.literal(result), false);
+                                        }
+                                        return result.startsWith("Started") ? 1 : 0;
+                                    }))
+                    )
+            );
+        }
     }
 
     private static int playEffectAtWithParameters(

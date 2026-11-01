@@ -1,6 +1,7 @@
 package net.kofllee.pyrovfx.client;
 
 import net.kofllee.pyrovfx.PyroVfx;
+import net.kofllee.pyrovfx.client.dev.VfxBenchHarness;
 import net.kofllee.pyrovfx.client.render.VfxRenderer;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import net.kofllee.pyrovfx.vfx.resource.VfxReloadListener;
@@ -29,7 +30,9 @@ public final class PyroVfxClient {
 
     @SubscribeEvent
     public static void clientTick(ClientTickEvent.Post event) {
+        long start = VfxBenchHarness.beforeTick();
         ClientVfxManager.tick();
+        VfxBenchHarness.afterTick(start);
     }
 
     @SubscribeEvent
@@ -38,7 +41,9 @@ public final class PyroVfxClient {
             return;
         }
 
+        long start = VfxBenchHarness.beforeRender();
         VfxRenderer.render(event.getPoseStack(), event.getCamera(), event.getPartialTick().getGameTimeDeltaPartialTick(false));
+        VfxBenchHarness.afterRender(start);
     }
 
     @SubscribeEvent
