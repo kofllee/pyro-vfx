@@ -14,6 +14,7 @@ import java.util.List;
 
 public final class ClientVfxManager {
     private static final List<ClientVfxInstance> INSTANCES = new ArrayList<>();
+    private static final VfxWorldIdentity WORLD_IDENTITY = new VfxWorldIdentity();
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
@@ -24,16 +25,17 @@ public final class ClientVfxManager {
     }
 
     public static void play(VfxDefinition definition, Vec3 position, VfxPlayOptions options) {
+        trackWorld();
         INSTANCES.add(new ClientVfxInstance(definition, position, options));
     }
 
     public static void playSeeded(VfxDefinition definition, Vec3 position, VfxPlayOptions options, long seed) {
+        trackWorld();
         INSTANCES.add(new ClientVfxInstance(definition, position, options, seed));
     }
 
     public static void tick(){
-        Minecraft minecraft = Minecraft.getInstance();
-        ClientLevel level = minecraft.level;
+        ClientLevel level = trackWorld();
 
         if(level == null) {
             INSTANCES.clear();
@@ -56,6 +58,14 @@ public final class ClientVfxManager {
                 iterator.remove();
             }
         }
+    }
+
+    private static ClientLevel trackWorld() {
+        ClientLevel level = Minecraft.getInstance().level;
+        if (WORLD_IDENTITY.update(level)) {
+            INSTANCES.clear();
+        }
+        return level;
     }
 
     public static void clear(){

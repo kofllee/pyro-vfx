@@ -1,8 +1,16 @@
 package net.kofllee.pyrovfx.dev;
 
 import com.google.gson.JsonParser;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.vfx.VfxLifetimeRuntime;
+import net.kofllee.pyrovfx.client.vfx.VfxRuntimeBudget;
+import net.kofllee.pyrovfx.client.vfx.VfxWorldIdentity;
+import net.kofllee.pyrovfx.client.vfx.ClientVfxInstance;
+import net.kofllee.pyrovfx.client.vfx.VfxPlayOptions;
+import net.kofllee.pyrovfx.client.render.VfxSpriteUvSampler;
+import net.minecraft.world.phys.Vec3;
 import net.kofllee.pyrovfx.vfx.curve.VfxCurveDefinition;
 import net.kofllee.pyrovfx.vfx.curve.VfxCurvePoint;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
@@ -237,16 +245,179 @@ public final class PyroVfxGameTests {
             if (priorDefinition == null) {
                 throw new AssertionError("Initial valid resource did not load");
             }
+            ClientVfxInstance active = new ClientVfxInstance(priorDefinition, Vec3.ZERO, VfxPlayOptions.empty(), 23);
             VfxJsonLoader.reload(inMemoryResources(Map.of(original, "{invalid json", added, valid)));
             if (VfxRegistry.get(originalId) != priorDefinition || !VfxRegistry.contains(addedId)) {
                 throw new AssertionError("Reload lost the last valid definition or the newly loaded effect");
             }
+            if (active.definition() != priorDefinition) {
+                throw new AssertionError("Active effect definition changed while reloading resources");
+            }
+            active.tick(null);
             VfxJsonLoader.reload(inMemoryResources(Map.of(added, valid)));
             if (VfxRegistry.contains(originalId) || !VfxRegistry.contains(addedId)) {
                 throw new AssertionError("Reload failed to remove a resource that no longer exists");
             }
         } finally {
             VfxRegistry.replaceAll(previous);
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void runtimeBudgetBoundsEventBreadthAndSpawns(GameTestHelper helper) {
+        VfxRuntimeBudget budget = new VfxRuntimeBudget();
+        budget.beginTick(0, false);
+        for (int i = 0; i < VfxRuntimeBudget.MAX_EVENTS_PER_TICK; i++) {
+            if (!budget.enterEvent()) {
+                throw new AssertionError("Budget exhausted too early");
+            }
+        }
+        if (budget.enterEvent() || budget.hasEventBudget()) {
+            throw new AssertionError("Nested event sequence can run beyond allowed budget");
+        }
+        if (budget.reserveSpawns(Integer.MAX_VALUE) != VfxRuntimeBudget.MAX_SPAWNS_PER_TICK
+                || budget.reserveSpawns(100) != 0) {
+            throw new AssertionError("Malicious instant/manual amount was not clamped");
+        }
+        budget.beginTick(VfxRuntimeBudget.MAX_ACTIVE_PARTICLES - 3, false);
+        if (budget.reserveSpawns(Integer.MAX_VALUE) != 3) {
+            throw new AssertionError("Effect active-particle limit was bypassed");
+        }
+        budget.beginTick(0, true);
+        if (budget.reserveSpawns(VfxRuntimeBudget.HEAVY_PARTICLES) != VfxRuntimeBudget.HEAVY_PARTICLES) {
+            throw new AssertionError("Explicit heavy benchmark opt-in was silently blocked");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void worldIdentityDetectsDirectWorldSwitches(GameTestHelper helper) {
+        VfxWorldIdentity identity = new VfxWorldIdentity();
+        Object overworld = new Object();
+        Object nether = new Object();
+        if (!identity.update(overworld) || identity.update(overworld)
+                || !identity.update(nether) || identity.update(nether)
+                || !identity.update(null) || identity.update(null)
+                || !identity.update(overworld)) {
+            throw new AssertionError("World identity guard failed to detect a world transition");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void eventFanoutUsesSharedInstanceBudget(GameTestHelper helper) {
+        JsonObject source = JsonParser.parseString("""
+                {"format":"pyro_vfx:1","parameters":{"stage":0},
+                 "lifetime":{"mode":"once","active_ticks":5},
+                 "events":{"inc":{"type":"set_param","param":"stage","value":"param.stage+1"},
+                           "start":{"type":"sequence","events":[]}},
+                 "triggers":[{"type":"on_creation","event":"start"}],
+                 "emitters":[]}
+                """).getAsJsonObject();
+        JsonArray branches = source.getAsJsonObject("events").getAsJsonObject("start").getAsJsonArray("events");
+        for (int i = 0; i < VfxRuntimeBudget.MAX_EVENTS_PER_TICK + 2_000; i++) {
+            branches.add("inc");
+        }
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "fanout_golden"), source);
+        ClientVfxInstance instance = new ClientVfxInstance(definition, Vec3.ZERO, VfxPlayOptions.empty(), 1234L);
+        instance.tick(null);
+        checkClose(VfxRuntimeBudget.MAX_EVENTS_PER_TICK - 1,
+                instance.parameters().getOrDefault("stage", -1.0));
+        instance.tick(null);
+        checkClose(VfxRuntimeBudget.MAX_EVENTS_PER_TICK - 1,
+                instance.parameters().getOrDefault("stage", -1.0));
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void goldenDynamicMotionRotationUvAndExpiration(GameTestHelper helper) {
+        String source = """
+                {
+                  "format":"pyro_vfx:1",
+                  "lifetime":{"mode":"once","active_ticks":10},
+                  "emitters":[{
+                    "id":"golden",
+                    "emitter_lifetime":{"mode":"once","active_ticks":1},
+                    "spawn_amount":{"mode":"instant","amount":1},
+                    "spawn_shape":{"type":"point"},
+                    "particle_lifetime":{"max_age_ticks":4},
+                    "motion":{"mode":"dynamic","dynamic":{
+                      "direction":"custom","custom_direction":[1,0,0],
+                      "speed":2,"acceleration":[0,0,0],"linear_drag":0
+                    }},
+                    "rotation":{"mode":"dynamic","dynamic":{
+                      "start_rotation":[0,0,0],"angular_velocity":[0,20,0],
+                      "angular_acceleration":[0,0,0],"angular_drag":0
+                    }},
+                    "render":{"type":"sprite",
+                      "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                        "uv":{"mode":"animated","texture_size":[64,16,0],
+                          "uv_start":[0,0,0],"uv_size":[16,16,0],
+                          "uv_step":[16,0,0],"frame_count":4,"fps":20,
+                          "stretch_to_lifetime":true,"loop":false}},
+                      "scale":[1,1,1],"color":"#FFFFFFFF"}
+                  }]
+                }
+                """;
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "golden_motion"),
+                JsonParser.parseString(source).getAsJsonObject());
+        ClientVfxInstance instance = new ClientVfxInstance(definition, Vec3.ZERO, VfxPlayOptions.empty(), 42L);
+        for (int tick = 1; tick <= 4; tick++) {
+            instance.tick(null); // no collisions/vanilla particles: pure deterministic runtime
+            if (tick == 4) {
+                if (!instance.particles().isEmpty()) {
+                    throw new AssertionError("Particle did not expire at its fourth tick");
+                }
+                break;
+            }
+            if (instance.particles().size() != 1) {
+                throw new AssertionError("Expected exactly one deterministic particle");
+            }
+            var particle = instance.particles().getFirst();
+            checkClose(tick * 0.1, particle.position().x);
+            checkClose(0.0, particle.position().y);
+            checkClose(0.0, particle.position().z);
+            checkClose(tick, particle.rotation().y);
+            if (particle.age() != tick) {
+                throw new AssertionError("Particle age changed: " + particle.age());
+            }
+            var uv = VfxSpriteUvSampler.sample(particle);
+            checkClose(tick * 0.25, uv.u0());
+            checkClose((tick + 1) * 0.25, uv.u1());
+            checkClose(0, uv.v0());
+            checkClose(1, uv.v1());
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void goldenCreationTimelineAndExpirationEventOrder(GameTestHelper helper) {
+        String source = """
+                {"format":"pyro_vfx:1",
+                 "parameters":{"stage":0},
+                 "lifetime":{"mode":"once","active_ticks":3},
+                 "events":{"born":{"type":"set_param","param":"stage","value":1},
+                           "timed":{"type":"set_param","param":"stage","value":2},
+                           "expired":{"type":"set_param","param":"stage","value":3}},
+                 "triggers":[{"type":"on_creation","event":"born"},
+                             {"type":"timeline","time_ticks":1,"event":"timed"},
+                             {"type":"on_expiration","event":"expired"}],
+                 "emitters":[]}
+                """;
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "golden_triggers"),
+                JsonParser.parseString(source).getAsJsonObject());
+        ClientVfxInstance instance = new ClientVfxInstance(definition, Vec3.ZERO, VfxPlayOptions.empty(), 9L);
+        int[] expectedStageAfterTick = {1, 2, 2, 3, 3};
+        for (int expected : expectedStageAfterTick) {
+            instance.tick(null);
+            checkClose(expected, instance.parameters().get("stage"));
+        }
+        if (!instance.isFinished()) {
+            throw new AssertionError("Effect should be finished after its expiration trigger");
         }
         helper.succeed();
     }

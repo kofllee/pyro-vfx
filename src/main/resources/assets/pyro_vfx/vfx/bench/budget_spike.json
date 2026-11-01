@@ -1,0 +1,104 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "M0 shared per-instance spawn budget: two emitters each request 20k, total must stay <=20k."
+  },
+  "parameters": {
+    "count": 20000
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 160
+  },
+  "emitters": [
+    {
+      "id": "first",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 3
+      },
+      "offset": [
+        0,
+        0,
+        0
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": "#FFAA33FF",
+        "scale": [
+          0.18,
+          0.18,
+          1
+        ]
+      }
+    },
+    {
+      "id": "second",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 3
+      },
+      "offset": [
+        0,
+        0,
+        0
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": "#FFAA33FF",
+        "scale": [
+          0.18,
+          0.18,
+          1
+        ]
+      }
+    }
+  ]
+}

@@ -50,7 +50,7 @@ public final class VfxEventRunner {
                             RandomSource random,
                             VfxEventRuntime runtime,
                             int depth){
-        if(depth >= MAX_EVENT_DEPTH){
+        if(depth >= MAX_EVENT_DEPTH || !runtime.enterEvent()){
             return;
         }
 
@@ -80,13 +80,16 @@ public final class VfxEventRunner {
                     emitter.emitterRandom()
             );
 
-            emitter.emitManual(level, effectPosition, emitterPosition, emitterContext, random);
+            emitter.emitManual(level, effectPosition, emitterPosition, emitterContext, random, runtime);
 
             return;
         }
 
         if (event.type() == VfxEventType.SEQUENCE) {
             for (String nestedEventId : event.eventIds()) {
+                if (!runtime.hasEventBudget()) {
+                    break;
+                }
                 run(
                         nestedEventId,
                         events,

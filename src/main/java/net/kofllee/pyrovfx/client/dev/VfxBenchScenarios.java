@@ -29,6 +29,8 @@ public final class VfxBenchScenarios {
         add(scenarios, "model_inheritance", "bench/static", 1);
         add(scenarios, "event_order", "bench/event_order", 1);
         add(scenarios, "model_1k", "bench/model", 1_000);
+        add(scenarios, "budget_spike", "bench/budget_spike", 0);
+        add(scenarios, "reload_active", "bench/static", 1);
         add(scenarios, "curves", "examples/curves", 0);
         add(scenarios, "events", "examples/event_sequence", 0);
         add(scenarios, "uv_animation", "examples/animated_sprite", 0);

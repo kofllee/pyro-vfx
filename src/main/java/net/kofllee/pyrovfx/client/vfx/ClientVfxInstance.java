@@ -19,6 +19,28 @@ public final class ClientVfxInstance {
     private final Map<String, ClientVfxEmitter> emittersById = new HashMap<>();
     private final Map<String, Double> parameters;
     private final RandomSource random;
+    private final VfxRuntimeBudget budget = new VfxRuntimeBudget();
+    private final VfxEventRuntime eventRuntime = new VfxEventRuntime() {
+        @Override
+        public void setParameter(String id, double value) {
+            ClientVfxInstance.this.setParameter(id, value);
+        }
+
+        @Override
+        public boolean enterEvent() {
+            return budget.enterEvent();
+        }
+
+        @Override
+        public boolean hasEventBudget() {
+            return budget.hasEventBudget();
+        }
+
+        @Override
+        public int reserveSpawns(int requested) {
+            return budget.reserveSpawns(requested);
+        }
+    };
 
     private final int delayTicks;
     private final int activeTicks;
@@ -118,6 +140,13 @@ public final class ClientVfxInstance {
     }
 
     public void tick(ClientLevel level){
+        int liveParticles = 0;
+        for (var emitter : emitters) {
+            liveParticles += emitter.liveParticleCount();
+        }
+        boolean heavy = !net.neoforged.fml.loading.FMLEnvironment.production
+                && Boolean.getBoolean("pyrovfx.bench.allowHeavy");
+        budget.beginTick(liveParticles, heavy);
         VfxLifetimeState lifetimeState = lifetimeState();
 
         VfxExpressionContext effectContext = ClientVfxExpressionContexts.effectTick(
@@ -136,7 +165,7 @@ public final class ClientVfxInstance {
             Vec3 emitterOffset = emitter.definition().offset().evaluate(effectContext).toVec3();
             Vec3 emitterPosition = position.add(emitterOffset);
 
-            emitter.tick(level, position, emitterPosition, effectContext, lifetimeState.active(), definition.events(), emittersById, this::setParameter, random);
+            emitter.tick(level, position, emitterPosition, effectContext, lifetimeState.active(), definition.events(), emittersById, eventRuntime, random);
         }
 
         age++;
@@ -194,7 +223,7 @@ public final class ClientVfxInstance {
                 position,
                 position,
                 effectContext,
-                this::setParameter,
+                eventRuntime,
                 random
         );
     }

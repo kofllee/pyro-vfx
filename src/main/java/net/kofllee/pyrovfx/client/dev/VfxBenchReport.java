@@ -73,6 +73,7 @@ final class VfxBenchReport {
         root.addProperty("peakActiveParticles", run.peakParticles);
         root.addProperty("collisionContacts", run.collisionContacts);
         root.addProperty("collisionEventObserved", run.collisionEventObserved);
+        root.addProperty("reloadCompleted", run.reloadCompleted);
         root.addProperty("warmupTicks", run.scenario.warmupTicks());
         root.addProperty("measurementTicks", run.scenario.sampleTicks());
         root.addProperty("measurementFrameSamples", run.frameCount);

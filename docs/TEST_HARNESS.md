@@ -10,7 +10,7 @@ python tools/test_compare_bench.py
 .\gradlew.bat clean build
 ```
 
-The eleven NeoForge tests cover mutable expression variables, curve endpoints (linear, step, Catmull and Bézier), parser acceptance of collision/particle events and validation of event parameters, once/looping/manual lifetime behavior, all eight spawn shape types, stable registry snapshots, invalid-JSON reload preservation and deletion, and child-to-parent parameter updates. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
+The sixteen NeoForge tests cover expressions and curves; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shape types; immutable registry snapshots and malformed-JSON reload fallback; inherited parameter updates; shared runtime event/spawn budgets; direct world identity changes; exact per-tick motion/rotation/animated-UV/expiration goldens; event fan-out limits; and creation/timeline/expiration trigger order. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
 
 ## GPU client
 
@@ -31,6 +31,8 @@ Or run the regular Gradle `runClient` configuration, open an integrated-server w
 /pyrovfx bench model_rotation
 /pyrovfx bench model_inheritance
 /pyrovfx bench event_order
+/pyrovfx bench budget_spike
+/pyrovfx bench reload_active
 /pyrovfx bench model_1k
 /pyrovfx bench sprite_10k
 ```

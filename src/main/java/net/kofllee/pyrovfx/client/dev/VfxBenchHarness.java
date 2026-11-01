@@ -5,6 +5,7 @@ import com.sun.management.ThreadMXBean;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxModelSpawnShapeSampler;
 import net.kofllee.pyrovfx.client.vfx.VfxPlayOptions;
+import net.kofllee.pyrovfx.client.vfx.VfxRuntimeBudget;
 import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.kofllee.pyrovfx.vfx.resource.VfxRegistry;
 import net.minecraft.client.Minecraft;
@@ -26,6 +27,7 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 public final class VfxBenchHarness {
     private static final boolean ENABLED = !FMLEnvironment.production;
@@ -188,6 +190,21 @@ public final class VfxBenchHarness {
         long elapsed = System.nanoTime() - startNs;
         long allocatedAfter = allocatedBytes();
         int index = run.elapsedTicks++;
+        if (run.scenario.name().equals("reload_active") && index == 10) {
+            run.reloadFuture = Minecraft.getInstance().reloadResourcePacks();
+        }
+        if (run.reloadFuture != null && run.reloadFuture.isDone() && !run.reloadCompleted) {
+            if (run.reloadFuture.isCompletedExceptionally()) {
+                run.error = "Minecraft client resource reload failed";
+            } else if (VfxRegistry.get(run.scenario.effect()) == null) {
+                run.error = "VFX definitions disappeared after client resource reload";
+            } else if (ClientVfxManager.instances().size() != 1
+                    || ClientVfxManager.instances().getFirst().definition() != run.definition) {
+                run.error = "Active VFX instance did not survive client resource reload";
+            } else {
+                run.reloadCompleted = true;
+            }
+        }
         if (index >= run.scenario.warmupTicks()) {
             if (run.tickCount < run.simulationNs.length) {
                 run.simulationNs[run.tickCount++] = elapsed;
@@ -226,6 +243,14 @@ public final class VfxBenchHarness {
             }
         }
         if (run.elapsedTicks >= run.scenario.warmupTicks() + run.scenario.sampleTicks()) {
+            if (run.scenario.name().equals("reload_active") && !run.reloadCompleted) {
+                run.error = "Client resource reload not observed before benchmark ended";
+            }
+            if (run.scenario.name().equals("budget_spike")
+                    && run.peakParticles != VfxRuntimeBudget.MAX_ACTIVE_PARTICLES) {
+                run.error = "Shared spawn budget expected " + VfxRuntimeBudget.MAX_ACTIVE_PARTICLES
+                        + " active particles, observed " + run.peakParticles;
+            }
             if (run.scenario.name().startsWith("collision")
                     && (run.collisionContacts == 0 || !run.collisionEventObserved)) {
                 run.error = "Collision scenario did not observe a block contact and its event";
@@ -426,6 +451,8 @@ public final class VfxBenchHarness {
         final Map<BlockPos, BlockState> originalBlocks = new LinkedHashMap<>();
         long collisionContacts;
         boolean collisionEventObserved;
+        CompletableFuture<Void> reloadFuture;
+        boolean reloadCompleted;
 
         Run(VfxBenchScenarios.Scenario scenario, VfxDefinition definition) {
             this.scenario = scenario;

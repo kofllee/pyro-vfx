@@ -112,7 +112,7 @@ public final class ClientVfxEmitter {
         );
 
         if (canSpawn && lifetimeState.active()) {
-            tickSpawnAmount(level, effectPosition, emitterPosition, emitterContext, lifetimeState, random);
+            tickSpawnAmount(level, effectPosition, emitterPosition, emitterContext, lifetimeState, random, eventRuntime);
         }
 
         // Collision events may emit into this emitter. Process only the particles
@@ -228,16 +228,17 @@ public final class ClientVfxEmitter {
             Vec3 emitterPosition,
             VfxExpressionContext emitterContext,
             VfxLifetimeState lifetimeState,
-            RandomSource random
+            RandomSource random,
+            VfxEventRuntime runtime
     ) {
         VfxSpawnAmountDefinition spawnAmount = definition.spawnAmount();
 
         if (spawnAmount.mode() == VfxSpawnAmountMode.INSTANT) {
-            tickInstantSpawnAmount(level, effectPosition, emitterPosition, emitterContext, lifetimeState, random);
+            tickInstantSpawnAmount(level, effectPosition, emitterPosition, emitterContext, lifetimeState, random, runtime);
         }
 
         if (spawnAmount.mode() == VfxSpawnAmountMode.STEADY) {
-            tickSteadySpawnAmount(level, effectPosition, emitterPosition, emitterContext, random);
+            tickSteadySpawnAmount(level, effectPosition, emitterPosition, emitterContext, random, runtime);
         }
     }
 
@@ -246,7 +247,8 @@ public final class ClientVfxEmitter {
             Vec3 effectPosition,
             Vec3 emitterPosition,
             VfxExpressionContext emitterContext,
-            RandomSource random
+            RandomSource random,
+            VfxEventRuntime runtime
     ) {
         if (particles.size() >= maxParticles) {
             return;
@@ -266,7 +268,7 @@ public final class ClientVfxEmitter {
 
         spawnAccumulator -= amount;
 
-        spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, amount);
+        spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, amount, runtime);
     }
 
 
@@ -276,7 +278,8 @@ public final class ClientVfxEmitter {
             Vec3 emitterPosition,
             VfxExpressionContext emitterContext,
             VfxLifetimeState lifetimeState,
-            RandomSource random
+            RandomSource random,
+            VfxEventRuntime runtime
     ) {
         if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.LOOPING) {
             if (lifetimeState.localAge() != 0) {
@@ -289,7 +292,7 @@ public final class ClientVfxEmitter {
 
             lastInstantAge = age;
 
-            spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, instantAmount);
+            spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, instantAmount, runtime);
             return;
         }
 
@@ -299,7 +302,7 @@ public final class ClientVfxEmitter {
 
         lastInstantAge = lifetimeState.localAge();
 
-        spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, instantAmount);
+        spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, instantAmount, runtime);
     }
 
     private void spawnParticles(
@@ -308,8 +311,10 @@ public final class ClientVfxEmitter {
             Vec3 emitterPosition,
             VfxExpressionContext emitterContext,
             RandomSource random,
-            int count
+            int count,
+            VfxEventRuntime runtime
     ) {
+        count = runtime.reserveSpawns(count);
         for (int i = 0; i < count; i++) {
             double particleRandom = random.nextDouble();
 
@@ -408,7 +413,8 @@ public final class ClientVfxEmitter {
             Vec3 effectPosition,
             Vec3 emitterPosition,
             VfxExpressionContext emitterContext,
-            RandomSource random
+            RandomSource random,
+            VfxEventRuntime runtime
     ) {
         VfxSpawnAmountDefinition spawnAmount = definition.spawnAmount();
 
@@ -418,7 +424,7 @@ public final class ClientVfxEmitter {
             return;
         }
 
-        spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, amount);
+        spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, amount, runtime);
     }
 
     public boolean isFinished() {
@@ -451,6 +457,10 @@ public final class ClientVfxEmitter {
 
     public int emittedParticles() {
         return emittedParticles;
+    }
+
+    public int liveParticleCount() {
+        return particles.size();
     }
 
     public VfxLifetimeState lifetimeState() {

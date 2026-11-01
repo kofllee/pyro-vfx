@@ -1,4 +1,4 @@
-# M0 — Stability and behavior freeze (in progress)
+# M0 — Stability and behavior freeze (complete; see M0_EXIT_REPORT.md)
 
 **Project:** Pyro VFX, Minecraft 1.21.1 / NeoForge 21.1.229 / Java 21. This document tracks actual completed work and known gaps. M1–M5 have **not** started.
 
@@ -30,7 +30,7 @@ P95 model CPU/render submission rose in these measurements even as median times 
 
 Full comparison and recorded raw reports: `docs/benchmarks/m0-2026-11-01/`.
 
-## Still open in M0
+## Historical M0 checklist (superseded by the final exit report)
 
 - Capture golden per-tick positions, lifetimes, event ordering and parameters for representative scripted effects, not just parser tests.
 - Expand test cases for `on_creation`, timelines, `on_expiration`, nested/random events, UV animation, motion and rotation, plus resource reload and world change.
@@ -51,6 +51,6 @@ The scope is explicitly M0; do not silently start a compiled-expression or SoA m
 
 There are now **11 NeoForge GameTests** (the eight existing tests plus registry snapshot, invalid-JSON reload, and child-parameter mutation), plus the client-only behavioral scenarios `model_rotation`, `event_order`, `self_emit_collision`. RED/GREEN JSON evidence is in `docs/benchmarks/m0-2026-11-01/`.
 
-Still open: bounded event/spawn workloads, live resource-pack reload and active-instance soak, per-tick motion/UV/rotation goldens, shader-mod compatibility, allocation profiling and review of raised model P95 from the first fix. M0 remains in progress; M1 has not started.
+Earlier open items have been reviewed and scoped in `docs/M0_EXIT_REPORT.md`. The four agreed M0 exit criteria have been met. Shader-mod compatibility, live dimension-switch soak, JFR allocation-site attribution and 100k/1M loads are deferred; M1 has not started.
 
 **Additional model inheritance regression:** `model_inheritance` compares a child's narrow pillar `elements` against a parent's full cube. RED: the sampler mixed both meshes and returned a point outside the child pillar. GREEN: the sampler now inherits parent geometry only when the child omits `elements`, matching vanilla model semantics. The regression runs alongside `model_rotation` in a graphical client. All three test model JSON resources now include valid `faces`; a subsequent client run loaded them without `Missing faces` errors.
