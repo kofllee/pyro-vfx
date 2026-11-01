@@ -10,7 +10,7 @@ python tools/test_compare_bench.py
 .\gradlew.bat clean build
 ```
 
-The twenty NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; and event trigger order. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
+The twenty-three NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; and event trigger order. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
 
 ## GPU client
 
@@ -27,6 +27,7 @@ Or run the regular Gradle `runClient` configuration, open an integrated-server w
 /pyrovfx bench sprite_1k
 /pyrovfx bench dynamic_1k
 /pyrovfx bench collision_1k
+/pyrovfx bench collision_no_events
 /pyrovfx bench self_emit_collision
 /pyrovfx bench model_rotation
 /pyrovfx bench model_inheritance
@@ -52,6 +53,8 @@ Actual client outputs are generated under `run/pyrovfx-benchmarks/`:
 - `results.csv`: machine-readable row per execution.
 
 Frame metrics are wall-clock intervals measured between successive `AFTER_PARTICLES` render-stage callbacks. They are not graphics-card timings or a claim about whole-game FPS when background tasks run. CPU simulation and render submission are delimited wall-clock measurements of the *Pyro VFX* tick/render callbacks. Thread allocations are HotSpot allocation counters for the calling thread only; heap is process-wide. GC counts and elapsed GC time are JVM-wide. GPU time, when present, comes from **nonblocking OpenGL `GL_TIME_ELAPSED` queries**, measuring GPU work inside the Pyro VFX render call; it may be unavailable on incompatible contexts or shader drivers. A missing metric is `null`, not 0. TPS, draw-call counters, VRAM and GPU hardware counters are not yet instrumented.
+
+The data-oriented CPU implementation is documented in `docs/CPU_RUNTIME_REDESIGN.md` and benchmarked in `docs/benchmarks/m2-2026-11-02/`. Use `-PbenchLegacyCpu=true` with `runClientBench` to force the original CPU particle backend, and compare both against unchanged JSON. `tools/summarize_m2.py` verifies three independent client runs against the frozen M1 distribution; `tools/verify_cpu_backend_ab.py` checks the forced-legacy smoke run. Run `java tools/ParallelKernelProbe.java` for the separate no-Minecraft worker-thread break-even probe; it does not imply that the live runtime can safely run off-thread.
 
 M1 immutable program and slot-expression comparison is archived in `docs/benchmarks/m1-2026-11-02/` with 15 raw client reports. To reproduce the measured M0 vs M1 summary after three independent client starts, run `python tools/summarize_m1.py --after <YYYYMMDD-HHMMSS>`. This verifies JSON SHA-256, seed, particle count, GPU, resolution and Minecraft version before producing the comparison. See `docs/M1_EXIT_REPORT.md` for scope and remaining work.
 

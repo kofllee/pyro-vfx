@@ -84,7 +84,7 @@ public final class ClientVfxManager {
         int count = 0;
 
         for(ClientVfxInstance instance : INSTANCES){
-            count += instance.particles().size();
+            count += instance.particleCount();
         }
 
         return count;

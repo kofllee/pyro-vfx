@@ -17,7 +17,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 
 import static org.joml.Math.lerp;
 
-public final class ClientVfxParticle {
+public final class ClientVfxParticle implements VfxSpriteParticleView {
 
     private final VfxEmitterDefinition emitterDefinition;
     private final Vec3 spawnPosition;
@@ -42,6 +42,8 @@ public final class ClientVfxParticle {
 
     private boolean collidedThisTick;
     private Vec3 collisionPosition;
+    // Sparse collision channel: only colliding particles own block-query scratch.
+    private final BlockPos.MutableBlockPos collisionBlockCursor;
 
     private ClientVfxSpriteUvState spriteUv;
 
@@ -59,6 +61,8 @@ public final class ClientVfxParticle {
     )
     {
         this.emitterDefinition = definition;
+        this.collisionBlockCursor = definition.motion().collision().collide()
+                ? new BlockPos.MutableBlockPos() : null;
         this.spawnPosition = position;
         this.position = position;
         this.previousPosition = spawnPosition;
@@ -80,6 +84,40 @@ public final class ClientVfxParticle {
                 particleSpawnContext,
                 random
         );
+    }
+
+    /** Snapshot for public/debug inspection; never allocated in the simulation/render hot paths. */
+    static ClientVfxParticle denseSnapshot(
+            VfxEmitterDefinition definition, Vec3 spawn, Vec3 position, Vec3 previous,
+            Vec3 velocity, Vec3 scale, Vec3 previousScale,
+            VfxColor color, VfxColor previousColor,
+            double random, int lifetime, int age, ClientVfxSpriteUvState uv
+    ) {
+        return new ClientVfxParticle(definition, spawn, position, previous, velocity,
+                scale, previousScale, color, previousColor, random, lifetime, age, uv);
+    }
+
+    private ClientVfxParticle(VfxEmitterDefinition definition, Vec3 spawn, Vec3 position,
+                              Vec3 previous, Vec3 velocity, Vec3 scale, Vec3 previousScale,
+                              VfxColor color, VfxColor previousColor, double random,
+                              int lifetime, int age, ClientVfxSpriteUvState uv) {
+        this.emitterDefinition = definition;
+        this.collisionBlockCursor = null;
+        this.spawnPosition = spawn;
+        this.position = position;
+        this.previousPosition = previous;
+        this.velocity = velocity;
+        this.rotation = Vec3.ZERO;
+        this.previousRotation = Vec3.ZERO;
+        this.angularVelocity = Vec3.ZERO;
+        this.lifetime = lifetime;
+        this.random = random;
+        this.scale = scale;
+        this.previousScale = previousScale;
+        this.color = color;
+        this.previousColor = previousColor;
+        this.age = age;
+        this.spriteUv = uv;
     }
 
     public void tick(ClientLevel level, VfxExpressionContext emitterContext){
@@ -266,13 +304,16 @@ public final class ClientVfxParticle {
         int maxY = (int) Math.floor(box.maxY);
         int maxZ = (int) Math.floor(box.maxZ);
 
-        BlockPos.MutableBlockPos mutablePos = new BlockPos.MutableBlockPos();
+        BlockPos.MutableBlockPos mutablePos = collisionBlockCursor;
         for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     mutablePos.set(x, y, z);
-                    VoxelShape shape = level.getBlockState(mutablePos)
-                            .getCollisionShape(level, mutablePos);
+                    var state = level.getBlockState(mutablePos);
+                    if (state.isAir()) {
+                        continue;
+                    }
+                    VoxelShape shape = state.getCollisionShape(level, mutablePos);
 
                     if (!shape.isEmpty() && shape.bounds().move(mutablePos).intersects(box)) {
                         return true;

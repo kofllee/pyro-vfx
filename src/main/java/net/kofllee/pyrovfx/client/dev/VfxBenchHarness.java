@@ -251,7 +251,10 @@ public final class VfxBenchHarness {
                 run.error = "Shared spawn budget expected " + VfxRuntimeBudget.MAX_ACTIVE_PARTICLES
                         + " active particles, observed " + run.peakParticles;
             }
-            if (run.scenario.name().startsWith("collision")
+            if (run.scenario.name().equals("collision_no_events") && run.collisionContacts == 0) {
+                run.error = "Collision geometry was never exercised without event handlers";
+            } else if (run.scenario.name().startsWith("collision")
+                    && !run.scenario.name().equals("collision_no_events")
                     && (run.collisionContacts == 0 || !run.collisionEventObserved)) {
                 run.error = "Collision scenario did not observe a block contact and its event";
             }

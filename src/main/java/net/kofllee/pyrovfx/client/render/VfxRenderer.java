@@ -18,7 +18,11 @@ public final class VfxRenderer {
         MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
 
         for(ClientVfxInstance instance: ClientVfxManager.instances()){
-            for(ClientVfxParticle particle: instance.particles()){
+            for(var emitter : instance.emitters()) {
+                if (emitter.densePool() != null) {
+                    emitter.densePool().render(poseStack, bufferSource, camera, partialTick);
+                }
+                for (ClientVfxParticle particle : emitter.legacyParticles()) {
                 if(particle.emitterDefinition().render().type() == VfxRenderType.SPRITE){
                     SpriteVfxParticleRenderer.render(
                             particle,
@@ -38,6 +42,7 @@ public final class VfxRenderer {
                             camera,
                             partialTick
                     );
+                }
                 }
             }
         }

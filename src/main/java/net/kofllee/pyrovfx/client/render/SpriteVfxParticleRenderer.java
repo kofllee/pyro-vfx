@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxParticle;
+import net.kofllee.pyrovfx.client.vfx.VfxSpriteParticleView;
 import net.kofllee.pyrovfx.vfx.type.VfxFacingMode;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.minecraft.client.Camera;
@@ -18,7 +19,7 @@ public final class SpriteVfxParticleRenderer {
     private SpriteVfxParticleRenderer() {}
 
     public static void render(
-            ClientVfxParticle particle,
+            VfxSpriteParticleView particle,
             PoseStack poseStack,
             MultiBufferSource bufferSource,
             Camera camera,
@@ -66,7 +67,8 @@ public final class SpriteVfxParticleRenderer {
         float halfHeight = height * 0.5F;
 
         int light = particle.emitterDefinition().render().environmentLighting()
-                ? VfxRenderLight.getParticleLight(particle, partialTick)
+                && particle instanceof ClientVfxParticle legacy
+                ? VfxRenderLight.getParticleLight(legacy, partialTick)
                 : LightTexture.FULL_BRIGHT;
 
         VfxSpriteUvRect uv = VfxSpriteUvSampler.sample(particle);
@@ -79,7 +81,7 @@ public final class SpriteVfxParticleRenderer {
         poseStack.popPose();
     }
 
-    private static void applyParticleRotation(ClientVfxParticle particle, PoseStack poseStack, float partialTick) {
+    private static void applyParticleRotation(VfxSpriteParticleView particle, PoseStack poseStack, float partialTick) {
         Vec3 rotation = particle.interpolatedRotation(partialTick);
 
         poseStack.mulPose(Axis.XP.rotationDegrees((float) rotation.x));
@@ -87,7 +89,7 @@ public final class SpriteVfxParticleRenderer {
         poseStack.mulPose(Axis.ZP.rotationDegrees((float) rotation.z));
     }
 
-    private static void applyFacing(ClientVfxParticle particle, PoseStack poseStack, Camera camera, float partialTick) {
+    private static void applyFacing(VfxSpriteParticleView particle, PoseStack poseStack, Camera camera, float partialTick) {
         VfxFacingMode mode = particle.emitterDefinition().render().facing();
 
         if(mode == VfxFacingMode.CAMERA) {

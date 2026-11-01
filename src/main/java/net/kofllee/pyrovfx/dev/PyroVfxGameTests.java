@@ -18,6 +18,11 @@ import net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionCompiler;
 import net.kofllee.pyrovfx.vfx.expression.VfxProgram;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxExpressionContexts;
+import net.kofllee.pyrovfx.client.vfx.VfxDenseSpritePool;
+import net.kofllee.pyrovfx.client.vfx.ClientVfxParticle;
+import net.kofllee.pyrovfx.client.vfx.VfxEventCommandQueue;
+import net.kofllee.pyrovfx.client.vfx.VfxEventRuntime;
+import net.kofllee.pyrovfx.vfx.definition.VfxEventDefinition;
 import net.minecraft.util.RandomSource;
 import net.kofllee.pyrovfx.vfx.resource.VfxDefinitionParser;
 import net.kofllee.pyrovfx.vfx.resource.VfxRegistry;
@@ -454,6 +459,106 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void denseSpriteReplayMatchesLegacyPhysicsAppearanceAndRandom(GameTestHelper helper) {
+        for (String motionMode : new String[]{"static", "dynamic"}) {
+            String dynamicFields = motionMode.equals("dynamic")
+                    ? ",\"dynamic\":{\"direction\":\"custom\",\"custom_direction\":[0,1,0],"
+                    + "\"speed\":1,\"acceleration\":[\"random.value()*0.1\",-0.1,0],"
+                    + "\"linear_drag\":\"0.4+random.value()*0.1\"}" : "";
+            String source = """
+                    {"format":"pyro_vfx:1","parameters":{"power":3},
+                    "emitters":[{"id":"main","spawn_shape":{"type":"point"},
+                    "particle_lifetime":{"max_age_ticks":6},
+                    "motion":{"mode":"MODE"FIELDS},
+                    "render":{"type":"sprite","sprite":{
+                    "texture":"minecraft:textures/particle/generic_0.png"},
+                    "scale":["param.power+particle.normalized_age+random.value()*0.01",0.25,1],
+                    "color":[1,0.25,0.5,"1-particle.normalized_age+random.value()*0.01"]}}]}
+                    """.replace("MODE", motionMode).replace("FIELDS", dynamicFields);
+            var definition = VfxDefinitionParser.parse(ResourceLocation.fromNamespaceAndPath(
+                    PyroVfx.MOD_ID, "dense_replay_" + motionMode),
+                    JsonParser.parseString(source).getAsJsonObject());
+            var emitter = definition.emitters().getFirst();
+            if (!VfxDenseSpritePool.supports(emitter)) {
+                throw new AssertionError("Expected eligible dense sprite: " + motionMode);
+            }
+            RandomSource denseRandom = RandomSource.create(983221L);
+            RandomSource oldRandom = RandomSource.create(983221L);
+            var denseEffect = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                    Map.of("power", 3.0), definition.curves(), denseRandom,
+                    definition.program().variables());
+            var oldEffect = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                    Map.of("power", 3.0), definition.curves(), oldRandom,
+                    definition.program().variables());
+            var denseContext = ClientVfxExpressionContexts.emitterStart(denseEffect, Vec3.ZERO, 0.5);
+            var oldContext = ClientVfxExpressionContexts.emitterStart(oldEffect, Vec3.ZERO, 0.5);
+            Vec3 spawn = new Vec3(1, 7, 3);
+            Vec3 velocity = motionMode.equals("dynamic") ? new Vec3(0.01, 0.02, 0.03) : Vec3.ZERO;
+            var denseSpawn = ClientVfxExpressionContexts.particleSpawn(denseContext, spawn, 0.25);
+            var oldSpawn = ClientVfxExpressionContexts.particleSpawn(oldContext, spawn, 0.25);
+            var denseStart = ClientVfxExpressionContexts.particleTick(
+                    denseContext, spawn, spawn, spawn, velocity, Vec3.ZERO, Vec3.ZERO,
+                    0, 6, 0.25, new Vec3(1,1,1));
+            var oldStart = ClientVfxExpressionContexts.particleTick(
+                    oldContext, spawn, spawn, spawn, velocity, Vec3.ZERO, Vec3.ZERO,
+                    0, 6, 0.25, new Vec3(1,1,1));
+            var initialDenseScale = emitter.render().appearance().scale().evaluate(denseStart).toVec3();
+            var initialDenseColor = emitter.render().appearance().color().evaluate(denseStart);
+            var initialOldScale = emitter.render().appearance().scale().evaluate(oldStart).toVec3();
+            var initialOldColor = emitter.render().appearance().color().evaluate(oldStart);
+            VfxDenseSpritePool pool = new VfxDenseSpritePool(emitter);
+            pool.add(spawn, velocity, 6, 0.25, initialDenseScale, initialDenseColor, denseSpawn);
+            ClientVfxParticle old = new ClientVfxParticle(emitter, spawn, velocity, Vec3.ZERO,
+                    Vec3.ZERO, 6, 0.25, initialOldScale, initialOldColor, oldSpawn);
+            for (int tick = 0; tick < 6; tick++) {
+                old.tick(null, oldContext);
+                pool.tick(denseContext);
+                if (tick == 5) {
+                    if (pool.size() != 0 || !old.isDead()) {
+                        throw new AssertionError("Dense compaction lifetime mismatch");
+                    }
+                    break;
+                }
+                var dense = pool.snapshot(0);
+                checkClose(old.position().x, dense.position().x);
+                checkClose(old.position().y, dense.position().y);
+                checkClose(old.position().z, dense.position().z);
+                checkClose(old.velocity().y, dense.velocity().y);
+                checkClose(old.scale().x, dense.scale().x);
+                checkClose(old.color().a(), dense.color().a());
+                checkClose(old.previousPosition().y, dense.previousPosition().y);
+                checkClose(old.interpolatedScale(0.25f).x, dense.interpolatedScale(0.25f).x);
+                if (old.age() != dense.age()) throw new AssertionError("Dense age mismatch");
+            }
+            checkClose(oldRandom.nextDouble(), denseRandom.nextDouble());
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void collisionCommandQueueDrainsInOrderAndRespectsBudget(GameTestHelper helper) {
+        var budget = new VfxRuntimeBudget();
+        budget.beginTick(0, false);
+        var context = VfxExpressionContext.root().setNumber("param.stage", 0);
+        var queue = new VfxEventCommandQueue();
+        var runtime = new VfxEventRuntime() {
+            @Override public boolean enterEvent() { return budget.enterEvent(); }
+            @Override public boolean hasEventBudget() { return budget.hasEventBudget(); }
+            @Override public int reserveSpawns(int amount) { return budget.reserveSpawns(amount); }
+            @Override public void setParameter(String id, double value) {}
+        };
+        Map<String, VfxEventDefinition> events = Map.of(
+                "increment", VfxEventDefinition.setParam("stage",
+                        VfxNumberExpression.expression("param.stage+1")));
+        queue.enqueue("increment", Vec3.ZERO);
+        queue.enqueue("increment", Vec3.ZERO);
+        queue.drain(events, Map.of(), null, Vec3.ZERO, context, runtime, RandomSource.create(12L));
+        checkClose(2, context.getNumber("param.stage"));
+        if (queue.size() != 0) throw new AssertionError("Event queue retained drained commands");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void compiledProgramRecordsDependenciesAndFoldsOnlyPureMath(GameTestHelper helper) {
         VfxProgram program;
         VfxNumberExpression constant;
@@ -590,6 +695,58 @@ public final class PyroVfxGameTests {
         checkClose(4, instance.particles().getFirst().scale().x);
         instance.tick(null);
         checkClose(4, instance.particles().getFirst().scale().x);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void denseCompactionPreservesInsertionOrderAndSelectsSparseFallback(GameTestHelper helper) {
+        JsonObject json = JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{
+                "id":"dense","spawn_shape":{"type":"point"},
+                "motion":{"mode":"static"},
+                "render":{"type":"sprite","sprite":{"texture":"minecraft:textures/particle/generic_0.png"}}}]}
+                """).getAsJsonObject();
+        var def = VfxDefinitionParser.parse(ResourceLocation.fromNamespaceAndPath(
+                PyroVfx.MOD_ID, "dense_compaction"), json);
+        var emitter = def.emitters().getFirst();
+        if (!VfxDenseSpritePool.supports(emitter)) {
+            throw new AssertionError("Static sprite should route to dense backend");
+        }
+        var effect = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of(), def.curves(), RandomSource.create(2L), def.program().variables());
+        var context = ClientVfxExpressionContexts.emitterStart(effect, Vec3.ZERO, 0.5);
+        var pool = new VfxDenseSpritePool(emitter);
+        for (int i = 1; i <= 3; i++) {
+            Vec3 position = new Vec3(i, 4, 0);
+            pool.add(position, Vec3.ZERO, i == 1 ? 1 : 3, 0.5,
+                    new Vec3(1, 1, 1),
+                    new net.kofllee.pyrovfx.vfx.value.VfxColor(1, 1, 1, 1),
+                    ClientVfxExpressionContexts.particleSpawn(context, position, 0.5));
+        }
+        int capacity = pool.capacity();
+        pool.tick(context);
+        if (pool.size() != 2 || pool.capacity() != capacity) {
+            throw new AssertionError("Dense compaction broke capacity reuse");
+        }
+        checkClose(2, pool.snapshot(0).position().x);
+        checkClose(3, pool.snapshot(1).position().x);
+        pool.tick(context);
+        if (pool.size() != 2) {
+            throw new AssertionError("Unexpected early expiry");
+        }
+        pool.tick(context);
+        if (pool.size() != 0) {
+            throw new AssertionError("Compaction failed to remove expired particles");
+        }
+        JsonObject emitterJson = json.getAsJsonArray("emitters").get(0).getAsJsonObject();
+        emitterJson.add("motion", JsonParser.parseString("""
+                {"mode":"dynamic","dynamic":{"speed":1}, "collision":{"collide":true}}
+                """));
+        var colliding = VfxDefinitionParser.parse(ResourceLocation.fromNamespaceAndPath(
+                PyroVfx.MOD_ID, "collision_fallback"), json);
+        if (VfxDenseSpritePool.supports(colliding.emitters().getFirst())) {
+            throw new AssertionError("Colliding sprites must not enter the world-free dense backend");
+        }
         helper.succeed();
     }
 }

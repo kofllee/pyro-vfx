@@ -262,7 +262,7 @@ public final class ClientVfxInstance {
 
     private boolean hasNoParticles() {
         for (ClientVfxEmitter emitter : emitters) {
-            if (!emitter.particles().isEmpty()) {
+            if (emitter.liveParticleCount() != 0) {
                 return false;
             }
         }
@@ -278,6 +278,18 @@ public final class ClientVfxInstance {
         }
 
         return Collections.unmodifiableList(result);
+    }
+
+    public int particleCount() {
+        int count = 0;
+        for (ClientVfxEmitter emitter : emitters) {
+            count += emitter.liveParticleCount();
+        }
+        return count;
+    }
+
+    public List<ClientVfxEmitter> emitters() {
+        return Collections.unmodifiableList(emitters);
     }
 
     public void setParameter(String id, double value) {

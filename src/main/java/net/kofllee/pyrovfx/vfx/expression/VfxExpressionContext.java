@@ -112,19 +112,22 @@ public final class VfxExpressionContext {
     }
 
     public VfxExpressionContext setVec3Slots(int slot, String name, Vec3 value) {
+        return setVec3Slots(slot, name, value.x, value.y, value.z);
+    }
+
+    /** Hot-path batch state update, avoids allocating Vec3 wrappers. */
+    public VfxExpressionContext setVec3Slots(int slot, String name, double x, double y, double z) {
         if (values != null) {
-            values[slot] = value.x;
-            values[slot + 1] = value.y;
-            values[slot + 2] = value.z;
-            long bit = 1L << (slot & 63);
-            // Three consecutive builtin xyz slots; safe even at word boundaries.
-            present[slot >>> 6] |= bit;
+            values[slot] = x;
+            values[slot + 1] = y;
+            values[slot + 2] = z;
+            present[slot >>> 6] |= 1L << (slot & 63);
             present[(slot + 1) >>> 6] |= 1L << ((slot + 1) & 63);
             present[(slot + 2) >>> 6] |= 1L << ((slot + 2) & 63);
         } else {
-            setNumber(name + ".x", value.x);
-            setNumber(name + ".y", value.y);
-            setNumber(name + ".z", value.z);
+            setNumber(name + ".x", x);
+            setNumber(name + ".y", y);
+            setNumber(name + ".z", z);
         }
         return this;
     }

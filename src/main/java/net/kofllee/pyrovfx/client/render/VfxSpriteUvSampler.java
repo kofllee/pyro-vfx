@@ -1,13 +1,13 @@
 package net.kofllee.pyrovfx.client.render;
 
-import net.kofllee.pyrovfx.client.vfx.ClientVfxParticle;
+import net.kofllee.pyrovfx.client.vfx.VfxSpriteParticleView;
 import net.kofllee.pyrovfx.vfx.type.VfxUvMode;
 import net.kofllee.pyrovfx.vfx.value.VfxVec3;
 
 public final class VfxSpriteUvSampler {
     private VfxSpriteUvSampler() {}
 
-    public static VfxSpriteUvRect sample(ClientVfxParticle particle) {
+    public static VfxSpriteUvRect sample(VfxSpriteParticleView particle) {
         ClientVfxSpriteUvState uv = particle.spriteUv();
 
         if (uv == null || uv.mode() == VfxUvMode.FULL) {
@@ -32,7 +32,7 @@ public final class VfxSpriteUvSampler {
         return new VfxSpriteUvRect(u0, v0, u1, v1);
     }
 
-    private static int resolveFrame(ClientVfxParticle particle, ClientVfxSpriteUvState uv) {
+    private static int resolveFrame(VfxSpriteParticleView particle, ClientVfxSpriteUvState uv) {
         int frameCount = Math.max(1, uv.frameCount());
 
         if (uv.mode() == VfxUvMode.STATIC) {

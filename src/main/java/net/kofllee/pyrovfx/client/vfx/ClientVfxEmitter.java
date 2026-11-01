@@ -41,6 +41,10 @@ public final class ClientVfxEmitter {
 
 
     private final List<ClientVfxParticle> particles = new ArrayList<>();
+    private final List<ClientVfxParticle> pendingParticles = new ArrayList<>();
+    private final VfxDenseSpritePool densePool;
+    private final VfxEventCommandQueue collisionEvents;
+    private boolean updatingParticles;
 
     public ClientVfxEmitter(
             VfxEmitterDefinition definition,
@@ -50,6 +54,8 @@ public final class ClientVfxEmitter {
     ) {
 
         this.definition = definition;
+        this.densePool = VfxDenseSpritePool.supports(definition) ? new VfxDenseSpritePool(definition) : null;
+        this.collisionEvents = definition.particleTriggers().isEmpty() ? null : new VfxEventCommandQueue();
 
         this.emitterRandom = random.nextDouble();
 
@@ -117,27 +123,39 @@ public final class ClientVfxEmitter {
 
         // Collision events may emit into this emitter. Process only the particles
         // present at the start of the phase; newly emitted particles start next tick.
+        if (densePool != null) {
+            densePool.tick(emitterContext);
+        }
         int particleCount = particles.size();
         boolean hasExpiredParticles = false;
-        for (int i = 0; i < particleCount; i++) {
-            ClientVfxParticle particle = particles.get(i);
+        updatingParticles = true;
+        try {
+            for (int i = 0; i < particleCount; i++) {
+                ClientVfxParticle particle = particles.get(i);
 
-            particle.tick(level, emitterContext);
+                particle.tick(level, emitterContext);
 
-            tickParticleTriggers(
-                    level,
-                    effectPosition,
-                    particle,
-                    emitterContext,
-                    random,
-                    events,
-                    emittersById,
-                    eventRuntime
-            );
-            hasExpiredParticles |= particle.isDead();
+                tickParticleTriggers(
+                        level,
+                        effectPosition,
+                        particle,
+                        emitterContext,
+                        random,
+                        events,
+                        emittersById,
+                        eventRuntime
+                );
+                hasExpiredParticles |= particle.isDead();
+            }
+        } finally {
+            updatingParticles = false;
         }
         if (hasExpiredParticles) {
             particles.removeIf(ClientVfxParticle::isDead);
+        }
+        if (!pendingParticles.isEmpty()) {
+            particles.addAll(pendingParticles);
+            pendingParticles.clear();
         }
 
         if (canSpawn) {
@@ -200,7 +218,7 @@ public final class ClientVfxEmitter {
             Map<String, ClientVfxEmitter> emittersById,
             VfxEventRuntime eventRuntime
     ) {
-        if (!particle.collidedThisTick()) {
+        if (!particle.collidedThisTick() || collisionEvents == null) {
             return;
         }
 
@@ -208,18 +226,13 @@ public final class ClientVfxEmitter {
             if (trigger.type() != VfxTriggerType.ON_COLLISION) {
                 continue;
             }
-            VfxEventRunner.run(
-                    trigger.eventId(),
-                    events,
-                    emittersById,
-                    level,
-                    effectPosition,
-                    particle.collisionPosition(),
-                    emitterContext,
-                    eventRuntime,
-                    random
-            );
+            collisionEvents.enqueue(trigger.eventId(), particle.collisionPosition());
         }
+        // Drain before advancing to the next particle, preserving existing
+        // same-tick set_param and random draw ordering. Spawn requests targeting
+        // this emitter are staged in pendingParticles until its update finishes.
+        collisionEvents.drain(events, emittersById, level, effectPosition,
+                emitterContext, eventRuntime, random);
     }
 
     private void tickSpawnAmount(
@@ -250,7 +263,7 @@ public final class ClientVfxEmitter {
             RandomSource random,
             VfxEventRuntime runtime
     ) {
-        if (particles.size() >= maxParticles) {
+        if (liveParticleCount() >= maxParticles) {
             return;
         }
 
@@ -263,7 +276,7 @@ public final class ClientVfxEmitter {
             return;
         }
 
-        int remaining = maxParticles - particles.size();
+        int remaining = maxParticles - liveParticleCount();
         amount = Math.min(amount, remaining);
 
         spawnAccumulator -= amount;
@@ -391,18 +404,20 @@ public final class ClientVfxEmitter {
             VfxColor initialColor = definition.render().appearance().color()
                     .evaluate(initialRenderContext);
 
-            particles.add(new ClientVfxParticle(
-                    definition,
-                    particlePosition,
-                    velocity,
-                    rotation,
-                    angularVelocity,
-                    lifeTime,
-                    particleRandom,
-                    initialScale,
-                    initialColor,
-                    particleSpawnContext
-            ));
+            if (densePool != null) {
+                densePool.add(particlePosition, velocity, lifeTime, particleRandom,
+                        initialScale, initialColor, particleSpawnContext);
+            } else {
+                ClientVfxParticle particle = new ClientVfxParticle(
+                        definition, particlePosition, velocity, rotation, angularVelocity,
+                        lifeTime, particleRandom, initialScale, initialColor, particleSpawnContext
+                );
+                if (updatingParticles) {
+                    pendingParticles.add(particle);
+                } else {
+                    particles.add(particle);
+                }
+            }
 
             emittedParticles++;
         }
@@ -429,10 +444,10 @@ public final class ClientVfxEmitter {
 
     public boolean isFinished() {
         if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.MANUAL) {
-            return particles.isEmpty();
+            return liveParticleCount() == 0;
         }
 
-        return lifetimeState().finished() && particles.isEmpty();
+        return lifetimeState().finished() && liveParticleCount() == 0;
     }
 
     public VfxEmitterDefinition definition() {
@@ -440,7 +455,22 @@ public final class ClientVfxEmitter {
     }
 
     public List<ClientVfxParticle> particles() {
+        if (densePool == null) {
+            return Collections.unmodifiableList(particles);
+        }
+        // Public inspection compatibility; renderer and counters never use this slow path.
+        return new java.util.AbstractList<>() {
+            @Override public ClientVfxParticle get(int index) { return densePool.snapshot(index); }
+            @Override public int size() { return densePool.size(); }
+        };
+    }
+
+    public List<ClientVfxParticle> legacyParticles() {
         return Collections.unmodifiableList(particles);
+    }
+
+    public VfxDenseSpritePool densePool() {
+        return densePool;
     }
 
     public int age() {
@@ -460,7 +490,7 @@ public final class ClientVfxEmitter {
     }
 
     public int liveParticleCount() {
-        return particles.size();
+        return particles.size() + pendingParticles.size() + (densePool == null ? 0 : densePool.size());
     }
 
     public VfxLifetimeState lifetimeState() {

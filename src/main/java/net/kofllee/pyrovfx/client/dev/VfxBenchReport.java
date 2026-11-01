@@ -66,6 +66,8 @@ final class VfxBenchReport {
         root.addProperty("status", run.error == null ? "completed" : "invalid");
         root.addProperty("error", run.error);
         root.addProperty("scenario", run.scenario.name());
+        root.addProperty("cpuParticleBackend", Boolean.getBoolean("pyrovfx.cpu.forceLegacy")
+                ? "legacy-forced" : "auto-dense-with-feature-fallback");
         root.addProperty("effect", run.scenario.effect().toString());
         root.addProperty("effectSha256", effectHash(run.scenario.effect()));
         root.addProperty("seed", run.scenario.seed());
