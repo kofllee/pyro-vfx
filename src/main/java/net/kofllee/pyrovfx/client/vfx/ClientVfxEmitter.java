@@ -115,8 +115,12 @@ public final class ClientVfxEmitter {
             tickSpawnAmount(level, effectPosition, emitterPosition, emitterContext, lifetimeState, random);
         }
 
-        for (var particleIterator = particles.iterator(); particleIterator.hasNext(); ) {
-            ClientVfxParticle particle = particleIterator.next();
+        // Collision events may emit into this emitter. Process only the particles
+        // present at the start of the phase; newly emitted particles start next tick.
+        int particleCount = particles.size();
+        boolean hasExpiredParticles = false;
+        for (int i = 0; i < particleCount; i++) {
+            ClientVfxParticle particle = particles.get(i);
 
             particle.tick(level, emitterContext);
 
@@ -130,10 +134,10 @@ public final class ClientVfxEmitter {
                     emittersById,
                     eventRuntime
             );
-
-            if (particle.isDead()) {
-                particleIterator.remove();
-            }
+            hasExpiredParticles |= particle.isDead();
+        }
+        if (hasExpiredParticles) {
+            particles.removeIf(ClientVfxParticle::isDead);
         }
 
         if (canSpawn) {

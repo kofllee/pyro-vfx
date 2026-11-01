@@ -82,7 +82,7 @@ public final class VfxBenchHarness {
             run.originalGameMode = player.gameMode.getGameModeForPlayer();
             run.originalDayTime = player.serverLevel().getDayTime();
             player.serverLevel().setDayTime(6000L);
-            if (scenario.name().startsWith("collision")) {
+            if (scenario.name().contains("collision")) {
                 // Deterministic solid obstacle, independent of the test world's terrain.
                 for (int x = -4; x <= 4; x++) {
                     for (int z = -4; z <= 4; z++) {
@@ -185,10 +185,20 @@ public final class VfxBenchHarness {
                 }
             }
         }
+        if (run.scenario.name().equals("self_emit_collision")) {
+            if (ClientVfxManager.getActiveInstanceCount() != 1) {
+                run.error = "Self-emission during collision removed the active instance";
+            } else if (ClientVfxManager.instances().getFirst().parameters().getOrDefault("hit", 0.0) > 0.5) {
+                run.collisionEventObserved = true;
+            }
+        }
         if (run.elapsedTicks >= run.scenario.warmupTicks() + run.scenario.sampleTicks()) {
             if (run.scenario.name().startsWith("collision")
                     && (run.collisionContacts == 0 || !run.collisionEventObserved)) {
                 run.error = "Collision scenario did not observe a block contact and its event";
+            }
+            if (run.scenario.name().equals("self_emit_collision") && !run.collisionEventObserved) {
+                run.error = "Self-emission scenario never delivered on_collision";
             }
             run.finishedTick = true;
         }
