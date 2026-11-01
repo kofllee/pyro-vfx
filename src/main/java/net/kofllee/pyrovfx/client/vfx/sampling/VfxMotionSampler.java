@@ -40,7 +40,7 @@ public final class VfxMotionSampler {
     ) {
         Vec3 direction = sampleDirection(motion, emitterPosition, particlePosition, context, random);
 
-        double speedPerSecond = motion.speed().evaluate(context);
+        double speedPerSecond = motion.speed().evaluateDouble(context);
         double speedPerTick = VfxTime.blocksPerSecondToBlocksPerTick(speedPerSecond);
 
         return direction.normalize().scale(speedPerTick);

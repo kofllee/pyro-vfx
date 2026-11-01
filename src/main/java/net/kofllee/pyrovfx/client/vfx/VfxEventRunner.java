@@ -133,7 +133,7 @@ public final class VfxEventRunner {
         }
 
         if (event.type() == VfxEventType.SET_PARAM) {
-            double value = event.value().evaluate(effectContext);
+            double value = event.value().evaluateDouble(effectContext);
             runtime.setParameter(event.parameterId(), value);
             effectContext.updateNumber("param." + event.parameterId(), value);
 

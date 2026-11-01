@@ -8,7 +8,7 @@ public final class VfxCurveSet {
     private final Map<String, VfxCurveDefinition> curves;
 
     public VfxCurveSet(final Map<String, VfxCurveDefinition> curves) {
-        this.curves = curves;
+        this.curves = Map.copyOf(curves);
     }
 
     public double sample(String id, double x){

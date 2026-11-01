@@ -22,8 +22,8 @@ public final class VfxSpawnPositionSampler {
         if(spawnShape.type() == VfxSpawnShapeType.SPHERE){
             return sampleSphere(
                     emitterPosition,
-                    spawnShape.radius().evaluate(context),
-                    spawnShape.edgeThickness().evaluate(context),
+                    spawnShape.radius().evaluateDouble(context),
+                    spawnShape.edgeThickness().evaluateDouble(context),
                     random
             );
         }
@@ -32,7 +32,7 @@ public final class VfxSpawnPositionSampler {
             return sampleBox(
                     emitterPosition,
                     spawnShape.halfExtents().evaluate(context).toVec3(),
-                    spawnShape.edgeThickness().evaluate(context),
+                    spawnShape.edgeThickness().evaluateDouble(context),
                     random
             );
         }
@@ -40,7 +40,7 @@ public final class VfxSpawnPositionSampler {
         if (spawnShape.type() == VfxSpawnShapeType.LINE) {
             return sampleLine(
                     emitterPosition,
-                    spawnShape.height().evaluate(context),
+                    spawnShape.height().evaluateDouble(context),
                     spawnShape.axis().evaluate(context).toVec3(),
                     random
             );
@@ -49,9 +49,9 @@ public final class VfxSpawnPositionSampler {
         if (spawnShape.type() == VfxSpawnShapeType.DISC) {
             return sampleDisc(
                     emitterPosition,
-                    spawnShape.radius().evaluate(context),
+                    spawnShape.radius().evaluateDouble(context),
                     spawnShape.axis().evaluate(context).toVec3(),
-                    spawnShape.edgeThickness().evaluate(context),
+                    spawnShape.edgeThickness().evaluateDouble(context),
                     random
             );
         }
@@ -59,8 +59,8 @@ public final class VfxSpawnPositionSampler {
         if (spawnShape.type() == VfxSpawnShapeType.RING) {
             return sampleRing(
                     emitterPosition,
-                    spawnShape.innerRadius().evaluate(context),
-                    spawnShape.radius().evaluate(context),
+                    spawnShape.innerRadius().evaluateDouble(context),
+                    spawnShape.radius().evaluateDouble(context),
                     spawnShape.axis().evaluate(context).toVec3(),
                     random
             );
@@ -69,10 +69,10 @@ public final class VfxSpawnPositionSampler {
         if (spawnShape.type() == VfxSpawnShapeType.CONE) {
             return sampleCone(
                     emitterPosition,
-                    spawnShape.radius().evaluate(context),
-                    spawnShape.height().evaluate(context),
+                    spawnShape.radius().evaluateDouble(context),
+                    spawnShape.height().evaluateDouble(context),
                     spawnShape.axis().evaluate(context).toVec3(),
-                    spawnShape.edgeThickness().evaluate(context),
+                    spawnShape.edgeThickness().evaluateDouble(context),
                     random
             );
         }
@@ -80,7 +80,7 @@ public final class VfxSpawnPositionSampler {
         if (spawnShape.type() == VfxSpawnShapeType.MODEL) {
             Vec3 local = VfxModelSpawnShapeSampler.sample(
                     spawnShape.model(),
-                    spawnShape.edgeThickness().evaluate(context),
+                    spawnShape.edgeThickness().evaluateDouble(context),
                     random
             );
 
@@ -165,7 +165,7 @@ public final class VfxSpawnPositionSampler {
         return center.add(basis.xAxis.scale(Math.cos(angle) * distance)).add(basis.zAxis.scale(Math.sin(angle) * distance));
     }
 
-    private static Vec3 sampleLine(Vec3 emitterPosition, Double evaluate, Vec3 axis, RandomSource random) {
+    private static Vec3 sampleLine(Vec3 emitterPosition, double evaluate, Vec3 axis, RandomSource random) {
         Vec3 normal = axis.normalize();
         double halfLength = evaluate * 0.5;
         double distance = VfxRandom.between(random, -halfLength, halfLength);

@@ -7,6 +7,7 @@ public class VfxColorExpression implements VfxExpression<VfxColor>{
     private final VfxNumberExpression g;
     private final VfxNumberExpression b;
     private final VfxNumberExpression a;
+    private final VfxColor constantValue;
 
     public VfxColorExpression(
             VfxNumberExpression r,
@@ -18,15 +19,21 @@ public class VfxColorExpression implements VfxExpression<VfxColor>{
         this.g = g;
         this.b = b;
         this.a = a;
+        this.constantValue = r.isConstant() && g.isConstant() && b.isConstant() && a.isConstant()
+                ? new VfxColor(r.evaluateDouble(null), g.evaluateDouble(null),
+                b.evaluateDouble(null), a.evaluateDouble(null)) : null;
     }
 
     @Override
     public VfxColor evaluate(VfxExpressionContext context) {
+        if (constantValue != null) {
+            return constantValue;
+        }
         return new VfxColor(
-                r.evaluate(context),
-                g.evaluate(context),
-                b.evaluate(context),
-                a.evaluate(context)
+                r.evaluateDouble(context),
+                g.evaluateDouble(context),
+                b.evaluateDouble(context),
+                a.evaluateDouble(context)
         );
     }
 

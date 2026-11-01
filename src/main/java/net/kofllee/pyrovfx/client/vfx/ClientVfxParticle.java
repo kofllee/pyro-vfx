@@ -112,8 +112,8 @@ public final class ClientVfxParticle {
             previousRotation = rotation;
         }
 
-        VfxExpressionContext renderContext = ClientVfxExpressionContexts.particleTick(
-                emitterContext,
+        VfxExpressionContext renderContext = ClientVfxExpressionContexts.updateParticleTick(
+                particleContext,
                 spawnPosition,
                 position,
                 previousPosition,
@@ -148,7 +148,7 @@ public final class ClientVfxParticle {
 
             Vec3 acceleration = accelerationPerSecondSquared.scale(VfxTime.SECONDS_PER_TICK * VfxTime.SECONDS_PER_TICK);
 
-            double drag = emitterDefinition.motion().dynamic().linearDrag().evaluate(particleContext);
+            double drag = emitterDefinition.motion().dynamic().linearDrag().evaluateDouble(particleContext);
 
             double dragMultiplier = Math.exp(-drag * VfxTime.SECONDS_PER_TICK);
 
@@ -178,8 +178,8 @@ public final class ClientVfxParticle {
         collidedThisTick = true;
         collisionPosition = nextPosition;
 
-        double collisionDrag = Math.max(0.0, collision.collisionDrag().evaluate(particleContext));
-        double bounciness = Math.max(0.0, collision.bounciness().evaluate(particleContext));
+        double collisionDrag = Math.max(0.0, collision.collisionDrag().evaluateDouble(particleContext));
+        double bounciness = Math.max(0.0, collision.bounciness().evaluateDouble(particleContext));
 
         CollisionMoveResult result = resolveMovementByAxis(
                 level,
@@ -324,7 +324,7 @@ public final class ClientVfxParticle {
 
             Vec3 angularAcceleration = angularAccelerationPerSecondSquared.scale(VfxTime.SECONDS_PER_TICK * VfxTime.SECONDS_PER_TICK);
 
-            double angularDrag = emitterDefinition.rotation().dynamic().angularDrag().evaluate(particleContext);
+            double angularDrag = emitterDefinition.rotation().dynamic().angularDrag().evaluateDouble(particleContext);
 
             double dragMultiplier = Math.exp(-angularDrag * VfxTime.SECONDS_PER_TICK);
 

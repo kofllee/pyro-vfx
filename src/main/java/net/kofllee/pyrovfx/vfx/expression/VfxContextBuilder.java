@@ -15,12 +15,30 @@ public final class VfxContextBuilder {
         return new VfxContextBuilder(VfxExpressionContext.root());
     }
 
+    public static VfxContextBuilder create(VfxVariableLayout layout){
+        return new VfxContextBuilder(VfxExpressionContext.root(layout));
+    }
+
     public static VfxContextBuilder childOf(VfxExpressionContext parent){
         return new VfxContextBuilder(parent.child());
     }
 
+    public static VfxContextBuilder existing(VfxExpressionContext context) {
+        return new VfxContextBuilder(context);
+    }
+
     public VfxContextBuilder number(String name, double value){
         context.setNumber(name, value);
+        return this;
+    }
+
+    public VfxContextBuilder slot(int slot, String name, double value) {
+        context.setSlot(slot, name, value);
+        return this;
+    }
+
+    public VfxContextBuilder vec3Slots(int start, String name, Vec3 value) {
+        context.setVec3Slots(start, name, value);
         return this;
     }
 

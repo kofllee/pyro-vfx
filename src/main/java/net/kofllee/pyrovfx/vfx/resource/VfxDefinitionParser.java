@@ -17,6 +17,13 @@ public final class VfxDefinitionParser {
     private VfxDefinitionParser() {}
 
     public static VfxDefinition parse(ResourceLocation location, JsonObject json) {
+        try (VfxExpressionCompiler.Session compilation = VfxExpressionCompiler.beginProgram()) {
+            return parseCompiled(location, json, compilation);
+        }
+    }
+
+    private static VfxDefinition parseCompiled(ResourceLocation location, JsonObject json,
+                                               VfxExpressionCompiler.Session compilation) {
         String format = getRequiredString(json, "format");
 
         if (!format.equals("pyro_vfx:1")) {
@@ -27,6 +34,13 @@ public final class VfxDefinitionParser {
                 ? parseMetadata(getObject(json, "metadata"))
                 : VfxMetadataDefinition.empty();
 
+        // Resolve immutable named curves before compiling expressions so curve.*
+        // calls can bind a direct sampler rather than hash lookup per particle.
+        VfxCurveSet curves = json.has("curves")
+                ? parseCurves(getObject(json, "curves"))
+                : VfxCurveSet.EMPTY;
+        compilation.setCurves(curves);
+
         VfxLifetimeDefinition lifetime = json.has("lifetime")
                 ? parseLifetime(getObject(json, "lifetime"))
                 : VfxLifetimeDefinition.none();
@@ -34,10 +48,9 @@ public final class VfxDefinitionParser {
         Map<String, VfxParameterDefinition> parameters = json.has("parameters")
                 ? parseParameters(getObject(json, "parameters"))
                 : Map.of();
-
-        VfxCurveSet curves = json.has("curves")
-                ? parseCurves(getObject(json, "curves"))
-                : VfxCurveSet.EMPTY;
+        for (String parameterId : parameters.keySet()) {
+            compilation.registerVariable("param." + parameterId);
+        }
 
         List<VfxEmitterDefinition> emitters = new ArrayList<>();
         JsonArray array = getArray(json, "emitters");
@@ -67,7 +80,8 @@ public final class VfxDefinitionParser {
         validateEmitterTriggerReferences(emitters, events);
         validateEventParameterReferences(events, parameters);
 
-        return new VfxDefinition(location, format, metadata, lifetime, parameters, curves, emitters, events, triggers);
+        return new VfxDefinition(location, format, metadata, lifetime, parameters, curves, emitters,
+                events, triggers, compilation.program(emitters, events, parameters));
     }
 
     private static VfxCurveSet parseCurves(JsonObject json) {

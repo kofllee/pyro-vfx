@@ -3,13 +3,65 @@ package net.kofllee.pyrovfx.vfx.expression;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import net.kofllee.pyrovfx.vfx.curve.VfxCurveSet;
+import net.kofllee.pyrovfx.vfx.curve.VfxCurveDefinition;
 
 public final class VfxExpressionParser {
     private final String source;
+    private final VfxVariableLayout.Builder layout;
+    private final VfxCurveSet compiledCurves;
+    private final Set<String> usedVariables = new LinkedHashSet<>();
+    private boolean randomCall;
+    private boolean curveCall;
     private int index;
 
     public VfxExpressionParser(String source) {
+        this(source, null);
+    }
+
+    public VfxExpressionParser(String source, VfxVariableLayout.Builder layout) {
+        this(source, layout, null);
+    }
+
+    public VfxExpressionParser(String source, VfxVariableLayout.Builder layout,
+                               VfxCurveSet compiledCurves) {
         this.source = source;
+        this.layout = layout;
+        this.compiledCurves = compiledCurves;
+    }
+
+    public VfxProgram.ExpressionInfo expressionInfo() {
+        VfxProgram.Frequency frequency = VfxProgram.Frequency.DEFINITION;
+        boolean mutableParameters = false;
+        for (String name : usedVariables) {
+            if (name.startsWith("param.")) {
+                mutableParameters = true;
+                frequency = later(frequency, VfxProgram.Frequency.EFFECT_TICK);
+            } else if (name.equals("particle.random") || name.startsWith("spawn.")) {
+                frequency = later(frequency, VfxProgram.Frequency.PARTICLE_SPAWN);
+            } else if (name.startsWith("particle.")) {
+                frequency = later(frequency, VfxProgram.Frequency.PARTICLE_TICK);
+            } else if (name.startsWith("emitter.")) {
+                VfxProgram.Frequency scope = name.equals("emitter.random") || name.startsWith("emitter.pos.")
+                        ? VfxProgram.Frequency.EMITTER_START : VfxProgram.Frequency.EMITTER_TICK;
+                frequency = later(frequency, scope);
+            } else if (name.startsWith("effect.")) {
+                VfxProgram.Frequency scope = name.equals("effect.random") || name.startsWith("effect.pos.")
+                        ? VfxProgram.Frequency.EFFECT_START : VfxProgram.Frequency.EFFECT_TICK;
+                frequency = later(frequency, scope);
+            }
+        }
+        if (randomCall || curveCall) {
+            frequency = later(frequency, VfxProgram.Frequency.EFFECT_START);
+        }
+        return new VfxProgram.ExpressionInfo(source, frequency, mutableParameters,
+                randomCall, curveCall, usedVariables);
+    }
+
+    private static VfxProgram.Frequency later(VfxProgram.Frequency a, VfxProgram.Frequency b) {
+        return a.ordinal() >= b.ordinal() ? a : b;
     }
 
     public VfxExpressionNode parse() {
@@ -303,6 +355,11 @@ public final class VfxExpressionParser {
         skipWhitespace();
 
         if (!match('(')) {
+            usedVariables.add(name);
+            if (layout != null) {
+                int slot = layout.intern(name);
+                return context -> context.getNumber(slot, name);
+            }
             return context -> context.getNumber(name);
         }
 
@@ -329,9 +386,17 @@ public final class VfxExpressionParser {
         String name = rawName.toLowerCase(Locale.ROOT);
 
         if(name.startsWith("curve.")) {
+            curveCall = true;
             String curveId = rawName.substring("curve.".length());
             requireArgCount(rawName, args, 1);
-
+            // The set is immutable and already known when JSON expressions compile.
+            // Bind a direct curve reference when present; keep the previous runtime
+            // unknown-curve error semantics for unresolved names.
+            VfxCurveDefinition curve = compiledCurves == null
+                    ? null : compiledCurves.curves().get(curveId);
+            if (curve != null) {
+                return context -> curve.sample(args.getFirst().evaluate(context));
+            }
             return context -> context.curves().sample(curveId, args.getFirst().evaluate(context));
         }
 
@@ -367,11 +432,13 @@ public final class VfxExpressionParser {
     }
 
     private VfxExpressionNode randomValue(String name, List<VfxExpressionNode> args) {
+        randomCall = true;
         requireArgCount(name, args, 0);
         return context -> context.random().nextDouble();
     }
 
     private VfxExpressionNode randomRange(String name, List<VfxExpressionNode> args) {
+        randomCall = true;
         requireArgCount(name, args, 2);
 
         return context -> {
@@ -382,6 +449,7 @@ public final class VfxExpressionParser {
     }
 
     private VfxExpressionNode randomInt(String name, List<VfxExpressionNode> args) {
+        randomCall = true;
         requireArgCount(name, args, 2);
 
         return context -> {
@@ -399,6 +467,7 @@ public final class VfxExpressionParser {
     }
 
     private VfxExpressionNode randomDie(String name, List<VfxExpressionNode> args, boolean integer) {
+        randomCall = true;
         requireArgCount(name, args, 3);
 
         return context -> {

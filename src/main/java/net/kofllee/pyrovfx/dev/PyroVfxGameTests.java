@@ -15,6 +15,10 @@ import net.kofllee.pyrovfx.vfx.curve.VfxCurveDefinition;
 import net.kofllee.pyrovfx.vfx.curve.VfxCurvePoint;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression;
+import net.kofllee.pyrovfx.vfx.expression.VfxExpressionCompiler;
+import net.kofllee.pyrovfx.vfx.expression.VfxProgram;
+import net.kofllee.pyrovfx.client.vfx.ClientVfxExpressionContexts;
+import net.minecraft.util.RandomSource;
 import net.kofllee.pyrovfx.vfx.resource.VfxDefinitionParser;
 import net.kofllee.pyrovfx.vfx.resource.VfxRegistry;
 import net.kofllee.pyrovfx.vfx.resource.VfxJsonLoader;
@@ -447,5 +451,145 @@ public final class PyroVfxGameTests {
         if (!Double.isFinite(actual) || Math.abs(expected - actual) > 1.0e-6) {
             throw new AssertionError("Expected " + expected + ", got " + actual);
         }
+    }
+
+    @GameTest(template = "empty")
+    public static void compiledProgramRecordsDependenciesAndFoldsOnlyPureMath(GameTestHelper helper) {
+        VfxProgram program;
+        VfxNumberExpression constant;
+        VfxNumberExpression changing;
+        try (var compilation = VfxExpressionCompiler.beginProgram()) {
+            constant = VfxNumberExpression.expression("math.lerp(2, 10, 0.25)");
+            changing = VfxNumberExpression.expression("param.stage * 2 + particle.normalized_age");
+            VfxNumberExpression.expression("effect.age + emitter.age");
+            VfxNumberExpression.expression("particle.random + spawn.pos.x");
+            VfxNumberExpression.expression("random.value()");
+            VfxNumberExpression.expression("curve.ease(particle.age)");
+            program = compilation.program();
+        }
+        if (program.expressions().size() != 6 || !constant.isConstant()
+                || changing.isConstant()) {
+            throw new AssertionError("Pure-math folding or program expression count is incorrect");
+        }
+        checkClose(4.0, constant.evaluateDouble(null));
+        if (!program.expressions().get(0).constant()
+                || program.expressions().get(1).frequency() != VfxProgram.Frequency.PARTICLE_TICK
+                || !program.expressions().get(1).parameterDependent()
+                || program.expressions().get(2).frequency() != VfxProgram.Frequency.EMITTER_TICK
+                || program.expressions().get(3).frequency() != VfxProgram.Frequency.PARTICLE_SPAWN
+                || !program.expressions().get(4).randomCall()
+                || program.expressions().get(4).constant()
+                || !program.expressions().get(5).curveCall()) {
+            throw new AssertionError("Compiled program dependency analysis is inaccurate");
+        }
+        VfxExpressionContext root = VfxExpressionContext.root(program.variables())
+                .setNumber("param.stage", 3.0);
+        VfxExpressionContext child = root.child()
+                .setNumber("particle.normalized_age", 0.25);
+        checkClose(6.25, changing.evaluateDouble(child));
+        child.updateNumber("param.stage", 7.0);
+        checkClose(14.25, changing.evaluateDouble(child));
+        checkClose(7.0, root.getNumber("param.stage"));
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void compiledExpressionLanguageMatchesLegacyAndRandomOrder(GameTestHelper helper) {
+        String[] sources = {
+                "math.sin(particle.age) + math.cos(param.x) * 3",
+                "particle.age < 2 && param.x > 1 ? math.pow(3, 2) : math.abs(-5)",
+                "math.clamp(param.x + particle.age, 0, 8)",
+                "math.smoothstep(0, 10, particle.age)",
+                "math.wrap_degrees(320) + math.angle_delta(350, 10)",
+                "math.lerprotate(350, 10, 0.25)",
+                "random.range(2, 5) + random.value()",
+                "random.int(1, 6) + random.die(0, 1, 3)",
+                "random.die_int(1, 4, 2)",
+                "0 && random.value() ? 15 : 7"
+        };
+        for (String source : sources) {
+            VfxNumberExpression legacy = VfxNumberExpression.expression(source);
+            VfxNumberExpression compiled;
+            VfxProgram program;
+            try (var compilation = VfxExpressionCompiler.beginProgram()) {
+                compiled = VfxNumberExpression.expression(source);
+                program = compilation.program();
+            }
+            var legacyContext = VfxExpressionContext.root()
+                    .setNumber("particle.age", 3.0).setNumber("param.x", 2.5)
+                    .setRandom(RandomSource.create(556677L));
+            var compiledContext = VfxExpressionContext.root(program.variables())
+                    .setNumber("particle.age", 3.0).setNumber("param.x", 2.5)
+                    .setRandom(RandomSource.create(556677L));
+            for (int sample = 0; sample < 10; sample++) {
+                double expected = legacy.evaluateDouble(legacyContext);
+                double actual = compiled.evaluateDouble(compiledContext);
+                if (Double.doubleToLongBits(expected) != Double.doubleToLongBits(actual)) {
+                    throw new AssertionError("Expression mismatch: " + source
+                            + " expected " + expected + ", got " + actual);
+                }
+            }
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void immutableProgramBindsNamedCurvesAndSurvivesJsonMutation(GameTestHelper helper) {
+        JsonObject json = JsonParser.parseString("""
+                {"format":"pyro_vfx:1",
+                 "curves":{"ease":{"type":"linear","points":[[0,0],[10,20]]}},
+                 "parameters":{"strength":"curve.ease(effect.age)"},
+                 "emitters":[]}
+                """).getAsJsonObject();
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "compiled_curve"), json);
+        if (definition.program().expressions().size() != 1
+                || !definition.program().expressions().getFirst().curveCall()) {
+            throw new AssertionError("Named curve was not included in compiled program metadata");
+        }
+        var context = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0.0,
+                Map.of(), definition.curves(), RandomSource.create(1L),
+                definition.program().variables());
+        context.setNumber("effect.age", 5.0);
+        checkClose(10.0, definition.parameters().get("strength").value().evaluateDouble(context));
+
+        json.getAsJsonObject("curves").getAsJsonObject("ease")
+                .getAsJsonArray("points").get(1).getAsJsonArray().set(1, new com.google.gson.JsonPrimitive(999));
+        checkClose(10.0, definition.parameters().get("strength").value().evaluateDouble(context));
+        try {
+            definition.program().expressions().clear();
+            throw new AssertionError("Compiled expression list was mutable");
+        } catch (UnsupportedOperationException expected) {
+            // immutable compiled state
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void compiledParameterChangesReachParticleExpressionsOnNextTick(GameTestHelper helper) {
+        String source = """
+                {"format":"pyro_vfx:1","parameters":{"power":1},
+                 "lifetime":{"mode":"once","active_ticks":6},
+                 "events":{"boost":{"type":"set_param","param":"power","value":4}},
+                 "triggers":[{"type":"timeline","time_ticks":1,"event":"boost"}],
+                 "emitters":[{"id":"main","emitter_lifetime":{"mode":"once","active_ticks":1},
+                 "spawn_amount":{"mode":"instant","amount":1},
+                 "spawn_shape":{"type":"point"},
+                 "particle_lifetime":{"max_age_ticks":6},
+                 "motion":{"mode":"static"},
+                 "render":{"type":"sprite","sprite":{"texture":"minecraft:textures/particle/generic_0.png"},
+                           "scale":["param.power",1,1],"color":"#FFFFFFFF"}}]}
+                """;
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "param_compiled_golden"),
+                JsonParser.parseString(source).getAsJsonObject());
+        var instance = new ClientVfxInstance(definition, Vec3.ZERO, VfxPlayOptions.empty(), 7L);
+        instance.tick(null);
+        checkClose(1, instance.particles().getFirst().scale().x);
+        instance.tick(null);
+        checkClose(4, instance.particles().getFirst().scale().x);
+        instance.tick(null);
+        checkClose(4, instance.particles().getFirst().scale().x);
+        helper.succeed();
     }
 }

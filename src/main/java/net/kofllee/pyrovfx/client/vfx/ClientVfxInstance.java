@@ -18,6 +18,9 @@ public final class ClientVfxInstance {
     private final List<ClientVfxEmitter> emitters = new ArrayList<>();
     private final Map<String, ClientVfxEmitter> emittersById = new HashMap<>();
     private final Map<String, Double> parameters;
+    private final int[] parameterSlots;
+    private final double[] parameterValues;
+    private final Map<String, Integer> parameterIndices;
     private final RandomSource random;
     private final VfxRuntimeBudget budget = new VfxRuntimeBudget();
     private final VfxEventRuntime eventRuntime = new VfxEventRuntime() {
@@ -83,21 +86,35 @@ public final class ClientVfxInstance {
                 effectRandom,
                 Map.of(),
                 definition.curves(),
-                random
+                random,
+                definition.program().variables()
         );
 
         this.parameters = resolveParameters(definition, parameterStartContext, options);
 
-        VfxExpressionContext effectStartContext = ClientVfxExpressionContexts.effectStart(position, effectRandom, parameters, definition.curves(), random);
+        var bindings = definition.program().parameterBindings();
+        parameterSlots = new int[bindings.size()];
+        parameterValues = new double[bindings.size()];
+        Map<String, Integer> indices = new HashMap<>();
+        for (int i = 0; i < bindings.size(); i++) {
+            var binding = bindings.get(i);
+            parameterSlots[i] = binding.slot();
+            parameterValues[i] = parameters.getOrDefault(binding.id(), 0.0);
+            indices.put(binding.id(), i);
+        }
+        parameterIndices = Map.copyOf(indices);
+
+        VfxExpressionContext effectStartContext = ClientVfxExpressionContexts.effectStart(position, effectRandom,
+                parameters, definition.curves(), random, definition.program().variables());
 
         VfxLifetimeDefinition lifetime = definition.lifetime();
 
-        this.delayTicks = Math.max(0, (int) Math.round(lifetime.delayTicks().evaluate(effectStartContext)));
-        this.activeTicks = Math.max(0, (int) Math.round(lifetime.activeTicks().evaluate(effectStartContext)));
-        this.sleepTicks = Math.max(0, (int) Math.round(lifetime.sleepTicks().evaluate(effectStartContext)));
-        this.loops = Math.max(0, (int) Math.round(lifetime.loops().evaluate(effectStartContext)));
+        this.delayTicks = Math.max(0, (int) Math.round(lifetime.delayTicks().evaluateDouble(effectStartContext)));
+        this.activeTicks = Math.max(0, (int) Math.round(lifetime.activeTicks().evaluateDouble(effectStartContext)));
+        this.sleepTicks = Math.max(0, (int) Math.round(lifetime.sleepTicks().evaluateDouble(effectStartContext)));
+        this.loops = Math.max(0, (int) Math.round(lifetime.loops().evaluateDouble(effectStartContext)));
 
-        for(var emitterDef : definition.emitters()){
+        for(var emitterDef : definition.program().emitters()){
             Vec3 emitterOffset = emitterDef.offset().evaluate(effectStartContext).toVec3();
             Vec3 emitterStartPosition = position.add(emitterOffset);
 
@@ -125,7 +142,7 @@ public final class ClientVfxInstance {
         Map<String, Double> result = new HashMap<>();
 
         for (VfxParameterDefinition parameter : definition.parameters().values()) {
-            result.put(parameter.id(), parameter.value().evaluate(effectStartContext));
+            result.put(parameter.id(), parameter.value().evaluateDouble(effectStartContext));
         }
 
         for (Map.Entry<String, Double> entry : options.parameters().entrySet()) {
@@ -153,9 +170,11 @@ public final class ClientVfxInstance {
                 position,
                 lifetimeState,
                 effectRandom,
-                parameters,
+                parameterSlots,
+                parameterValues,
                 definition.curves(),
-                random
+                random,
+                definition.program().variables()
         );
 
         tickEffectTriggers(level, effectContext, lifetimeState);
@@ -165,7 +184,7 @@ public final class ClientVfxInstance {
             Vec3 emitterOffset = emitter.definition().offset().evaluate(effectContext).toVec3();
             Vec3 emitterPosition = position.add(emitterOffset);
 
-            emitter.tick(level, position, emitterPosition, effectContext, lifetimeState.active(), definition.events(), emittersById, eventRuntime, random);
+            emitter.tick(level, position, emitterPosition, effectContext, lifetimeState.active(), definition.program().events(), emittersById, eventRuntime, random);
         }
 
         age++;
@@ -217,7 +236,7 @@ public final class ClientVfxInstance {
     ) {
         VfxEventRunner.run(
                 trigger.eventId(),
-                definition.events(),
+                definition.program().events(),
                 emittersById,
                 level,
                 position,
@@ -267,6 +286,10 @@ public final class ClientVfxInstance {
         }
 
         parameters.put(id, value);
+        Integer index = parameterIndices.get(id);
+        if (index != null) {
+            parameterValues[index] = value;
+        }
     }
 
     public Map<String, Double> parameters() {

@@ -62,13 +62,13 @@ public final class ClientVfxEmitter {
         VfxEmitterLifetimeDefinition lifetime = definition.emitterLifetime();
         VfxSpawnAmountDefinition spawnAmount = definition.spawnAmount();
 
-        this.delayTicks = Math.max(0, (int) Math.round(lifetime.delayTicks().evaluate(emitterStartContext)));
-        this.activeTicks = Math.max(0, (int) Math.round(lifetime.activeTicks().evaluate(emitterStartContext)));
-        this.sleepTicks = Math.max(0, (int) Math.round(lifetime.sleepTicks().evaluate(emitterStartContext)));
-        this.loops = Math.max(0, (int) Math.round(lifetime.loops().evaluate(emitterStartContext)));
+        this.delayTicks = Math.max(0, (int) Math.round(lifetime.delayTicks().evaluateDouble(emitterStartContext)));
+        this.activeTicks = Math.max(0, (int) Math.round(lifetime.activeTicks().evaluateDouble(emitterStartContext)));
+        this.sleepTicks = Math.max(0, (int) Math.round(lifetime.sleepTicks().evaluateDouble(emitterStartContext)));
+        this.loops = Math.max(0, (int) Math.round(lifetime.loops().evaluateDouble(emitterStartContext)));
 
-        this.instantAmount = Math.max(0, (int) Math.round(spawnAmount.amount().evaluate(emitterStartContext)));
-        this.maxParticles = Math.max(0, (int) Math.round(spawnAmount.maxParticles().evaluate(emitterStartContext)));
+        this.instantAmount = Math.max(0, (int) Math.round(spawnAmount.amount().evaluateDouble(emitterStartContext)));
+        this.maxParticles = Math.max(0, (int) Math.round(spawnAmount.maxParticles().evaluateDouble(emitterStartContext)));
     }
 
     public void tick(
@@ -254,7 +254,7 @@ public final class ClientVfxEmitter {
             return;
         }
 
-        double rate = Math.max(0.0, definition.spawnAmount().rate().evaluate(emitterContext));
+        double rate = Math.max(0.0, definition.spawnAmount().rate().evaluateDouble(emitterContext));
         spawnAccumulator += (float) (rate / 20.0);
 
         int amount = (int) spawnAccumulator;
@@ -368,7 +368,7 @@ public final class ClientVfxEmitter {
                 continue;
             }
 
-            int lifeTime = Math.max(1, (int) Math.round(definition.particleLifetime().maxAgeTicks().evaluate(particleSpawnContext)));
+            int lifeTime = Math.max(1, (int) Math.round(definition.particleLifetime().maxAgeTicks().evaluateDouble(particleSpawnContext)));
 
             VfxExpressionContext initialRenderContext = ClientVfxExpressionContexts.particleTick(
                     emitterContext,
@@ -418,7 +418,7 @@ public final class ClientVfxEmitter {
     ) {
         VfxSpawnAmountDefinition spawnAmount = definition.spawnAmount();
 
-        int amount = Math.max(0, (int) Math.round(spawnAmount.amount().evaluate(emitterContext)));
+        int amount = Math.max(0, (int) Math.round(spawnAmount.amount().evaluateDouble(emitterContext)));
 
         if (amount == 0) {
             return;

@@ -10,7 +10,7 @@ python tools/test_compare_bench.py
 .\gradlew.bat clean build
 ```
 
-The sixteen NeoForge tests cover expressions and curves; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shape types; immutable registry snapshots and malformed-JSON reload fallback; inherited parameter updates; shared runtime event/spawn budgets; direct world identity changes; exact per-tick motion/rotation/animated-UV/expiration goldens; event fan-out limits; and creation/timeline/expiration trigger order. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
+The twenty NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; and event trigger order. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
 
 ## GPU client
 
@@ -52,6 +52,8 @@ Actual client outputs are generated under `run/pyrovfx-benchmarks/`:
 - `results.csv`: machine-readable row per execution.
 
 Frame metrics are wall-clock intervals measured between successive `AFTER_PARTICLES` render-stage callbacks. They are not graphics-card timings or a claim about whole-game FPS when background tasks run. CPU simulation and render submission are delimited wall-clock measurements of the *Pyro VFX* tick/render callbacks. Thread allocations are HotSpot allocation counters for the calling thread only; heap is process-wide. GC counts and elapsed GC time are JVM-wide. GPU time, when present, comes from **nonblocking OpenGL `GL_TIME_ELAPSED` queries**, measuring GPU work inside the Pyro VFX render call; it may be unavailable on incompatible contexts or shader drivers. A missing metric is `null`, not 0. TPS, draw-call counters, VRAM and GPU hardware counters are not yet instrumented.
+
+M1 immutable program and slot-expression comparison is archived in `docs/benchmarks/m1-2026-11-02/` with 15 raw client reports. To reproduce the measured M0 vs M1 summary after three independent client starts, run `python tools/summarize_m1.py --after <YYYYMMDD-HHMMSS>`. This verifies JSON SHA-256, seed, particle count, GPU, resolution and Minecraft version before producing the comparison. See `docs/M1_EXIT_REPORT.md` for scope and remaining work.
 
 The image and benchmark conditions must be compared together: fixed seed alone is not sufficient for a meaningful A/B performance comparison. Repeat multiple times; run the same Minecraft graphics options, screen resolution, shader/optimization mods, GPU clocks, world and camera, and compare distributions before changing architecture.
 
