@@ -103,6 +103,20 @@ public final class VfxDenseSpritePool {
     public int size() { return size; }
     public int capacity() { return age.length; }
 
+    /** Lower-bound SoA payload bytes (array storage only, excluding JVM headers). */
+    public long allocatedStateBytes() {
+        long doubles = 0;
+        double[][] arrays = {px,py,pz,spawnX,spawnY,spawnZ,scaleX,scaleY,scaleZ,
+                prevScaleX,prevScaleY,prevScaleZ,r,g,b,a,prevR,prevG,prevB,prevA,
+                particleRandom,prevX,prevY,prevZ,vx,vy,vz,
+                rx,ry,rz,prevRx,prevRy,prevRz,wx,wy,wz};
+        for (double[] channel : arrays) if (channel != null) doubles += channel.length;
+        return doubles * Double.BYTES
+                + (long) age.length * Integer.BYTES
+                + (long) lifetime.length * Integer.BYTES
+                + (long) uv.length * Long.BYTES;
+    }
+
     @FunctionalInterface
     public interface InstanceConsumer {
         void append(double x, double y, double z, float sizeX, float sizeY,

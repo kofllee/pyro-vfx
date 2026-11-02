@@ -83,6 +83,10 @@ public final class VfxAnalyticSpritePool {
         }
     }
     public int liveCount() { return count; }
+    /** Direct buffer capacity (not just currently live bytes). */
+    public long allocatedStateBytes() { return states == null ? 0 : states.capacity(); }
+    /** Uploaded birth-state payload only; excludes driver bookkeeping and mesh VBOs. */
+    public long residentBufferBytes() { return gpuBuffer == 0 ? 0 : (long) count * STRIDE; }
     public int age() { return age; }
     public VfxAnalyticPlan plan() { return plan; }
     public VfxEmitterDefinition definition() { return definition; }

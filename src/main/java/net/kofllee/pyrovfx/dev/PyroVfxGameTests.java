@@ -370,6 +370,36 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void denseMemoryTelemetryTracksAllocatedCapacity(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "memory_dense"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{
+                  "id":"main","spawn_shape":{"type":"point"},
+                  "motion":{"mode":"dynamic","dynamic":{"speed":1}},
+                  "rotation":{"mode":"dynamic","dynamic":{"angular_velocity":[0,25,0]}},
+                  "render":{"type":"sprite","sprite":{"texture":"minecraft:textures/particle/generic_0.png"}}
+                }]}
+                """).getAsJsonObject());
+        var emitter = definition.emitters().getFirst();
+        var pool = new VfxDenseSpritePool(emitter);
+        if (pool.allocatedStateBytes() != 0) throw new AssertionError("Empty dense pool allocated particle storage");
+        var effect = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0.0,
+                Map.of(), definition.curves(), RandomSource.create(2L), definition.program().variables());
+        var context = ClientVfxExpressionContexts.emitterStart(effect, Vec3.ZERO, 0.5);
+        pool.add(Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, Vec3.ZERO, 10, 0.5,
+                new Vec3(1,1,1), new net.kofllee.pyrovfx.vfx.value.VfxColor(1,1,1,1),
+                ClientVfxExpressionContexts.particleSpawn(context, Vec3.ZERO, 0.5));
+        long allocated = pool.allocatedStateBytes();
+        if (allocated <= 0 || allocated < pool.capacity() * 24L * Double.BYTES)
+            throw new AssertionError("Memory telemetry missed dense SoA channels");
+        pool.tick(context);
+        if (pool.allocatedStateBytes() != allocated)
+            throw new AssertionError("Memory telemetry should measure capacity, not active count");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void adaptiveSpawnsResetOnWorldExitAndDisable(GameTestHelper helper) {
         var adaptive = new VfxAdaptiveSpawnController();
         for (int tick = 0; tick < 30; tick++) {

@@ -551,6 +551,16 @@ public final class ClientVfxEmitter {
     public String selectedRenderer() { return lastRenderer; }
     public void recordRenderer(String renderer) { lastRenderer = renderer; }
     public double simulationEmaMs() { return simulationEmaMs; }
+    public long allocatedParticleStateBytes() {
+        long result = densePool == null ? 0 : densePool.allocatedStateBytes();
+        for (var batch : analyticBatches) result += batch.allocatedStateBytes();
+        return result;
+    }
+    public long gpuResidentBirthBytes() {
+        long result = 0;
+        for (var batch : analyticBatches) result += batch.residentBufferBytes();
+        return result;
+    }
     public void close() {
         for (VfxAnalyticSpritePool batch : analyticBatches) batch.close();
         analyticBatches.clear();

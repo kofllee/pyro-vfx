@@ -316,6 +316,12 @@ public final class PyroVfxClientCommands {
                                 + java.util.Arrays.stream(net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.values())
                                     .filter(kind -> (emitter.particleCostMask() & kind.bit()) != 0)
                                     .map(Enum::name).collect(java.util.stream.Collectors.joining(" + "))), false);
+                player.displayClientMessage(Component.literal(
+                        "    measured CPU simulation: " + String.format(java.util.Locale.ROOT, "%.3f",
+                                emitter.simulationEmaMs()) + " ms/tick; dense/direct state "
+                                + emitter.allocatedParticleStateBytes() + " B; GPU analytic births "
+                                + emitter.gpuResidentBirthBytes() + " B"
+                                + " (excludes legacy objects, model meshes and driver overhead)"), false);
             }
         }
         player.displayClientMessage(Component.literal(
