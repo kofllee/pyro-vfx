@@ -7,6 +7,7 @@ package net.kofllee.pyrovfx.client.vfx;
  * spawn/event requests are rejected, without evicting existing particles.
  */
 public final class VfxGlobalBudget {
+    private static final VfxParticleCostClass[] COST_CLASSES = VfxParticleCostClass.values();
     public static final int MAX_INSTANCES = 256;
     public static final int MAX_ACTIVE_PARTICLES = 80_000;
     public static final int MAX_SPAWNS_PER_TICK = 30_000;
@@ -47,7 +48,7 @@ public final class VfxGlobalBudget {
         remainingSpawns = spawnLimit;
         remainingEvents = MAX_EVENTS_PER_TICK;
         peakObservedParticles = Math.max(peakObservedParticles, currentParticles);
-        for (var kind : VfxParticleCostClass.values()) {
+        for (var kind : COST_CLASSES) {
             // Standalone admission tests use the original global-budget API;
             // no category snapshot means no category-specific policy.
             int categoryMax = activeByClass == null ? activeLimit

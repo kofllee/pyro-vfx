@@ -14,7 +14,10 @@ public final class VfxRenderer {
 
     public static void render(PoseStack poseStack, Camera camera, float partialTick){
         Minecraft minecraft = Minecraft.getInstance();
-        VfxGpuTelemetry.begin();
+        // Do not start expensive GL driver timer queries in ordinary worlds
+        // where Pyro has nothing to render.
+        boolean telemetryFrame = ClientVfxManager.getActiveParticleCount() > 0;
+        if (telemetryFrame) VfxGpuTelemetry.begin();
         VfxInstancedSpriteRenderer.resetFrameStats();
         VfxInstancedModelRenderer.resetFrameStats();
         VfxAnalyticSpriteRenderer.resetFrameStats();
@@ -93,7 +96,7 @@ public final class VfxRenderer {
                 if (gpuFrame) VfxInstancedSpriteRenderer.finish();
                 bufferSource.endBatch();
             } finally {
-                VfxGpuTelemetry.end();
+                if (telemetryFrame) VfxGpuTelemetry.end();
             }
         }
     }

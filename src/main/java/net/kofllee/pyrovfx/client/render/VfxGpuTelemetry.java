@@ -47,8 +47,11 @@ public final class VfxGpuTelemetry {
                 }
                 for (int i = 0; i < MAX_QUERIES; i++) FREE.addLast(GL33.glGenQueries());
             }
-            if ((VfxBudgetConfig.nvidiaMemoryProbe()
-                    || Boolean.getBoolean("pyrovfx.bench.vramProbe")) && ++frames >= 120) {
+            if (!(VfxBudgetConfig.nvidiaMemoryProbe()
+                    || Boolean.getBoolean("pyrovfx.bench.vramProbe"))) {
+                freeVramMiB = totalVramMiB = -1;
+                frames = 0;
+            } else if (++frames >= 120) {
                 frames = 0;
                 if (GL.getCapabilities().GL_NVX_gpu_memory_info) {
                     // NVX values are kibibytes of DEVICE memory, not Pyro-owned bytes.
