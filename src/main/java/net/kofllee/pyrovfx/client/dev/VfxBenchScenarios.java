@@ -39,6 +39,9 @@ public final class VfxBenchScenarios {
         add(scenarios, "sprite_frustum", "bench/sprite_frustum", 1_000);
         add(scenarios, "sprite_lod", "bench/sprite_lod", 1_000);
         add(scenarios, "budget_spike", "bench/budget_spike", 0);
+        // Three independent 20k requests: per-effect caps are not sufficient.
+        // The client-wide 30k/tick budget must reject 30k across instances.
+        add(scenarios, "global_budget_spike", "bench/static", 0);
         add(scenarios, "reload_active", "bench/static", 1);
         add(scenarios, "curves", "examples/curves", 0);
         add(scenarios, "events", "examples/event_sequence", 0);

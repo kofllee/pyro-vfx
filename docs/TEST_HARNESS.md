@@ -10,7 +10,7 @@ python tools/test_compare_bench.py
 .\gradlew.bat clean build
 ```
 
-The twenty-six NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; and event trigger order. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
+The 27 NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; and event trigger order. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
 
 ## GPU client
 
@@ -39,6 +39,8 @@ Or run the regular Gradle `runClient` configuration, open an integrated-server w
 ```
 
 The `-PbenchWorld=<world directory name>` property selects the Quick Play world. `runClientBench` also closes Minecraft automatically after the full scenario list and lets its integrated server save the world. Tests are deterministic **with respect to the seeded VFX effect**, not necessarily world chunk updates, driver scheduling, Minecraft lighting, shaders, render order or operating-system frame timing.
+
+M5 adds `global_budget_spike`: three independently seeded 20k effects share the ordinary 30k global spawn budget and must produce exactly 30k accepted/30k rejected spawns. Run it with `-PbenchGlobalStress=true`, **without** `-PbenchHeavy=true` (which deliberately lifts the particle budget). To verify actual recorded runs, use `python tools/verify_m5.py --folder docs/benchmarks/m5-2026-11-02 --min-global-runs 3`. Force CPU/analytic fallback with `-PbenchLegacyAnalytic=true` for one separate client launch. These measurements are archived under `docs/benchmarks/m5-2026-11-02/`.
 
 The `sprite_100k` and `sprite_1m` scenarios now test the GPU analytic renderer when the strict capability selector accepts the effect. The old CPU backend may still exhaust the client at these counts. They must be explicitly enabled with `-PbenchHeavy=true`. This is an **opt-in**, not a guarantee that the test can finish. Do not use high-count scenarios until profiling shows the workload fits the machine and acceptable frame-time limits. Heavy tests use the same JSON effects and are not approximated with fake particle counts.
 

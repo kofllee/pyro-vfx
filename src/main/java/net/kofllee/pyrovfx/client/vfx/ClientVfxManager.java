@@ -15,6 +15,7 @@ import java.util.List;
 public final class ClientVfxManager {
     private static final List<ClientVfxInstance> INSTANCES = new ArrayList<>();
     private static final VfxWorldIdentity WORLD_IDENTITY = new VfxWorldIdentity();
+    private static final VfxGlobalBudget GLOBAL_BUDGET = new VfxGlobalBudget();
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
@@ -25,12 +26,19 @@ public final class ClientVfxManager {
     }
 
     public static void play(VfxDefinition definition, Vec3 position, VfxPlayOptions options) {
+        tryPlay(definition, position, options);
+    }
+
+    public static boolean tryPlay(VfxDefinition definition, Vec3 position, VfxPlayOptions options) {
         trackWorld();
+        if (!GLOBAL_BUDGET.admitInstance(INSTANCES.size())) return false;
         INSTANCES.add(new ClientVfxInstance(definition, position, options));
+        return true;
     }
 
     public static void playSeeded(VfxDefinition definition, Vec3 position, VfxPlayOptions options, long seed) {
         trackWorld();
+        if (!GLOBAL_BUDGET.admitInstance(INSTANCES.size())) return;
         INSTANCES.add(new ClientVfxInstance(definition, position, options, seed));
     }
 
@@ -40,15 +48,19 @@ public final class ClientVfxManager {
         if(level == null) {
             for (ClientVfxInstance instance : INSTANCES) instance.close();
             INSTANCES.clear();
+            GLOBAL_BUDGET.reset();
             return;
         }
 
+        boolean heavy = !net.neoforged.fml.loading.FMLEnvironment.production
+                && Boolean.getBoolean("pyrovfx.bench.allowHeavy");
+        GLOBAL_BUDGET.beginTick(getActiveParticleCount(), heavy);
         Iterator<ClientVfxInstance> iterator = INSTANCES.iterator();
         while(iterator.hasNext()){
             ClientVfxInstance instance = iterator.next();
 
             try {
-                instance.tick(level);
+                instance.tick(level, GLOBAL_BUDGET);
             } catch (Exception e) {
                 LOGGER.error("Failed to tick Pyro VFX instance: {}", instance.definition().id(), e);
                 instance.close();
@@ -68,6 +80,7 @@ public final class ClientVfxManager {
         if (WORLD_IDENTITY.update(level)) {
             for (ClientVfxInstance instance : INSTANCES) instance.close();
             INSTANCES.clear();
+            GLOBAL_BUDGET.reset();
         }
         return level;
     }
@@ -75,7 +88,10 @@ public final class ClientVfxManager {
     public static void clear(){
         for (ClientVfxInstance instance : INSTANCES) instance.close();
         INSTANCES.clear();
+        GLOBAL_BUDGET.reset();
     }
+
+    public static VfxGlobalBudget globalBudget() { return GLOBAL_BUDGET; }
 
     public static int getActiveInstanceCount(){
         return INSTANCES.size();

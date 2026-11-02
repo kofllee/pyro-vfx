@@ -13,8 +13,14 @@ public final class VfxRuntimeBudget {
     private int remainingEvents;
     private int remainingSpawns;
     private int remainingActive;
+    private VfxGlobalBudget global;
 
     public void beginTick(int activeParticles, boolean heavyBenchmark) {
+        beginTick(activeParticles, heavyBenchmark, null);
+    }
+
+    public void beginTick(int activeParticles, boolean heavyBenchmark, VfxGlobalBudget global) {
+        this.global = global;
         remainingEvents = MAX_EVENTS_PER_TICK;
         int limit = heavyBenchmark ? HEAVY_PARTICLES : MAX_ACTIVE_PARTICLES;
         remainingSpawns = heavyBenchmark ? HEAVY_PARTICLES : MAX_SPAWNS_PER_TICK;
@@ -22,13 +28,15 @@ public final class VfxRuntimeBudget {
     }
 
     public boolean hasEventBudget() {
-        return remainingEvents > 0;
+        return remainingEvents > 0 && (global == null || global.hasEventBudget());
     }
 
     public boolean enterEvent() {
         if (remainingEvents <= 0) {
+            if (global != null) global.rejectLocalEvent();
             return false;
         }
+        if (global != null && !global.enterEvent()) return false;
         remainingEvents--;
         return true;
     }
@@ -38,6 +46,10 @@ public final class VfxRuntimeBudget {
             return 0;
         }
         int granted = Math.min(requested, Math.min(remainingSpawns, remainingActive));
+        if (global != null) {
+            global.rejectLocalSpawns(requested - granted);
+            granted = global.reserveSpawns(granted);
+        }
         remainingSpawns -= granted;
         remainingActive -= granted;
         return granted;

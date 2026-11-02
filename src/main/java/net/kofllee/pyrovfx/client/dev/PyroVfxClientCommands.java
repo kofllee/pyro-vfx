@@ -139,7 +139,13 @@ public final class PyroVfxClientCommands {
 
         VfxPlayOptions options = parsePlayOptions(definition, parametersTag, player);
 
-        ClientVfxManager.play(definition, position, options);
+        if (!ClientVfxManager.tryPlay(definition, position, options)) {
+            player.displayClientMessage(Component.literal(
+                    "Pyro VFX: global active-effect limit reached (" +
+                    net.kofllee.pyrovfx.client.vfx.VfxGlobalBudget.MAX_INSTANCES + ")")
+                    .withStyle(ChatFormatting.YELLOW), false);
+            return 0;
+        }
 
         player.displayClientMessage(
                 Component.literal("Playing Pyro VFX: " + effect + " with " + options.parameters().size() + " parameter(s)"),
@@ -249,6 +255,14 @@ public final class PyroVfxClientCommands {
                 "Pyro VFX CPU/GPU backends — active effects: "
                         + ClientVfxManager.getActiveInstanceCount()
                         + ", particles: " + ClientVfxManager.getActiveParticleCount()),false);
+        var budget = ClientVfxManager.globalBudget();
+        player.displayClientMessage(Component.literal(
+                "Global budget: remaining active slots " + budget.remainingActive()
+                        + ", remaining spawns/tick " + budget.remainingSpawns()
+                        + ", peak observed " + budget.peakObservedParticles()
+                        + "; rejected spawns/events/effects "
+                        + budget.rejectedSpawns() + "/" + budget.rejectedEvents()
+                        + "/" + budget.rejectedInstances()), false);
         int printed=0;
         for (var instance : ClientVfxManager.instances()) {
             for (var emitter : instance.emitters()) {

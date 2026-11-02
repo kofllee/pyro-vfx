@@ -4,9 +4,9 @@ Pyro VFX is an experimental JSON-driven visual effects runtime for Minecraft Neo
 
 It provides a reusable effect format with programmable emitters, expressions, curves, sprite particles, model particles, collision, events, triggers and resource reload support.
 
-> **Project status: paused prototype**
+> **Project status: actively developed experimental engine**
 >
-> The current runtime is functional and demonstrates the intended architecture, but it is not production-ready. The main possible future direction is an in-game VFX editor built on top of the existing JSON format.
+> M0–M4 implement the CPU/GPU backends, and M5 adds shared runtime safety budgets. Targeted correctness and real-client scenarios pass, but this is not yet production ready: long soaks, driver/modpack combinations and multiplayer compatibility remain unverified.
 
 ## Current scope
 
@@ -183,6 +183,7 @@ See [docs/EXAMPLES.md](docs/EXAMPLES.md) for requirements and test commands.
 - [Expressions and curves](docs/EXPRESSIONS.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Performance notes](docs/PERFORMANCE.md)
+- [M5 compute decision, budgets and verification](docs/M5_DECISION_AND_VERIFICATION.md)
 - [Examples](docs/EXAMPLES.md)
 - [Possible future development](docs/ROADMAP.md)
 
@@ -196,9 +197,8 @@ The current prototype does not include:
 - attached effects;
 - entity or projectile following;
 - networking;
-- effect-level profiling;
-- global particle budgets;
-- distance culling or LOD;
+- detailed per-effect profiling (global counters and benchmark reports are available);
+- per-render-type budgets and distance-based spawn LOD (global caps and render frustum/size LOD exist);
 - stable performance guarantees for large particle counts;
 - dedicated documentation tooling or JSON schema generation.
 

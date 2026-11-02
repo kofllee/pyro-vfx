@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.vfx.VfxLifetimeRuntime;
 import net.kofllee.pyrovfx.client.vfx.VfxRuntimeBudget;
+import net.kofllee.pyrovfx.client.vfx.VfxGlobalBudget;
 import net.kofllee.pyrovfx.client.vfx.VfxAnalyticPlan;
 import net.kofllee.pyrovfx.client.vfx.VfxAnalyticSpritePool;
 import net.kofllee.pyrovfx.client.vfx.VfxWorldIdentity;
@@ -55,6 +56,60 @@ import java.lang.reflect.Proxy;
 @PrefixGameTestTemplate(false)
 public final class PyroVfxGameTests {
     private PyroVfxGameTests() {}
+
+    @GameTest(template = "empty")
+    public static void globalBudgetIsSharedAcrossIndependentEffects(GameTestHelper helper) {
+        var global = new VfxGlobalBudget();
+        global.beginTick(0, false);
+        var first = new VfxRuntimeBudget();
+        var second = new VfxRuntimeBudget();
+        first.beginTick(0, false, global);
+        second.beginTick(0, false, global);
+        if (first.reserveSpawns(20_000) != 20_000
+                || second.reserveSpawns(20_000) != 10_000
+                || global.admittedSpawns() != 30_000
+                || global.rejectedSpawns() != 10_000) {
+            throw new AssertionError("Shared per-tick spawn admission failed");
+        }
+        global.beginTick(79_900, false);
+        first.beginTick(0, false, global);
+        second.beginTick(0, false, global);
+        if (first.reserveSpawns(80) != 80
+                || second.reserveSpawns(80) != 20
+                || global.remainingActive() != 0) {
+            throw new AssertionError("Global active cap bypassed by concurrent effects");
+        }
+        global.beginTick(0, false);
+        first.beginTick(0, false, global);
+        second.beginTick(0, false, global);
+        for (int i = 0; i < VfxRuntimeBudget.MAX_EVENTS_PER_TICK; i++) {
+            if (!first.enterEvent() || !second.enterEvent()) {
+                throw new AssertionError("Event budget exhausted too early");
+            }
+        }
+        var third = new VfxRuntimeBudget();
+        third.beginTick(0, false, global);
+        if (third.hasEventBudget() || third.enterEvent()
+                || global.admittedEvents() != VfxGlobalBudget.MAX_EVENTS_PER_TICK
+                || global.rejectedEvents() != 1) {
+            throw new AssertionError("Global event cap bypassed");
+        }
+        if (global.admitInstance(VfxGlobalBudget.MAX_INSTANCES)
+                || global.rejectedInstances() != 1) {
+            throw new AssertionError("Active effect admission not bounded");
+        }
+        global.reset();
+        global.beginTick(0, true);
+        if (global.reserveSpawns(VfxRuntimeBudget.HEAVY_PARTICLES)
+                != VfxRuntimeBudget.HEAVY_PARTICLES
+                || global.rejectedSpawns() != 0) {
+            throw new AssertionError("Explicit developer heavy benchmark was capped");
+        }
+        if (global.admitInstance(VfxGlobalBudget.MAX_INSTANCES)) {
+            throw new AssertionError("Heavy benchmark must not disable the effect-count cap");
+        }
+        helper.succeed();
+    }
 
     @GameTest(template = "empty")
     public static void analyticMotionMatchesDiscreteCpuRecurrence(GameTestHelper helper) {

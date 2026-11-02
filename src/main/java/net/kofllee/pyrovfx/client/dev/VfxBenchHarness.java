@@ -62,6 +62,9 @@ public final class VfxBenchHarness {
         if (scenario.requiresOptIn() && !Boolean.getBoolean("pyrovfx.bench.allowHeavy")) {
             return "Refusing " + name + " on legacy runtime. Opt in with -Dpyrovfx.bench.allowHeavy=true.";
         }
+        if (name.equals("global_budget_spike") && !Boolean.getBoolean("pyrovfx.bench.globalStress")) {
+            return "Global-budget stress must be explicitly enabled with -PbenchGlobalStress=true.";
+        }
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null || minecraft.player == null || minecraft.getSingleplayerServer() == null) {
             return "A loaded integrated-server test world is required (no multiplayer benchmarking).";
@@ -174,7 +177,15 @@ public final class VfxBenchHarness {
             VfxPlayOptions options = run.scenario.particles() > 0
                     ? VfxPlayOptions.builder().param("count", run.scenario.particles()).build()
                     : VfxPlayOptions.empty();
-            ClientVfxManager.playSeeded(run.definition, ORIGIN, options, run.scenario.seed());
+            if (run.scenario.name().equals("global_budget_spike")) {
+                // Heavy override remains DISABLED: exercise production global admission.
+                var request = VfxPlayOptions.builder().param("count", 20_000).build();
+                for (int i = 0; i < 3; i++) {
+                    ClientVfxManager.playSeeded(run.definition, ORIGIN, request, run.scenario.seed() + i);
+                }
+            } else {
+                ClientVfxManager.playSeeded(run.definition, ORIGIN, options, run.scenario.seed());
+            }
             run.spawnNs = System.nanoTime() - start;
             run.spawned = true;
             run.lastFrameNs = 0;
@@ -289,6 +300,18 @@ public final class VfxBenchHarness {
                     && run.peakParticles != VfxRuntimeBudget.MAX_ACTIVE_PARTICLES) {
                 run.error = "Shared spawn budget expected " + VfxRuntimeBudget.MAX_ACTIVE_PARTICLES
                         + " active particles, observed " + run.peakParticles;
+            }
+            if (run.scenario.name().equals("global_budget_spike")) {
+                var global = ClientVfxManager.globalBudget();
+                if (run.peakParticles != net.kofllee.pyrovfx.client.vfx.VfxGlobalBudget.MAX_SPAWNS_PER_TICK
+                        || global.admittedSpawns() != 30_000
+                        || global.rejectedSpawns() != 30_000
+                        || ClientVfxManager.getActiveInstanceCount() != 3) {
+                    run.error = "Global stress admission mismatch: peak=" + run.peakParticles
+                            + " admitted=" + global.admittedSpawns()
+                            + " rejected=" + global.rejectedSpawns()
+                            + " effects=" + ClientVfxManager.getActiveInstanceCount();
+                }
             }
             if (run.scenario.name().equals("collision_no_events") && run.collisionContacts == 0) {
                 run.error = "Collision geometry was never exercised without event handlers";

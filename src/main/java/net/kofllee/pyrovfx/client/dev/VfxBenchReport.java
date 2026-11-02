@@ -88,6 +88,13 @@ final class VfxBenchReport {
         root.addProperty("gpuAnalyticDrawCallsTotal", run.analyticDrawCalls);
         root.addProperty("gpuAnalyticMaxInstancesSubmitted", run.maxAnalyticInstances);
         root.addProperty("gpuAnalyticBirthStateStrideBytes", 24);
+        var globalBudget = ClientVfxManager.globalBudget();
+        root.addProperty("globalPeakObservedParticles", globalBudget.peakObservedParticles());
+        root.addProperty("globalAdmittedSpawns", globalBudget.admittedSpawns());
+        root.addProperty("globalAdmittedEvents", globalBudget.admittedEvents());
+        root.addProperty("globalRejectedSpawns", globalBudget.rejectedSpawns());
+        root.addProperty("globalRejectedEvents", globalBudget.rejectedEvents());
+        root.addProperty("globalRejectedEffects", globalBudget.rejectedInstances());
         if (!ClientVfxManager.instances().isEmpty() && !ClientVfxManager.instances().getFirst().emitters().isEmpty()) {
             var emitter = ClientVfxManager.instances().getFirst().emitters().getFirst();
             root.addProperty("selectedParticleBackend", emitter.selectedBackend());

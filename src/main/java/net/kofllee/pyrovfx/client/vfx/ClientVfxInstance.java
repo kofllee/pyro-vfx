@@ -157,13 +157,17 @@ public final class ClientVfxInstance {
     }
 
     public void tick(ClientLevel level){
+        tick(level, null);
+    }
+
+    public void tick(ClientLevel level, VfxGlobalBudget global){
         int liveParticles = 0;
         for (var emitter : emitters) {
             liveParticles += emitter.liveParticleCount();
         }
         boolean heavy = !net.neoforged.fml.loading.FMLEnvironment.production
                 && Boolean.getBoolean("pyrovfx.bench.allowHeavy");
-        budget.beginTick(liveParticles, heavy);
+        budget.beginTick(liveParticles, heavy, global);
         VfxLifetimeState lifetimeState = lifetimeState();
 
         VfxExpressionContext effectContext = ClientVfxExpressionContexts.effectTick(

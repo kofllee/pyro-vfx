@@ -51,6 +51,7 @@ neoForge {
             programArguments.addAll '--quickPlaySingleplayer', providers.gradleProperty('benchWorld').orElse('Test VFX').get()
             systemProperty 'pyrovfx.bench.auto', providers.gradleProperty('benchScenario').orElse('sprite_1k').get()
             systemProperty 'pyrovfx.bench.allowHeavy', providers.gradleProperty('benchHeavy').orElse('false').get()
+            systemProperty 'pyrovfx.bench.globalStress', providers.gradleProperty('benchGlobalStress').orElse('false').get()
             systemProperty 'pyrovfx.render.forceLegacy', providers.gradleProperty('benchLegacyRender').orElse('false').get()
             systemProperty 'pyrovfx.render.debugNoCulling', providers.gradleProperty('benchNoCulling').orElse('false').get()
             systemProperty 'pyrovfx.render.debugSolid', providers.gradleProperty('benchGpuDebug').orElse('false').get()

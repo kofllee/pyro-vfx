@@ -2,7 +2,7 @@
 
 This document describes the current capabilities and limitations of Pyro VFX.
 
-Pyro VFX is currently a paused experimental prototype. It contains a functional client-side VFX runtime, but it is not a finished public tool or production dependency.
+Pyro VFX is an actively developed experimental VFX engine. The M0–M4 CPU/GPU architecture and the M5 global-budget safety layer are implemented and have targeted tests; it is **not** yet a finished public tool or a production-reliability guarantee. See [M5 verification and outstanding limits](M5_DECISION_AND_VERIFICATION.md).
 
 ## Stable prototype features
 
@@ -48,7 +48,7 @@ These systems are implemented and form the current core of the project.
 - Random functions.
 - Named curve sampling.
 - Effect, emitter, particle and spawn contexts.
-- Expressions are parsed into executable nodes before runtime evaluation.
+- Expressions are compiled into immutable programs with indexed variable slots and dependency-based constant evaluation; unsupported dynamic features retain compatible CPU execution.
 
 ### Curves
 
@@ -234,6 +234,17 @@ Particle triggers:
 - `play_at`
 - `list`
 - `stop_all`
+- `backend` (active backend selection, GPU counters, global limits and overload diagnostics)
+
+### Runtime execution and limits
+
+- Dense SoA-backed CPU simulation for eligible sprite particles, retaining the exact legacy runtime for complex features.
+- Instanced sprite and selected baked-model rendering with conservative frustum/size culling and Minecraft RenderType fallback.
+- GPU-resident analytic birth-state simulation for eligible static and closed-form dynamic additive sprites; no general-purpose compute backend.
+- 20,000 live particles and 20,000 spawn requests per tick per normal effect, with 4,096 event evaluations per effect/tick.
+- Client-global admission: 80,000 live VFX particles, 30,000 new VFX particles/tick, 8,192 event evaluations/tick and 256 active effects.
+- Dedicated developer-only heavy-count benchmark override; no automatic heavy override in production.
+- Deterministic reject-new-work behavior under load, observable rejection counters and JSON benchmark telemetry.
 
 ## Experimental features
 
@@ -307,11 +318,9 @@ Manual emitters do not run their normal lifetime triggers.
 - Visibility radius packets.
 - Per-effect performance statistics.
 - Per-emitter performance statistics.
-- Global particle budgets.
 - Per-render-type budgets.
-- Frustum culling.
 - Distance culling.
-- LOD.
+- Full quality-tier and distance-based spawn LOD (render-only size LOD is implemented).
 - Dedicated reload command.
 - In-game validation report.
 - JSON schema.
@@ -321,20 +330,19 @@ Manual emitters do not run their normal lifetime triggers.
 ## Known technical concerns
 
 - `ClientVfxInstance.particles()` creates a new combined list when called.
-- Rendering walks every active instance and every returned particle every frame.
-- Sprite rendering performs per-particle transform work through `PoseStack`.
-- Expression contexts are built repeatedly during runtime.
-- There is no global cap on active effects or custom particles.
+- Compatibility/complex particle rendering still uses CPU transforms; the fast sprite path avoids a combined-particle-list render allocation.
+- Collision/model workloads remain substantially more expensive than simple GPU sprites.
+- Global limits count Pyro-managed particles, not the lifetime count of particles delegated to vanilla Minecraft.
 - Collision can trigger repeatedly while a particle remains in contact.
-- No profiling data is included in the repository.
-- The project does not currently have CI on the public branch.
+- M0–M4 real-client benchmark reports are archived in `docs/benchmarks/`; M5 checks and limitations are recorded in `M5_DECISION_AND_VERIFICATION.md`.
+- Automated tests and CI exist; cross-driver/modpack and long-running mixed-world soak validation are still missing.
 
 ## Recommended repository label
 
 Use the following wording consistently:
 
 ```text
-Paused experimental prototype
+Active experimental VFX engine — not a production release
 ```
 
 Avoid describing the current version as a finished library, released tool or production-ready particle engine.
