@@ -50,4 +50,13 @@ public class VfxVec3Expression implements VfxExpression<VfxVec3> {
         return x.isSharedParticleAgeOnly() && y.isSharedParticleAgeOnly()
                 && z.isSharedParticleAgeOnly();
     }
+
+    public boolean isGpuBirthOrAgeOnly() {
+        return x.isGpuBirthOrAgeOnly() && y.isGpuBirthOrAgeOnly()
+                && z.isGpuBirthOrAgeOnly();
+    }
+
+    public String glslXY() {
+        return isGpuBirthOrAgeOnly() ? "vec2(" + x.glsl() + "," + y.glsl() + ")" : null;
+    }
 }

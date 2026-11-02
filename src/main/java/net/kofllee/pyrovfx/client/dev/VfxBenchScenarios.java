@@ -34,6 +34,16 @@ public final class VfxBenchScenarios {
         add(scenarios, "event_order", "bench/event_order", 1);
         add(scenarios, "model_1k", "bench/model", 1_000);
         add(scenarios, "model_translucent_1k", "bench/model_translucent", 1_000);
+        add(scenarios, "model_entity_250", "bench/model_entity", 250);
+        add(scenarios, "model_entity_1k", "bench/model_entity", 1_000);
+        add(scenarios, "sprite_expressions_1k", "bench/sprite_expressions", 1_000);
+        add(scenarios, "sprite_expressions_10k", "bench/sprite_expressions", 10_000);
+        add(scenarios, "sprite_expressions_100k", "bench/sprite_expressions", 100_000);
+        add(scenarios, "sprite_gpu_curves_10k", "bench/sprite_gpu_curves", 10_000);
+        add(scenarios, "sprite_gpu_curves_100k", "bench/sprite_gpu_curves", 100_000);
+        add(scenarios, "sprite_gpu_motion_expr_10k", "bench/sprite_gpu_motion_expr", 10_000);
+        add(scenarios, "sprite_gpu_motion_expr_100k", "bench/sprite_gpu_motion_expr", 100_000);
+        add(scenarios, "gpu_expression_reload_active", "bench/sprite_gpu_motion_expr", 1_000);
         add(scenarios, "model_10k", "bench/model", 10_000);
         add(scenarios, "model_100k", "bench/model", 100_000);
         add(scenarios, "model_rotating_10k", "bench/model_rotating", 10_000);

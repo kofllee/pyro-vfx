@@ -230,7 +230,8 @@ public final class VfxBenchHarness {
         int index = run.elapsedTicks++;
         boolean soak = run.scenario.name().equals("soak_mixed");
         if (((run.scenario.name().equals("reload_active")
-                || run.scenario.name().equals("model_reload_active")) && index == 10)
+                || run.scenario.name().equals("model_reload_active")
+                || run.scenario.name().equals("gpu_expression_reload_active")) && index == 10)
                 || (soak && (index == 60 || index == 240 || index == 450))) {
             if (run.reloadFuture != null) {
                 run.error = "Previous resource reload still in flight";
@@ -323,7 +324,8 @@ public final class VfxBenchHarness {
                 }
             }
             if ((run.scenario.name().equals("reload_active")
-                    || run.scenario.name().equals("model_reload_active")) && !run.reloadCompleted) {
+                    || run.scenario.name().equals("model_reload_active")
+                    || run.scenario.name().equals("gpu_expression_reload_active")) && !run.reloadCompleted) {
                 run.error = "Client resource reload not observed before benchmark ended";
             }
             if (Boolean.getBoolean("pyrovfx.bench.requireGpuInstancing")) {

@@ -119,6 +119,11 @@ public final class VfxInstancedModelRenderer {
         if (Boolean.getBoolean("pyrovfx.model.forceLegacy")
                 || !VfxInstancedSpriteRenderer.compatibleEnvironment()
                 || unavailable || !GL.getCapabilities().OpenGL33) return false;
+        return supportsGeometry(definition);
+    }
+
+    /** Pure eligibility check shared with server-side routing tests. */
+    public static boolean supportsGeometry(VfxEmitterDefinition definition) {
         if (definition.render().type() != VfxRenderType.MODEL
                 || definition.render().model() == null) return false;
         var model = definition.render().model();

@@ -46,4 +46,15 @@ public class VfxColorExpression implements VfxExpression<VfxColor>{
         return r.isSharedParticleAgeOnly() && g.isSharedParticleAgeOnly()
                 && b.isSharedParticleAgeOnly() && a.isSharedParticleAgeOnly();
     }
+
+    public boolean isGpuBirthOrAgeOnly() {
+        return r.isGpuBirthOrAgeOnly() && g.isGpuBirthOrAgeOnly()
+                && b.isGpuBirthOrAgeOnly() && a.isGpuBirthOrAgeOnly();
+    }
+
+    public String glsl() {
+        if (!isGpuBirthOrAgeOnly()) return null;
+        return "vec4(" + r.glsl() + "," + g.glsl() + ","
+                + b.glsl() + "," + a.glsl() + ")";
+    }
 }

@@ -422,6 +422,128 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void animatedEntityRenderersRemainOnSemanticsPreservingFallback(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "model_entity_fallback"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{
+                  "id":"mob","spawn_shape":{"type":"point"},
+                  "render":{"type":"model","model":{"source":"entity",
+                    "model":"minecraft:pig","render_layer":"solid"},
+                    "color":[1,1,1,1]}}
+                ]}
+                """).getAsJsonObject());
+        var emitter = definition.emitters().getFirst();
+        if (VfxDenseParticlePool.supports(emitter)
+                || VfxAnalyticPlan.analyse(emitter, true).supported()
+                || net.kofllee.pyrovfx.client.render.VfxInstancedModelRenderer.supportsGeometry(emitter)) {
+            throw new AssertionError("Entity renderers have runtime pose, texture and render-layer behavior");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void gpuExpressionsReuseCompiledCpuSyntaxAndRejectMutableCalls(GameTestHelper helper) {
+        var good = net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression
+                .expression("0.5 + particle.random * 0.3");
+        var trig = net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression
+                .expression("math.sin(particle.normalized_age * 3.14)");
+        var stateful = net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression
+                .expression("random.value() * particle.age");
+        var reversedClamp = net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression
+                .expression("math.clamp(particle.age, 2, 1)");
+        if (good.glsl() == null || !good.glsl().contains("vfxRandom")
+                || trig.glsl() == null || !trig.glsl().contains("sin")
+                || stateful.glsl() != null || reversedClamp.glsl() != null) {
+            throw new AssertionError("GPU code generation must share compiler syntax and reject stateful RNG");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void gpuAnalyticAllowsBirthRandomAppearanceWithoutStatefulRandomCalls(GameTestHelper helper) {
+        var def = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "gpu_birth_random_appearance"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{
+                  "id":"main","emitter_lifetime":{"mode":"once","active_ticks":1},
+                  "spawn_shape":{"type":"point"},
+                  "spawn_amount":{"mode":"instant","amount":1},
+                  "render":{"type":"sprite","facing":"camera",
+                    "sprite":{"texture":"minecraft:textures/particle/generic_0.png","blend_mode":"additive"},
+                    "color":["0.5 + particle.random * 0.5","particle.normalized_age",1,1],
+                    "scale":["0.2+particle.random*0.2",0.3,1]}
+                }]}
+                """).getAsJsonObject());
+        if (!VfxAnalyticPlan.analyse(def.emitters().getFirst(), true).supported()) {
+            throw new AssertionError("Per-birth random should use a GPU expression vertex shader");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void immutableCurvesCompileIntoGpuExpressions(GameTestHelper helper) {
+        var json = JsonParser.parseString("""
+                {"format":"pyro_vfx:1",
+                 "curves":{"shade":{"type":"catmull","points":[[0,0],[0.25,0.5],[1,1]]}},
+                 "emitters":[{
+                   "id":"main","emitter_lifetime":{"mode":"once","active_ticks":1},
+                   "spawn_shape":{"type":"point"},
+                   "spawn_amount":{"mode":"instant","amount":1},
+                   "render":{"type":"sprite","facing":"camera",
+                     "sprite":{"texture":"minecraft:textures/particle/generic_0.png","blend_mode":"additive"},
+                     "color":["particle.random","curve.shade(particle.normalized_age)",1,1],
+                     "scale":[0.5,0.5,1]}
+                }]}
+                """).getAsJsonObject();
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "gpu_curve_test");
+        var emitter = VfxDefinitionParser.parse(id, json).emitters().getFirst();
+        if (!VfxAnalyticPlan.analyse(emitter, true).supported()
+                || emitter.render().appearance().color().glsl() == null
+                || !emitter.render().appearance().color().glsl().contains("vfxAge")) {
+            throw new AssertionError("Immutable named curves must share the existing parser's GLSL path");
+        }
+        json.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                .getAsJsonObject("render").add("color",
+                        JsonParser.parseString("[1,1,1,\"random.value()\"]"));
+        if (VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
+                .emitters().getFirst(), true).supported()) {
+            throw new AssertionError("Stateful RNG must not be compiled as deterministic shader curves");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void gpuMotionExpressionsMatchAnalyticEligibleVariables(GameTestHelper helper) {
+        var def = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "gpu_motion_expression"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{
+                  "id":"main","emitter_lifetime":{"mode":"once","active_ticks":1},
+                  "spawn_shape":{"type":"point"},
+                  "spawn_amount":{"mode":"instant","amount":1},
+                  "motion":{"mode":"dynamic","dynamic":{"direction":"up","speed":1}},
+                  "render":{"type":"sprite","facing":"camera",
+                    "sprite":{"texture":"minecraft:textures/particle/generic_0.png","blend_mode":"additive"},
+                    "color":["particle.pos.x * 0.02","particle.vel.y + 0.2",1,1],
+                    "scale":["math.abs(particle.prev_pos.x) * 0.01 + 0.3",
+                             "0.2 + math.sin(spawn.pos.y)",1]}
+                }]}
+                """).getAsJsonObject());
+        var emitter = def.emitters().getFirst();
+        if (!VfxAnalyticPlan.analyse(emitter, true).supported()) {
+            throw new AssertionError("Closed-form position and velocity are GPU-computable from birth state");
+        }
+        String color = emitter.render().appearance().color().glsl();
+        String scale = emitter.render().appearance().scale().glslXY();
+        if (color == null || !color.contains("vfxPos") || !color.contains("vfxVelocity")
+                || scale == null || !scale.contains("vfxPrevPos") || !scale.contains("birth.y")) {
+            throw new AssertionError("Compiled GPU appearance lost motion/spawn variable bindings");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void denseMemoryTelemetryTracksAllocatedCapacity(GameTestHelper helper) {
         var definition = VfxDefinitionParser.parse(
                 ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "memory_dense"),
@@ -969,14 +1091,14 @@ public final class PyroVfxGameTests {
         var render = json.getAsJsonArray("emitters").get(0).getAsJsonObject()
                 .getAsJsonObject("render");
         render.add("color", JsonParser.parseString("[1,0.5,0.25,\"particle.random\"]"));
-        if (VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
+        if (!VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
                 .emitters().getFirst(), true).supported()) {
-            throw new AssertionError("Particle random cannot be a shared GPU uniform");
+            throw new AssertionError("Immutable particle.random must use an individual GPU birth attribute");
         }
         render.add("color", JsonParser.parseString("[1,0.5,0.25,\"particle.pos.x\"]"));
-        if (VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
+        if (!VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
                 .emitters().getFirst(), true).supported()) {
-            throw new AssertionError("Particle position cannot be a shared GPU uniform");
+            throw new AssertionError("Closed-form particle position can be evaluated in the vertex shader");
         }
         helper.succeed();
     }
@@ -1014,9 +1136,9 @@ public final class PyroVfxGameTests {
         base.getAsJsonArray("emitters").get(0).getAsJsonObject()
                 .getAsJsonObject("render")
                 .add("color", JsonParser.parseString("[1,1,1,\"curve.fade(particle.random)\"]"));
-        if (VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, base)
+        if (!VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, base)
                 .emitters().getFirst(), true).supported()) {
-            throw new AssertionError("Random-dependent curve was admitted to shared GPU uniforms");
+            throw new AssertionError("Immutable random-dependent curve must use a per-birth GPU attribute");
         }
         helper.succeed();
     }

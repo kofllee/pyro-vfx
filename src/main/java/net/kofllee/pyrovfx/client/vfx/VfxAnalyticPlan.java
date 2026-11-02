@@ -61,9 +61,13 @@ public record VfxAnalyticPlan(boolean supported, String reason,
                     || !uv.frameCount().isConstant()
                     || !uv.fps().isConstant()))
             return reject("UV animation requires identical constant sheet parameters and no random start frame");
-        if (!d.render().appearance().color().isSharedParticleAgeOnly()
-                || !d.render().appearance().scale().isSharedParticleAgeOnly())
-            return reject("appearance requires random, mutable state, curve or per-particle data");
+        boolean sharedAppearance = d.render().appearance().color().isSharedParticleAgeOnly()
+                && d.render().appearance().scale().isSharedParticleAgeOnly();
+        boolean gpuBirthAppearance = sprite
+                && d.render().appearance().color().isGpuBirthOrAgeOnly()
+                && d.render().appearance().scale().isGpuBirthOrAgeOnly();
+        if (!sharedAppearance && !gpuBirthAppearance)
+            return reject("appearance requires unsupported mutable, curve or world-dependent evaluation");
         if (!d.particleLifetime().maxAgeTicks().isConstant())
             return reject("particle lifetime is not constant");
         if (!d.spawnShape().radius().isConstant() || !d.spawnShape().innerRadius().isConstant()

@@ -41,6 +41,24 @@ public class VfxNumberExpression implements VfxExpression<Double> {
                                 || v.equals("particle.lifetime")));
     }
 
+    /** GPU subset emitted from the same compiled expression tree, or null. */
+    public String glsl() {
+        return isConstant ? VfxGpuExpressionNode.literal(constant)
+                : VfxGpuExpressionNode.glsl(node);
+    }
+
+    /** Conservative subset admitting only immutable per-birth random and age. */
+    public boolean isGpuBirthOrAgeOnly() {
+        return glsl() != null && (isConstant || (info != null
+                && !info.randomCall() && !info.parameterDependent()
+                && info.variables().stream().allMatch(v ->
+                    v.equals("particle.random") || v.equals("particle.age")
+                    || v.equals("particle.normalized_age") || v.equals("particle.lifetime")
+                    || v.equals("particle.speed")
+                    || v.startsWith("particle.pos.") || v.startsWith("particle.prev_pos.")
+                    || v.startsWith("particle.vel.") || v.startsWith("spawn.pos."))));
+    }
+
     @Override
     public Double evaluate(VfxExpressionContext context) {
         return evaluateDouble(context);

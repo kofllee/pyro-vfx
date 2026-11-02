@@ -191,30 +191,6 @@ public final class VfxExpressionParser {
         }
     }
 
-    private VfxExpressionNode parseExpression() {
-        VfxExpressionNode node = parseTerm();
-
-        while (true) {
-            skipWhitespace();
-
-            if (match('+')) {
-                VfxExpressionNode left = node;
-                VfxExpressionNode right = parseTerm();
-                node = context -> left.evaluate(context) + right.evaluate(context);
-                continue;
-            }
-
-            if (match('-')) {
-                VfxExpressionNode left = node;
-                VfxExpressionNode right = parseTerm();
-                node = context -> left.evaluate(context) - right.evaluate(context);
-                continue;
-            }
-
-            return node;
-        }
-    }
-
     private VfxExpressionNode parseTerm() {
         VfxExpressionNode node = parseFactor();
 
@@ -224,14 +200,16 @@ public final class VfxExpressionParser {
             if (match('+')) {
                 VfxExpressionNode left = node;
                 VfxExpressionNode right = parseFactor();
-                node = context -> left.evaluate(context) + right.evaluate(context);
+                node = VfxGpuExpressionNode.binary("+", left, right,
+                        context -> left.evaluate(context) + right.evaluate(context));
                 continue;
             }
 
             if (match('-')) {
                 VfxExpressionNode left = node;
                 VfxExpressionNode right = parseFactor();
-                node = context -> left.evaluate(context) - right.evaluate(context);
+                node = VfxGpuExpressionNode.binary("-", left, right,
+                        context -> left.evaluate(context) - right.evaluate(context));
                 continue;
             }
 
@@ -248,14 +226,16 @@ public final class VfxExpressionParser {
             if (match('*')) {
                 VfxExpressionNode left = node;
                 VfxExpressionNode right = parsePower();
-                node = context -> left.evaluate(context) * right.evaluate(context);
+                node = VfxGpuExpressionNode.binary("*", left, right,
+                        context -> left.evaluate(context) * right.evaluate(context));
                 continue;
             }
 
             if (match('/')) {
                 VfxExpressionNode left = node;
                 VfxExpressionNode right = parsePower();
-                node = context -> left.evaluate(context) / right.evaluate(context);
+                node = VfxGpuExpressionNode.binary("/", left, right,
+                        context -> left.evaluate(context) / right.evaluate(context));
                 continue;
             }
 
@@ -293,7 +273,8 @@ public final class VfxExpressionParser {
 
         if (match('-')) {
             VfxExpressionNode node = parseUnary();
-            return context -> -node.evaluate(context);
+            return VfxGpuExpressionNode.unaryMinus(node,
+                    context -> -node.evaluate(context));
         }
 
         if (match('!')) {
@@ -347,7 +328,7 @@ public final class VfxExpressionParser {
         }
 
         double value = Double.parseDouble(source.substring(start, index));
-        return context -> value;
+        return VfxGpuExpressionNode.number(value);
     }
 
     private VfxExpressionNode parseIdentifierOrFunction() {
@@ -358,9 +339,11 @@ public final class VfxExpressionParser {
             usedVariables.add(name);
             if (layout != null) {
                 int slot = layout.intern(name);
-                return context -> context.getNumber(slot, name);
+                return VfxGpuExpressionNode.emit(VfxGpuExpressionNode.variable(name),
+                        context -> context.getNumber(slot, name));
             }
-            return context -> context.getNumber(name);
+            return VfxGpuExpressionNode.emit(VfxGpuExpressionNode.variable(name),
+                    context -> context.getNumber(name));
         }
 
         List<VfxExpressionNode> args = new ArrayList<>();
@@ -395,7 +378,9 @@ public final class VfxExpressionParser {
             VfxCurveDefinition curve = compiledCurves == null
                     ? null : compiledCurves.curves().get(curveId);
             if (curve != null) {
-                return context -> curve.sample(args.getFirst().evaluate(context));
+                VfxExpressionNode input = args.getFirst();
+                VfxExpressionNode cpu = context -> curve.sample(input.evaluate(context));
+                return VfxGpuExpressionNode.curve(curve, input, cpu);
             }
             return context -> context.curves().sample(curveId, args.getFirst().evaluate(context));
         }
@@ -534,21 +519,25 @@ public final class VfxExpressionParser {
     private VfxExpressionNode ternary(String name, List<VfxExpressionNode> args, TernaryFunction function) {
         requireArgCount(name, args, 3);
 
-        return context -> function.apply(
+        VfxExpressionNode cpu = context -> function.apply(
                 args.get(0).evaluate(context),
                 args.get(1).evaluate(context),
                 args.get(2).evaluate(context)
         );
+        return VfxGpuExpressionNode.function(name, args, cpu);
     }
 
     private VfxExpressionNode binary(String name, List<VfxExpressionNode> args, BinaryFunction function) {
         requireArgCount(name, args, 2);
-        return context -> function.apply(args.getFirst().evaluate(context), args.getLast().evaluate(context));
+        VfxExpressionNode cpu = context -> function.apply(
+                args.getFirst().evaluate(context), args.getLast().evaluate(context));
+        return VfxGpuExpressionNode.function(name, args, cpu);
     }
 
     private VfxExpressionNode unary(String name, List<VfxExpressionNode> args, UnaryFunction function) {
         requireArgCount(name, args, 1);
-        return context -> function.apply(args.getFirst().evaluate(context));
+        VfxExpressionNode cpu = context -> function.apply(args.getFirst().evaluate(context));
+        return VfxGpuExpressionNode.function(name, args, cpu);
     }
 
     private void requireArgCount(String name, List<VfxExpressionNode> args, int expected) {
