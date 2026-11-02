@@ -3,6 +3,9 @@ package net.kofllee.pyrovfx.client.vfx;
 import net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer;
 import net.kofllee.pyrovfx.client.render.SpriteVfxParticleRenderer;
 import net.kofllee.pyrovfx.client.render.ClientVfxSpriteUvState;
+import net.kofllee.pyrovfx.client.render.ClientVfxSpriteUvResolver;
+import net.kofllee.pyrovfx.client.render.VfxSpriteUvRect;
+import net.kofllee.pyrovfx.client.render.VfxSpriteUvSampler;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Camera;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -23,6 +26,7 @@ public final class VfxAnalyticSpritePool {
     private final VfxAnalyticPlan plan;
     private final Vec3 scale;
     private final VfxColor color;
+    private final ClientVfxSpriteUvState uvState;
     private ByteBuffer states;
     private int count, age, gpuBuffer;
     private int gpuGeneration = -1;
@@ -33,6 +37,7 @@ public final class VfxAnalyticSpritePool {
         plan = p;
         scale = d.render().appearance().scale().evaluate(null).toVec3();
         color = d.render().appearance().color().evaluate(null);
+        uvState = ClientVfxSpriteUvResolver.resolve(d.render().sprite().uv(), null, 0.0);
     }
 
     public void spawn(int amount, Vec3 origin, VfxExpressionContext scope, RandomSource random) {
@@ -75,6 +80,10 @@ public final class VfxAnalyticSpritePool {
     public VfxEmitterDefinition definition() { return definition; }
     public Vec3 scale() { return scale; }
     public VfxColor color() { return color; }
+    /** One UV rectangle for this entire burst. The original frame scheduler is reused. */
+    public VfxSpriteUvRect uvRect() {
+        return VfxSpriteUvSampler.sample(new FallbackCursor(0, 0));
+    }
     public ByteBuffer data() {
         if (states == null) return null;
         ByteBuffer view = states.asReadOnlyBuffer();
@@ -132,7 +141,7 @@ public final class VfxAnalyticSpritePool {
             int offset = index*STRIDE;
             return new Vec3(states.getFloat(offset+12),states.getFloat(offset+16),states.getFloat(offset+20));
         }
-        @Override public ClientVfxSpriteUvState spriteUv() { return ClientVfxSpriteUvState.full(); }
+        @Override public ClientVfxSpriteUvState spriteUv() { return uvState; }
         @Override public int age() { return age; }
         @Override public double ageNormalized() { return Math.min(1, age/(double)plan.lifetime()); }
     }

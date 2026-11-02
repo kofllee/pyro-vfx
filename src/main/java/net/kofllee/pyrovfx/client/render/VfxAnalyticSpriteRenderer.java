@@ -32,6 +32,7 @@ public final class VfxAnalyticSpriteRenderer {
             uniform vec3 uCamera, uRight, uUp, uAcceleration;
             uniform vec2 uMotion;
             uniform vec2 uScale;
+            uniform vec4 uUvRect;
             out vec2 vUv;
             void main() {
                 vec3 p = birth - uCamera + velocity * uMotion.x
@@ -39,7 +40,8 @@ public final class VfxAnalyticSpriteRenderer {
                 vec3 cornerPosition = p + uRight * (corner.x * uScale.x)
                                         + uUp * (corner.y * uScale.y);
                 gl_Position = uMvp * vec4(cornerPosition, 1.0);
-                vUv = vec2(uv.x, 1.0-uv.y);
+                vUv = vec2(mix(uUvRect.x,uUvRect.z,uv.x),
+                           1.0-mix(uUvRect.y,uUvRect.w,uv.y));
             }
             """;
     private static final String FS = """
@@ -55,7 +57,7 @@ public final class VfxAnalyticSpriteRenderer {
             """;
     private static int program, vao, quadVbo, generation;
     private static int mvpLoc, cameraLoc, rightLoc, upLoc, accelerationLoc,
-            motionLoc, sizeLoc, colorLoc, samplerLoc;
+            motionLoc, sizeLoc, colorLoc, samplerLoc, uvRectLoc;
     private static volatile boolean reloadPending;
     private static boolean unavailable;
     private static int drawCalls, instances, uploadedBytes, uploadedDatasets;
@@ -159,6 +161,8 @@ public final class VfxAnalyticSpriteRenderer {
                 GL20.glUniform2f(sizeLoc,(float)pool.scale().x,(float)pool.scale().y);
                 GL20.glUniform4f(colorLoc,(float)pool.color().r(),(float)pool.color().g(),
                         (float)pool.color().b(),(float)pool.color().a());
+                var rect = pool.uvRect();
+                GL20.glUniform4f(uvRectLoc, rect.u0(), rect.v0(), rect.u1(), rect.v1());
                 GL13.glActiveTexture(GL13.GL_TEXTURE0);
                 int texture = Minecraft.getInstance().getTextureManager()
                         .getTexture(pool.definition().render().sprite().texture()).getId();
@@ -211,7 +215,8 @@ public final class VfxAnalyticSpriteRenderer {
         mvpLoc=uniform("uMvp");cameraLoc=uniform("uCamera");
         rightLoc=uniform("uRight");upLoc=uniform("uUp");
         accelerationLoc=uniform("uAcceleration");motionLoc=uniform("uMotion");
-        sizeLoc=uniform("uScale");colorLoc=uniform("uColor");samplerLoc=uniform("uTexture");
+        sizeLoc=uniform("uScale");colorLoc=uniform("uColor");
+        samplerLoc=uniform("uTexture");uvRectLoc=uniform("uUvRect");
         int oldVao=GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
         int oldArray=GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
         try {

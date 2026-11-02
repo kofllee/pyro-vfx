@@ -134,6 +134,14 @@ public final class PyroVfxGameTests {
         if (global.admitInstance(VfxGlobalBudget.MAX_INSTANCES)) {
             throw new AssertionError("Heavy benchmark must not disable the effect-count cap");
         }
+        global.reset();
+        global.beginTick(0, false, 2_000_000, 500_000);
+        if (global.reserveSpawns(400_000) != 400_000
+                || global.reserveSpawns(200_000) != 100_000
+                || global.remainingActive() != 1_500_000
+                || global.remainingSpawns() != 0) {
+            throw new AssertionError("Configurable normal-gameplay budgets did not scale safely");
+        }
         helper.succeed();
     }
 
@@ -203,6 +211,51 @@ public final class PyroVfxGameTests {
         var mutable=VfxDefinitionParser.parse(id,parsed);
         boolean rejected=!VfxAnalyticPlan.analyse(mutable.emitters().getFirst(),true).supported();
         if(!rejected) throw new AssertionError("Mutable appearance must remain CPU");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticUvAnimationSharesFramesAndRejectsRandomStarts(GameTestHelper helper) {
+        String source = """
+            {"format":"pyro_vfx:1","emitters":[{
+              "id":"uv","emitter_lifetime":{"mode":"once","active_ticks":1},
+              "spawn_shape":{"type":"point"},
+              "particle_lifetime":{"max_age_ticks":40},
+              "motion":{"mode":"static"},
+              "render":{"type":"sprite","sprite":{
+                "texture":"minecraft:textures/particle/generic_0.png",
+                "blend_mode":"additive",
+                "uv":{"mode":"animated","texture_size":[64,16,0],
+                  "uv_start":[0,0,0],"uv_size":[16,16,0],
+                  "uv_step":[16,0,0],"frame_count":4,"fps":20,
+                  "loop":true,"random_start_frame":false}
+              },"color":"#FFFFFFFF","scale":[0.2,0.2,1]}
+            }]}
+            """;
+        JsonObject parsed = JsonParser.parseString(source).getAsJsonObject();
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "analytic_uv");
+        var effect = VfxDefinitionParser.parse(id, parsed);
+        var emitter = effect.emitters().getFirst();
+        var plan = VfxAnalyticPlan.analyse(emitter, true);
+        if (!plan.supported()) throw new AssertionError(plan.reason());
+        var pool = new VfxAnalyticSpritePool(emitter, plan);
+        var scope = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of(), effect.curves(), RandomSource.create(4), effect.program().variables());
+        pool.spawn(1, Vec3.ZERO, scope, RandomSource.create(5));
+        checkClose(0, pool.uvRect().u0());
+        checkClose(0.25, pool.uvRect().u1());
+        pool.tick();
+        pool.tick();
+        checkClose(0.5, pool.uvRect().u0());
+        checkClose(0.75, pool.uvRect().u1());
+        pool.close();
+        parsed.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                .getAsJsonObject("render").getAsJsonObject("sprite")
+                .getAsJsonObject("uv").addProperty("random_start_frame", true);
+        var random = VfxDefinitionParser.parse(id, parsed);
+        if (VfxAnalyticPlan.analyse(random.emitters().getFirst(), true).supported()) {
+            throw new AssertionError("Per-particle random UV phase cannot share one GPU uniform");
+        }
         helper.succeed();
     }
 

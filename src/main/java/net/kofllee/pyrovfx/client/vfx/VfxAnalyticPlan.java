@@ -33,8 +33,19 @@ public record VfxAnalyticPlan(boolean supported, String reason,
             return reject("rotation is not analytic");
         if (d.motion().collision().collide())
             return reject("collision queries require Minecraft world state");
-        if (d.render().sprite().uv().mode() != VfxUvMode.FULL)
-            return reject("UV sheet animation requires the CPU sprite renderer");
+        var uv = d.render().sprite().uv();
+        // An instant burst has a shared age. Deterministic static/animated
+        // frames can therefore be updated by one uniform, not per particle.
+        // Per-particle random start frames still require the dense CPU path.
+        if (uv.mode() != VfxUvMode.FULL
+                && (uv.randomStartFrame()
+                    || !uv.textureSize().isConstant()
+                    || !uv.uvStart().isConstant()
+                    || !uv.uvSize().isConstant()
+                    || !uv.uvStep().isConstant()
+                    || !uv.frameCount().isConstant()
+                    || !uv.fps().isConstant()))
+            return reject("UV animation requires identical constant sheet parameters and no random start frame");
         if (!d.render().appearance().color().isConstant()
                 || !d.render().appearance().scale().isConstant())
             return reject("appearance expression depends on particle age, parameters, random or curves");
