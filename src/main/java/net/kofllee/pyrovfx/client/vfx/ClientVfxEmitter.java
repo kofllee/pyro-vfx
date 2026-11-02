@@ -137,7 +137,7 @@ public final class ClientVfxEmitter {
         // Collision events may emit into this emitter. Process only the particles
         // present at the start of the phase; newly emitted particles start next tick.
         if (densePool != null) {
-            densePool.tick(emitterContext);
+            densePool.tick(level, emitterContext);
         }
         if (analyticPlan.useGpu()) {
             for (var iterator = analyticBatches.iterator(); iterator.hasNext();) {

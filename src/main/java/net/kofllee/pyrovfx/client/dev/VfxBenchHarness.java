@@ -277,6 +277,11 @@ public final class VfxBenchHarness {
                         run.collisionContacts++;
                     }
                 }
+                for (var emitter : instance.emitters()) {
+                    if (emitter.densePool() != null) {
+                        run.collisionContacts += emitter.densePool().collisionContactsLastTick();
+                    }
+                }
                 if (instance.parameters().getOrDefault("hit", 0.0) > 0.5) {
                     run.collisionEventObserved = true;
                 }

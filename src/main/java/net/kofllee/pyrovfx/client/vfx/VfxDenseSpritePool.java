@@ -18,6 +18,8 @@ import net.kofllee.pyrovfx.vfx.type.VfxRotationMode;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.kofllee.pyrovfx.vfx.value.VfxVec3;
 import net.minecraft.client.Camera;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.BlockPos;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.world.phys.Vec3;
 
@@ -25,8 +27,8 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Ordered, capacity-reused SoA for sprites and models without world collision
- * or particle callbacks. Movement and rotation channels are allocated only
+ * Ordered, capacity-reused SoA for sprites and models without particle
+ * callbacks. Movement, collision and rotation channels are allocated only
  * when those components are enabled.
  *
  * One reusable expression scope per emitter tick; no per-particle Java object
@@ -41,6 +43,8 @@ public final class VfxDenseSpritePool {
     private final boolean moving;
     private final boolean rotating;
     private final boolean dynamicRotation;
+    private final boolean colliding;
+    private final BlockPos.MutableBlockPos blockCursor = new BlockPos.MutableBlockPos();
     private final Cursor cursor = new Cursor();
 
     private double[] px = new double[0];
@@ -75,6 +79,7 @@ public final class VfxDenseSpritePool {
     private int[] lifetime = new int[0];
     private ClientVfxSpriteUvState[] uv = new ClientVfxSpriteUvState[0];
     private int size;
+    private long collisionContactsLastTick;
 
     public VfxDenseSpritePool(VfxEmitterDefinition definition) {
         this.definition = definition;
@@ -82,6 +87,8 @@ public final class VfxDenseSpritePool {
         this.moving = definition.motion().mode() != VfxMotionMode.STATIC;
         this.rotating = definition.rotation().mode() != VfxRotationMode.NONE;
         this.dynamicRotation = definition.rotation().mode() == VfxRotationMode.DYNAMIC;
+        this.colliding = definition.motion().mode() == VfxMotionMode.DYNAMIC
+                && definition.motion().collision().collide();
     }
 
     public static boolean supports(VfxEmitterDefinition definition) {
@@ -94,7 +101,8 @@ public final class VfxDenseSpritePool {
         return !Boolean.getBoolean("pyrovfx.cpu.forceLegacy")
                 && (sprite || model)
                 && definition.particleTriggers().isEmpty()
-                && !definition.motion().collision().collide();
+                && (!definition.motion().collision().collide()
+                    || definition.motion().mode() == VfxMotionMode.DYNAMIC);
     }
 
     public boolean dynamic() { return dynamic; }
@@ -102,6 +110,7 @@ public final class VfxDenseSpritePool {
     public VfxEmitterDefinition definition() { return definition; }
     public int size() { return size; }
     public int capacity() { return age.length; }
+    public long collisionContactsLastTick() { return collisionContactsLastTick; }
 
     /** Lower-bound SoA payload bytes (array storage only, excluding JVM headers). */
     public long allocatedStateBytes() {
@@ -281,10 +290,16 @@ public final class VfxDenseSpritePool {
      * RNG functions are evaluated in the same particle insertion order.
      */
     public void tick(VfxExpressionContext emitterContext) {
+        tick(null, emitterContext);
+    }
+
+    public void tick(ClientLevel level, VfxExpressionContext emitterContext) {
         if (size == 0) return;
+        collisionContactsLastTick = 0;
         VfxExpressionContext scope = emitterContext.child();
         int out = 0;
         for (int i = 0, end = size; i < end; i++) {
+            boolean expiredOnCollision = false;
             prevScaleX[i] = scaleX[i];
             prevScaleY[i] = scaleY[i];
             prevScaleZ[i] = scaleZ[i];
@@ -305,7 +320,21 @@ public final class VfxDenseSpritePool {
                 vx[i] = (vx[i] + acceleration.x() * TICK_SECONDS_SQUARED) * multiplier;
                 vy[i] = (vy[i] + acceleration.y() * TICK_SECONDS_SQUARED) * multiplier;
                 vz[i] = (vz[i] + acceleration.z() * TICK_SECONDS_SQUARED) * multiplier;
-                px[i] += vx[i]; py[i] += vy[i]; pz[i] += vz[i];
+                if (colliding) {
+                    var collision = VfxDenseCollisionSystem.resolve(level,
+                            definition.motion().collision(), scope, blockCursor,
+                            oldX, oldY, oldZ, vx[i], vy[i], vz[i]);
+                    if (collision == null) {
+                        px[i] += vx[i]; py[i] += vy[i]; pz[i] += vz[i];
+                    } else {
+                        px[i] = collision.x(); py[i] = collision.y(); pz[i] = collision.z();
+                        vx[i] = collision.vx(); vy[i] = collision.vy(); vz[i] = collision.vz();
+                        expiredOnCollision = collision.dead();
+                        collisionContactsLastTick++;
+                    }
+                } else {
+                    px[i] += vx[i]; py[i] += vy[i]; pz[i] += vz[i];
+                }
             } else if (definition.motion().mode() == VfxMotionMode.PARAMETRIC) {
                 VfxVec3 offset = definition.motion().parametric().offset().evaluate(scope);
                 px[i] = spawnX[i] + offset.x();
@@ -335,7 +364,7 @@ public final class VfxDenseSpritePool {
             scaleX[i] = scale.x(); scaleY[i] = scale.y(); scaleZ[i] = scale.z();
             r[i] = color.r(); g[i] = color.g(); b[i] = color.b(); a[i] = color.a();
             age[i]++;
-            if (age[i] < lifetime[i]) {
+            if (!expiredOnCollision && age[i] < lifetime[i]) {
                 if (out != i) copy(i, out);
                 out++;
             }

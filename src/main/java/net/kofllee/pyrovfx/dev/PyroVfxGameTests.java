@@ -320,7 +320,7 @@ public final class PyroVfxGameTests {
         if (!a.selectedBackend().equals("cpu_dense")
                 || !a.backendReason().contains("lighting")
                 || !a.backendReason().contains("rotation")
-                || !b.selectedBackend().equals("cpu_legacy")
+                || !b.selectedBackend().equals("cpu_dense")
                 || !b.backendReason().contains("collision")
                 || (b.particleCostMask() & net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.CPU_MODEL.bit()) == 0) {
             throw new AssertionError("Emitter route lacks actionable backend and cost diagnostics");
@@ -396,6 +396,24 @@ public final class PyroVfxGameTests {
         pool.tick(context);
         if (pool.allocatedStateBytes() != allocated)
             throw new AssertionError("Memory telemetry should measure capacity, not active count");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void collisionsWithoutEventsMayUseDenseSimulation(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "dense_collision_no_events"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{
+                  "id":"main","spawn_shape":{"type":"point"},
+                  "motion":{"mode":"dynamic","dynamic":{"speed":1},
+                            "collision":{"collide":true,"bounciness":0.4}},
+                  "render":{"type":"sprite",
+                    "sprite":{"texture":"minecraft:textures/particle/generic_0.png"}}
+                }]}
+                """).getAsJsonObject());
+        if (!VfxDenseSpritePool.supports(definition.emitters().getFirst()))
+            throw new AssertionError("Collision without particle events should not require object-per-particle");
         helper.succeed();
     }
 
@@ -1486,8 +1504,8 @@ public final class PyroVfxGameTests {
                 """));
         var colliding = VfxDefinitionParser.parse(ResourceLocation.fromNamespaceAndPath(
                 PyroVfx.MOD_ID, "collision_fallback"), json);
-        if (VfxDenseSpritePool.supports(colliding.emitters().getFirst())) {
-            throw new AssertionError("Colliding sprites must not enter the world-free dense backend");
+        if (!VfxDenseSpritePool.supports(colliding.emitters().getFirst())) {
+            throw new AssertionError("Collision without events must use the Dense collision component");
         }
         helper.succeed();
     }
