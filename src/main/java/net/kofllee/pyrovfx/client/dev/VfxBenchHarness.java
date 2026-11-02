@@ -129,6 +129,10 @@ public final class VfxBenchHarness {
         if (!ENABLED) {
             return 0;
         }
+        if (!VfxBenchWindowPolicy.apply(Minecraft.getInstance())) {
+            Minecraft.getInstance().stop();
+            return 0;
+        }
         if (autoExitTicks > 0 && --autoExitTicks == 0) {
             Minecraft.getInstance().stop();
             return 0;

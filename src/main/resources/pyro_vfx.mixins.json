@@ -6,6 +6,7 @@
   "mixins": [
   ],
   "client": [
+    "BenchWindowFocusMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -61,6 +61,7 @@ neoForge {
                 systemProperty 'pyrovfx.bench.expectedHeight', benchHeight.get()
             }
             systemProperty 'pyrovfx.bench.uncapped', providers.gradleProperty('benchUncapped').orElse('false').get()
+            systemProperty 'pyrovfx.bench.secondMonitorBackground', providers.gradleProperty('benchSecondMonitorBackground').orElse('false').get()
             systemProperty 'pyrovfx.collision.disableCache', providers.gradleProperty('benchDisableCollisionCache').orElse('false').get()
             systemProperty 'pyrovfx.bench.auto', providers.gradleProperty('benchScenario').orElse('sprite_1k').get()
             systemProperty 'pyrovfx.bench.allowHeavy', providers.gradleProperty('benchHeavy').orElse('false').get()

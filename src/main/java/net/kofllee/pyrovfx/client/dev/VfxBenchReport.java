@@ -10,6 +10,8 @@ import net.kofllee.pyrovfx.client.render.VfxInstancedModelRenderer;
 import net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.glfw.GLFW;
+import org.lwjgl.system.MemoryStack;
 
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
@@ -19,6 +21,7 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.IntBuffer;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -171,6 +174,20 @@ final class VfxBenchReport {
         environment.addProperty("renderDistance", minecraft.options.renderDistance().get());
         environment.addProperty("fov", minecraft.options.fov().get());
         environment.addProperty("vsync", minecraft.options.enableVsync().get());
+        long benchWindow = minecraft.getWindow().getWindow();
+        environment.addProperty("backgroundSecondMonitorRequested",
+                Boolean.getBoolean("pyrovfx.bench.secondMonitorBackground"));
+        environment.addProperty("windowFocused",
+                GLFW.glfwGetWindowAttrib(benchWindow, GLFW.GLFW_FOCUSED) == GLFW.GLFW_TRUE);
+        environment.addProperty("mousePassthrough",
+                GLFW.glfwGetWindowAttrib(benchWindow, GLFW.GLFW_MOUSE_PASSTHROUGH) == GLFW.GLFW_TRUE);
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer x = stack.mallocInt(1);
+            IntBuffer y = stack.mallocInt(1);
+            GLFW.glfwGetWindowPos(benchWindow, x, y);
+            environment.addProperty("windowX", x.get(0));
+            environment.addProperty("windowY", y.get(0));
+        }
         root.add("environment", environment);
 
         Path jsonFile = output.resolve(id + ".json");
