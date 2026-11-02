@@ -6,6 +6,8 @@ import com.google.gson.JsonObject;
 import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.vfx.VfxLifetimeRuntime;
 import net.kofllee.pyrovfx.client.vfx.VfxRuntimeBudget;
+import net.kofllee.pyrovfx.client.vfx.VfxAnalyticPlan;
+import net.kofllee.pyrovfx.client.vfx.VfxAnalyticSpritePool;
 import net.kofllee.pyrovfx.client.vfx.VfxWorldIdentity;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxInstance;
 import net.kofllee.pyrovfx.client.vfx.VfxPlayOptions;
@@ -53,6 +55,75 @@ import java.lang.reflect.Proxy;
 @PrefixGameTestTemplate(false)
 public final class PyroVfxGameTests {
     private PyroVfxGameTests() {}
+
+    @GameTest(template = "empty")
+    public static void analyticMotionMatchesDiscreteCpuRecurrence(GameTestHelper helper) {
+        var plan = new VfxAnalyticPlan(true,"test",0.005,-0.002,0.001,Math.exp(-0.4/20.0),140);
+        double px=0, vx=0.125;
+        for(int n=1;n<=140;n++) {
+            vx=(vx+plan.accelerationX())*plan.dragMultiplier();
+            px+=vx;
+            double[] c=plan.coefficientsAt(n);
+            checkClose(px,0.125*c[0]+plan.accelerationX()*c[1]);
+        }
+        double[] previous=plan.coefficientsAt(16);
+        double[] next=plan.coefficientsAt(17);
+        double[] half=plan.coefficients(17,0.5f);
+        checkClose((previous[0]+next[0])*0.5,half[0]);
+        checkClose((previous[1]+next[1])*0.5,half[1]);
+        var noDrag=new VfxAnalyticPlan(true,"test",0.025,0,0,1,200);
+        checkClose(10.0,noDrag.coefficientsAt(10)[0]);
+        checkClose(55.0,noDrag.coefficientsAt(10)[1]);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticCapabilitySelectionPreservesFallback(GameTestHelper helper) {
+        String json = """
+            {"format":"pyro_vfx:1",
+             "parameters":{"count":20},
+             "emitters":[{"id":"particles","emitter_lifetime":{"mode":"once","active_ticks":1},
+               "spawn_amount":{"mode":"instant","amount":"param.count"},
+               "spawn_shape":{"type":"sphere","radius":2},
+               "particle_lifetime":{"max_age_ticks":40},
+               "motion":{"mode":"static"},
+               "render":{"type":"sprite","environment_lighting":false,
+                         "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                                   "blend_mode":"additive"},
+                         "color":"#FFFFFFFF","scale":[0.2,0.2,1]}}]}
+            """;
+        JsonObject parsed = JsonParser.parseString(json).getAsJsonObject();
+        var id=ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID,"analytic_selection");
+        var definition=VfxDefinitionParser.parse(id,parsed);
+        var plan=VfxAnalyticPlan.analyse(definition.emitters().getFirst(),true);
+        if(!plan.supported()) throw new AssertionError(plan.reason());
+        if(VfxAnalyticPlan.analyse(definition.emitters().getFirst(),false).supported())
+            throw new AssertionError("GPU unavailable must use CPU");
+        var pool=new VfxAnalyticSpritePool(definition.emitters().getFirst(),plan);
+        var start=ClientVfxExpressionContexts.effectStart(Vec3.ZERO,0,
+                Map.of("count",20.0),definition.curves(),RandomSource.create(1),
+                definition.program().variables());
+        var scope=ClientVfxExpressionContexts.emitterStart(start,Vec3.ZERO,0.5);
+        RandomSource first=RandomSource.create(100), second=RandomSource.create(100);
+        pool.spawn(20,Vec3.ZERO,scope,first);
+        for(int i=0;i<20;i++) {
+            second.nextDouble();
+            net.kofllee.pyrovfx.client.vfx.sampling.VfxSpawnPositionSampler.sample(
+                    Vec3.ZERO,definition.emitters().getFirst().spawnShape(),scope,second);
+        }
+        checkClose(second.nextDouble(),first.nextDouble());
+        if(pool.liveCount()!=20 || pool.data().remaining()!=20*24)
+            throw new AssertionError("GPU birth state count or packed stride mismatch");
+        for(int t=1;t<=40;t++) pool.tick();
+        if(pool.liveCount()!=0) throw new AssertionError("Analytic particle lifetime mismatch");
+
+        parsed.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                .getAsJsonObject("render").add("scale",JsonParser.parseString("[\"param.count\",0.2,1]"));
+        var mutable=VfxDefinitionParser.parse(id,parsed);
+        boolean rejected=!VfxAnalyticPlan.analyse(mutable.emitters().getFirst(),true).supported();
+        if(!rejected) throw new AssertionError("Mutable appearance must remain CPU");
+        helper.succeed();
+    }
 
     @GameTest(template = "empty")
     public static void conservativeRenderFrustumAndSubpixelLod(GameTestHelper helper) {

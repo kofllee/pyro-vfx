@@ -14,6 +14,7 @@ import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
 import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
+import net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.CompoundTagArgument;
@@ -65,6 +66,9 @@ public final class PyroVfxClientCommands {
                         )
                         .then(literal("stop_all")
                                 .executes(context -> stopAll())
+                        )
+                        .then(literal("backend")
+                                .executes(context -> showBackends())
                         )
                         .then(literal("play_at")
                                 .then(argument("effect", ResourceLocationArgument.id())
@@ -235,6 +239,35 @@ public final class PyroVfxClientCommands {
             );
         }
 
+        return 1;
+    }
+
+    private static int showBackends() {
+        Player player = Minecraft.getInstance().player;
+        if (player == null) return 0;
+        player.displayClientMessage(Component.literal(
+                "Pyro VFX CPU/GPU backends — active effects: "
+                        + ClientVfxManager.getActiveInstanceCount()
+                        + ", particles: " + ClientVfxManager.getActiveParticleCount()),false);
+        int printed=0;
+        for (var instance : ClientVfxManager.instances()) {
+            for (var emitter : instance.emitters()) {
+                if (printed++ == 16) {
+                    player.displayClientMessage(Component.literal("... (first 16 emitters shown)"),false);
+                    return 1;
+                }
+                player.displayClientMessage(Component.literal(
+                        instance.definition().id() + "/" + emitter.definition().id()
+                                + ": " + emitter.selectedBackend()
+                                + " (" + emitter.liveParticleCount() + " active)"
+                                + " — " + emitter.backendReason()),false);
+            }
+        }
+        player.displayClientMessage(Component.literal(
+                "GPU analytic last frame: " + VfxAnalyticSpriteRenderer.instances()
+                        + " instances, " + VfxAnalyticSpriteRenderer.drawCalls()
+                        + " draw calls, " + VfxAnalyticSpriteRenderer.uploadedBytes()
+                        + " bytes uploaded"),false);
         return 1;
     }
 

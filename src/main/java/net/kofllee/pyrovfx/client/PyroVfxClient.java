@@ -5,6 +5,7 @@ import net.kofllee.pyrovfx.client.dev.VfxBenchHarness;
 import net.kofllee.pyrovfx.client.render.VfxRenderer;
 import net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer;
 import net.kofllee.pyrovfx.client.render.VfxInstancedModelRenderer;
+import net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxModelSpawnShapeSampler;
 import net.kofllee.pyrovfx.vfx.resource.VfxReloadListener;
@@ -32,6 +33,7 @@ public final class PyroVfxClient {
             VfxModelSpawnShapeSampler.clearCache();
             VfxInstancedSpriteRenderer.invalidateAfterReload();
             VfxInstancedModelRenderer.invalidateAfterReload();
+            VfxAnalyticSpriteRenderer.invalidateAfterReload();
         }));
     }
 

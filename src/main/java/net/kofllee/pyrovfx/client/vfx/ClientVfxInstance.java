@@ -292,6 +292,10 @@ public final class ClientVfxInstance {
         return Collections.unmodifiableList(emitters);
     }
 
+    public void close() {
+        for (ClientVfxEmitter emitter : emitters) emitter.close();
+    }
+
     public void setParameter(String id, double value) {
         if (!definition.parameters().containsKey(id)) {
             return;

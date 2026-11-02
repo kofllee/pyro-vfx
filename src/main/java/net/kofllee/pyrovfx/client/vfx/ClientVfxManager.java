@@ -38,6 +38,7 @@ public final class ClientVfxManager {
         ClientLevel level = trackWorld();
 
         if(level == null) {
+            for (ClientVfxInstance instance : INSTANCES) instance.close();
             INSTANCES.clear();
             return;
         }
@@ -50,11 +51,13 @@ public final class ClientVfxManager {
                 instance.tick(level);
             } catch (Exception e) {
                 LOGGER.error("Failed to tick Pyro VFX instance: {}", instance.definition().id(), e);
+                instance.close();
                 iterator.remove();
                 continue;
             }
 
             if(instance.isFinished()){
+                instance.close();
                 iterator.remove();
             }
         }
@@ -63,12 +66,14 @@ public final class ClientVfxManager {
     private static ClientLevel trackWorld() {
         ClientLevel level = Minecraft.getInstance().level;
         if (WORLD_IDENTITY.update(level)) {
+            for (ClientVfxInstance instance : INSTANCES) instance.close();
             INSTANCES.clear();
         }
         return level;
     }
 
     public static void clear(){
+        for (ClientVfxInstance instance : INSTANCES) instance.close();
         INSTANCES.clear();
     }
 

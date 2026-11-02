@@ -43,6 +43,8 @@ public final class ClientVfxEmitter {
     private final List<ClientVfxParticle> particles = new ArrayList<>();
     private final List<ClientVfxParticle> pendingParticles = new ArrayList<>();
     private final VfxDenseSpritePool densePool;
+    private final VfxAnalyticSpritePool analyticPool;
+    private final VfxAnalyticPlan analyticPlan;
     private final VfxEventCommandQueue collisionEvents;
     private boolean updatingParticles;
 
@@ -54,7 +56,12 @@ public final class ClientVfxEmitter {
     ) {
 
         this.definition = definition;
-        this.densePool = VfxDenseSpritePool.supports(definition) ? new VfxDenseSpritePool(definition) : null;
+        this.analyticPlan = VfxAnalyticPlan.analyse(definition,
+                net.neoforged.fml.loading.FMLEnvironment.dist.isClient()
+                        && net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer.gpuPossible());
+        this.analyticPool = analyticPlan.useGpu() ? new VfxAnalyticSpritePool(definition, analyticPlan) : null;
+        this.densePool = analyticPool == null && VfxDenseSpritePool.supports(definition)
+                ? new VfxDenseSpritePool(definition) : null;
         this.collisionEvents = definition.particleTriggers().isEmpty() ? null : new VfxEventCommandQueue();
 
         this.emitterRandom = random.nextDouble();
@@ -125,6 +132,9 @@ public final class ClientVfxEmitter {
         // present at the start of the phase; newly emitted particles start next tick.
         if (densePool != null) {
             densePool.tick(emitterContext);
+        }
+        if (analyticPool != null) {
+            analyticPool.tick();
         }
         int particleCount = particles.size();
         boolean hasExpiredParticles = false;
@@ -328,6 +338,11 @@ public final class ClientVfxEmitter {
             VfxEventRuntime runtime
     ) {
         count = runtime.reserveSpawns(count);
+        if (analyticPool != null) {
+            analyticPool.spawn(count, emitterPosition, emitterContext, random);
+            emittedParticles += count;
+            return;
+        }
         for (int i = 0; i < count; i++) {
             double particleRandom = random.nextDouble();
 
@@ -473,6 +488,20 @@ public final class ClientVfxEmitter {
         return densePool;
     }
 
+    public VfxAnalyticSpritePool analyticPool() { return analyticPool; }
+
+    public String selectedBackend() {
+        return analyticPool != null ? "gpu_analytic"
+                : densePool != null ? "cpu_dense"
+                : "cpu_legacy";
+    }
+    public String backendReason() {
+        return analyticPlan.reason();
+    }
+    public void close() {
+        if (analyticPool != null) analyticPool.close();
+    }
+
     public int age() {
         return age;
     }
@@ -490,7 +519,9 @@ public final class ClientVfxEmitter {
     }
 
     public int liveParticleCount() {
-        return particles.size() + pendingParticles.size() + (densePool == null ? 0 : densePool.size());
+        return particles.size() + pendingParticles.size()
+                + (densePool == null ? 0 : densePool.size())
+                + (analyticPool == null ? 0 : analyticPool.liveCount());
     }
 
     public VfxLifetimeState lifetimeState() {

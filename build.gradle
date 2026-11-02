@@ -58,6 +58,8 @@ neoForge {
             systemProperty 'pyrovfx.render.stateAudit', providers.gradleProperty('benchRenderStateAudit').orElse('false').get()
             systemProperty 'pyrovfx.bench.requireGpuInstancing', providers.gradleProperty('benchRequireGpuInstancing').orElse('false').get()
             systemProperty 'pyrovfx.cpu.forceLegacy', providers.gradleProperty('benchLegacyCpu').orElse('false').get()
+            systemProperty 'pyrovfx.analytic.forceCpu', providers.gradleProperty('benchLegacyAnalytic').orElse('false').get()
+            systemProperty 'pyrovfx.bench.requireGpuAnalytic', providers.gradleProperty('benchRequireGpuAnalytic').orElse('false').get()
             systemProperty 'pyrovfx.bench.autoExit', 'true'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }

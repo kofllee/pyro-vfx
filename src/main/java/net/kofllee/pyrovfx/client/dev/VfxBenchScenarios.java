@@ -22,6 +22,7 @@ public final class VfxBenchScenarios {
         add(scenarios, "sprite_10k", "bench/static", 10_000);
         add(scenarios, "sprite_100k", "bench/static", 100_000);
         add(scenarios, "sprite_1m", "bench/static", 1_000_000);
+        add(scenarios, "analytic_dynamic_10k", "bench/analytic_dynamic", 10_000);
         add(scenarios, "dynamic_1k", "bench/dynamic", 1_000);
         add(scenarios, "collision_1k", "bench/collision", 1_000);
         add(scenarios, "collision_no_events", "bench/collision_no_events", 1_000);

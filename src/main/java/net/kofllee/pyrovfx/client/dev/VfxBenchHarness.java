@@ -6,6 +6,7 @@ import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxModelSpawnShapeSampler;
 import net.kofllee.pyrovfx.client.vfx.VfxPlayOptions;
 import net.kofllee.pyrovfx.client.vfx.VfxRuntimeBudget;
+import net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer;
 import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.kofllee.pyrovfx.vfx.resource.VfxRegistry;
 import net.minecraft.client.Minecraft;
@@ -244,6 +245,15 @@ public final class VfxBenchHarness {
             }
         }
         if (run.elapsedTicks >= run.scenario.warmupTicks() + run.scenario.sampleTicks()) {
+            if (Boolean.getBoolean("pyrovfx.bench.requireGpuAnalytic")) {
+                if (run.maxAnalyticInstances != run.scenario.particles()
+                        || run.analyticDatasetUploads == 0
+                        || run.analyticDrawCalls == 0) {
+                    run.error = "GPU analytic backend failed to render expected particle count: "
+                            + run.maxAnalyticInstances + "/" + run.scenario.particles()
+                            + " uploads=" + run.analyticDatasetUploads;
+                }
+            }
             if ((run.scenario.name().equals("reload_active")
                     || run.scenario.name().equals("model_reload_active")) && !run.reloadCompleted) {
                 run.error = "Client resource reload not observed before benchmark ended";
@@ -253,7 +263,8 @@ public final class VfxBenchHarness {
                 if ((name.equals("sprite_1k") || name.equals("sprite_10k")
                         || name.equals("sprite_uv_instanced") || name.equals("sprite_world_z")
                         || name.equals("sprite_horizontal"))
-                        && net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.drawCalls() == 0) {
+                        && net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.drawCalls() == 0
+                        && net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer.drawCalls() == 0) {
                     run.error = "Expected actual sprite GPU instancing, got no draws: " + name;
                 }
                 if ((name.equals("model_1k") || name.equals("model_reload_active"))
@@ -325,6 +336,10 @@ public final class VfxBenchHarness {
             run.gpuTimer.poll();
         }
         long now = System.nanoTime();
+        run.analyticUploadBytes += VfxAnalyticSpriteRenderer.uploadedBytes();
+        run.analyticDatasetUploads += VfxAnalyticSpriteRenderer.uploadedDatasets();
+        run.analyticDrawCalls += VfxAnalyticSpriteRenderer.drawCalls();
+        run.maxAnalyticInstances = Math.max(run.maxAnalyticInstances, VfxAnalyticSpriteRenderer.instances());
         if (run.gpuRenderer == null) {
             run.gpuRenderer = safeGlString(GL11.GL_RENDERER);
             run.gpuVendor = safeGlString(GL11.GL_VENDOR);
@@ -474,6 +489,10 @@ public final class VfxBenchHarness {
         Double gpuMedianMs;
         Double gpuP95Ms;
         int gpuSamples;
+        long analyticUploadBytes;
+        long analyticDrawCalls;
+        int analyticDatasetUploads;
+        int maxAnalyticInstances;
         Vec3 originalPosition;
         float originalYaw;
         float originalPitch;

@@ -7,6 +7,8 @@ import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer;
 import net.kofllee.pyrovfx.client.render.VfxInstancedModelRenderer;
+import net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer;
+import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import org.lwjgl.opengl.GL11;
 
 import java.io.IOException;
@@ -77,6 +79,23 @@ final class VfxBenchReport {
         root.addProperty("gpuSubpixelCulledLastFrame", VfxInstancedSpriteRenderer.subpixelCulledParticles());
         root.addProperty("gpuModelDrawCallsLastFrame", VfxInstancedModelRenderer.lastDrawCalls());
         root.addProperty("gpuModelInstancesLastFrame", VfxInstancedModelRenderer.lastInstances());
+        root.addProperty("gpuAnalyticDrawCallsLastFrame", VfxAnalyticSpriteRenderer.drawCalls());
+        root.addProperty("gpuAnalyticInstancesLastFrame", VfxAnalyticSpriteRenderer.instances());
+        root.addProperty("gpuAnalyticUploadedBytesLastFrame", VfxAnalyticSpriteRenderer.uploadedBytes());
+        root.addProperty("gpuAnalyticDatasetsUploadedLastFrame", VfxAnalyticSpriteRenderer.uploadedDatasets());
+        root.addProperty("gpuAnalyticUploadBytesTotal", run.analyticUploadBytes);
+        root.addProperty("gpuAnalyticDatasetUploadsTotal", run.analyticDatasetUploads);
+        root.addProperty("gpuAnalyticDrawCallsTotal", run.analyticDrawCalls);
+        root.addProperty("gpuAnalyticMaxInstancesSubmitted", run.maxAnalyticInstances);
+        root.addProperty("gpuAnalyticBirthStateStrideBytes", 24);
+        if (!ClientVfxManager.instances().isEmpty() && !ClientVfxManager.instances().getFirst().emitters().isEmpty()) {
+            var emitter = ClientVfxManager.instances().getFirst().emitters().getFirst();
+            root.addProperty("selectedParticleBackend", emitter.selectedBackend());
+            root.addProperty("backendSelectionReason", emitter.backendReason());
+        } else {
+            root.addProperty("selectedParticleBackend", "instance expired");
+            root.addProperty("backendSelectionReason", "instance not retained at report collection");
+        }
         root.addProperty("effect", run.scenario.effect().toString());
         root.addProperty("effectSha256", effectHash(run.scenario.effect()));
         root.addProperty("seed", run.scenario.seed());

@@ -16,6 +16,8 @@ public final class VfxRenderer {
         Minecraft minecraft = Minecraft.getInstance();
         VfxInstancedSpriteRenderer.resetFrameStats();
         VfxInstancedModelRenderer.resetFrameStats();
+        VfxAnalyticSpriteRenderer.resetFrameStats();
+        VfxAnalyticSpriteRenderer.maintain();
 
         MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
 
@@ -24,6 +26,16 @@ public final class VfxRenderer {
         try {
             for(ClientVfxInstance instance: ClientVfxManager.instances()){
                 for(var emitter : instance.emitters()) {
+                    var analytic = emitter.analyticPool();
+                    if (analytic != null && analytic.liveCount() > 0) {
+                        if (gpuFrame) VfxInstancedSpriteRenderer.flush();
+                        bufferSource.endBatch();
+                        queuedVanilla = false;
+                        if (!VfxAnalyticSpriteRenderer.render(analytic, poseStack, camera, partialTick)) {
+                            analytic.renderFallback(poseStack, bufferSource, camera, partialTick);
+                            queuedVanilla = true;
+                        }
+                    }
                     var pool = emitter.densePool();
                     if (pool != null && pool.size() > 0
                             && VfxInstancedSpriteRenderer.matches(pool.definition())) {
