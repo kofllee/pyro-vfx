@@ -13,7 +13,6 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.shapes.VoxelShape;
 
 import static org.joml.Math.lerp;
 
@@ -309,13 +308,8 @@ public final class ClientVfxParticle implements VfxSpriteParticleView {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     mutablePos.set(x, y, z);
-                    var state = level.getBlockState(mutablePos);
-                    if (state.isAir()) {
-                        continue;
-                    }
-                    VoxelShape shape = state.getCollisionShape(level, mutablePos);
-
-                    if (!shape.isEmpty() && shape.bounds().move(mutablePos).intersects(box)) {
+                    AABB localBounds = VfxCollisionQueryCache.bounds(level, mutablePos);
+                    if (VfxCollisionQueryCache.intersects(localBounds, x, y, z, box)) {
                         return true;
                     }
                 }

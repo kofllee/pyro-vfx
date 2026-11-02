@@ -7,6 +7,7 @@ import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.vfx.VfxLifetimeRuntime;
 import net.kofllee.pyrovfx.client.vfx.VfxRuntimeBudget;
 import net.kofllee.pyrovfx.client.vfx.VfxGlobalBudget;
+import net.kofllee.pyrovfx.client.vfx.VfxCollisionQueryCache;
 import net.kofllee.pyrovfx.client.vfx.VfxAnalyticPlan;
 import net.kofllee.pyrovfx.client.vfx.VfxAnalyticSpritePool;
 import net.kofllee.pyrovfx.client.vfx.VfxWorldIdentity;
@@ -15,6 +16,7 @@ import net.kofllee.pyrovfx.client.vfx.VfxPlayOptions;
 import net.kofllee.pyrovfx.client.render.VfxSpriteUvSampler;
 import net.kofllee.pyrovfx.client.render.VfxRenderVisibility;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.AABB;
 import org.joml.Matrix4f;
 import net.kofllee.pyrovfx.vfx.curve.VfxCurveDefinition;
 import net.kofllee.pyrovfx.vfx.curve.VfxCurvePoint;
@@ -56,6 +58,33 @@ import java.lang.reflect.Proxy;
 @PrefixGameTestTemplate(false)
 public final class PyroVfxGameTests {
     private PyroVfxGameTests() {}
+
+    @GameTest(template = "empty")
+    public static void cachedCollisionBoundsMatchOriginalAabbIntersections(GameTestHelper helper) {
+        var random = RandomSource.create(0xC0111510L);
+        for (int i = 0; i < 1024; i++) {
+            int x = random.nextIntBetweenInclusive(-100, 100);
+            int y = random.nextIntBetweenInclusive(-30, 260);
+            int z = random.nextIntBetweenInclusive(-100, 100);
+            double minX = random.nextDouble() * 2 - 0.5;
+            double minY = random.nextDouble() * 2 - 0.5;
+            double minZ = random.nextDouble() * 2 - 0.5;
+            var local = new AABB(minX,minY,minZ,
+                    minX + 0.02 + random.nextDouble(),
+                    minY + 0.02 + random.nextDouble(),
+                    minZ + 0.02 + random.nextDouble());
+            double deltaX = random.nextDouble() * 3 - 1.5;
+            double deltaY = random.nextDouble() * 3 - 1.5;
+            double deltaZ = random.nextDouble() * 3 - 1.5;
+            var box = local.move(x + deltaX, y + deltaY, z + deltaZ);
+            boolean original = local.move(x,y,z).intersects(box);
+            boolean optimized = VfxCollisionQueryCache.intersects(local,x,y,z,box);
+            if (original != optimized) {
+                throw new AssertionError("Collision shape bound translation changed intersection semantics");
+            }
+        }
+        helper.succeed();
+    }
 
     @GameTest(template = "empty")
     public static void renderDefinitionsAlwaysUsePyroOwnedParticles(GameTestHelper helper) {

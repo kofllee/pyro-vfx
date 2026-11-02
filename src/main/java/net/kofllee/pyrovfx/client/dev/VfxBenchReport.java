@@ -109,6 +109,9 @@ final class VfxBenchReport {
         root.addProperty("requestedParticles", run.scenario.particles());
         root.addProperty("peakActiveParticles", run.peakParticles);
         root.addProperty("collisionContacts", run.collisionContacts);
+        root.addProperty("collisionCacheHits", run.collisionCacheHits);
+        root.addProperty("collisionCacheMisses", run.collisionCacheMisses);
+        root.addProperty("collisionCacheDisabled", Boolean.getBoolean("pyrovfx.collision.disableCache"));
         root.addProperty("collisionEventObserved", run.collisionEventObserved);
         root.addProperty("reloadCompleted", run.reloadCompleted);
         root.addProperty("warmupTicks", run.scenario.warmupTicks());

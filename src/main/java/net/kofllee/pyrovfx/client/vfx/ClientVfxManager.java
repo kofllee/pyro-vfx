@@ -49,9 +49,11 @@ public final class ClientVfxManager {
             for (ClientVfxInstance instance : INSTANCES) instance.close();
             INSTANCES.clear();
             GLOBAL_BUDGET.reset();
+            VfxCollisionQueryCache.clear();
             return;
         }
 
+        VfxCollisionQueryCache.beginTick(level);
         boolean heavy = !net.neoforged.fml.loading.FMLEnvironment.production
                 && Boolean.getBoolean("pyrovfx.bench.allowHeavy");
         GLOBAL_BUDGET.beginTick(getActiveParticleCount(), heavy);
@@ -89,6 +91,7 @@ public final class ClientVfxManager {
         for (ClientVfxInstance instance : INSTANCES) instance.close();
         INSTANCES.clear();
         GLOBAL_BUDGET.reset();
+        VfxCollisionQueryCache.clear();
     }
 
     public static VfxGlobalBudget globalBudget() { return GLOBAL_BUDGET; }

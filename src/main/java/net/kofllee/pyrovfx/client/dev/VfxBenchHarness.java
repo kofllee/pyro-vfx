@@ -238,6 +238,8 @@ public final class VfxBenchHarness {
             }
         }
         if (index >= run.scenario.warmupTicks()) {
+            run.collisionCacheHits += net.kofllee.pyrovfx.client.vfx.VfxCollisionQueryCache.hits();
+            run.collisionCacheMisses += net.kofllee.pyrovfx.client.vfx.VfxCollisionQueryCache.misses();
             if (run.tickCount < run.simulationNs.length) {
                 run.simulationNs[run.tickCount++] = elapsed;
             }
@@ -332,10 +334,12 @@ public final class VfxBenchHarness {
                             + " effects=" + ClientVfxManager.getActiveInstanceCount();
                 }
             }
-            if (run.scenario.name().equals("collision_no_events") && run.collisionContacts == 0) {
+            // Both 1k and 10k fixtures intentionally have no on_collision event.
+            if (run.scenario.name().startsWith("collision_no_events")
+                    && run.collisionContacts == 0) {
                 run.error = "Collision geometry was never exercised without event handlers";
             } else if (run.scenario.name().startsWith("collision")
-                    && !run.scenario.name().equals("collision_no_events")
+                    && !run.scenario.name().startsWith("collision_no_events")
                     && (run.collisionContacts == 0 || !run.collisionEventObserved)) {
                 run.error = "Collision scenario did not observe a block contact and its event";
             }
@@ -549,6 +553,8 @@ public final class VfxBenchHarness {
         long originalDayTime;
         final Map<BlockPos, BlockState> originalBlocks = new LinkedHashMap<>();
         long collisionContacts;
+        long collisionCacheHits;
+        long collisionCacheMisses;
         boolean collisionEventObserved;
         CompletableFuture<Void> reloadFuture;
         boolean reloadCompleted;

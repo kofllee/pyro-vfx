@@ -265,6 +265,12 @@ public final class PyroVfxClientCommands {
                         + "; rejected spawns/events/effects "
                         + budget.rejectedSpawns() + "/" + budget.rejectedEvents()
                         + "/" + budget.rejectedInstances()), false);
+        player.displayClientMessage(Component.literal(
+                "Collision block-shape cache (last client tick): "
+                        + net.kofllee.pyrovfx.client.vfx.VfxCollisionQueryCache.hits()
+                        + " hits / "
+                        + net.kofllee.pyrovfx.client.vfx.VfxCollisionQueryCache.misses()
+                        + " world queries"), false);
         int printed=0;
         for (var instance : ClientVfxManager.instances()) {
             for (var emitter : instance.emitters()) {
