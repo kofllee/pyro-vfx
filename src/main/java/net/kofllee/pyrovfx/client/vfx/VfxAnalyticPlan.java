@@ -16,11 +16,24 @@ public record VfxAnalyticPlan(boolean supported, String reason,
     }
     public static VfxAnalyticPlan analyse(VfxEmitterDefinition d, boolean gpuAvailable) {
         if (!gpuAvailable) return reject("GPU instancing unavailable, renderer disabled or incompatible mod");
-        if (d.render().type() != VfxRenderType.SPRITE
-                || d.render().sprite() == null
-                || d.render().sprite().blendMode() != VfxBlendMode.ADDITIVE
-                || d.render().environmentLighting()
-                || (d.render().facing() != VfxFacingMode.CAMERA
+        boolean model = d.render().type() == VfxRenderType.MODEL
+                && d.render().model() != null
+                && d.render().model().source() != VfxModelSourceType.ENTITY
+                && d.render().model().renderLayer() != VfxModelRenderLayer.TRANSLUCENT
+                && !d.render().environmentLighting();
+        boolean sprite = d.render().type() == VfxRenderType.SPRITE
+                && d.render().sprite() != null
+                && d.render().sprite().blendMode() == VfxBlendMode.ADDITIVE
+                && !d.render().environmentLighting()
+                && (d.render().facing() == VfxFacingMode.CAMERA
+                    || d.render().facing() == VfxFacingMode.CAMERA_HORIZONTAL
+                    || d.render().facing() == VfxFacingMode.WORLD_Z);
+        if (!sprite && !model)
+            return reject("GPU resident path requires an additive sprite or unlit baked opaque/cutout/additive model");
+        if (model && (!d.render().appearance().color().isConstant()
+                    || d.render().appearance().color().evaluate(null).a() != 1.0))
+            return reject("model resident kernel requires constant opaque color");
+        if (sprite && (d.render().facing() != VfxFacingMode.CAMERA
                     && d.render().facing() != VfxFacingMode.CAMERA_HORIZONTAL
                     && d.render().facing() != VfxFacingMode.WORLD_Z))
             return reject("additive full-bright camera-facing sprite required");
@@ -34,11 +47,11 @@ public record VfxAnalyticPlan(boolean supported, String reason,
             return reject("rotation is not analytic");
         if (d.motion().collision().collide())
             return reject("collision queries require Minecraft world state");
-        var uv = d.render().sprite().uv();
+        var uv = sprite ? d.render().sprite().uv() : null;
         // An instant burst has a shared age. Deterministic static/animated
         // frames can therefore be updated by one uniform, not per particle.
         // Per-particle random start frames still require the dense CPU path.
-        if (uv.mode() != VfxUvMode.FULL
+        if (sprite && uv.mode() != VfxUvMode.FULL
                 && (uv.randomStartFrame()
                     || !uv.textureSize().isConstant()
                     || !uv.uvStart().isConstant()

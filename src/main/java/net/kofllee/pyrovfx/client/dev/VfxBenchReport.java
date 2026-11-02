@@ -82,6 +82,8 @@ final class VfxBenchReport {
         root.addProperty("gpuSubpixelCulledLastFrame", VfxInstancedSpriteRenderer.subpixelCulledParticles());
         root.addProperty("gpuModelDrawCallsLastFrame", VfxInstancedModelRenderer.lastDrawCalls());
         root.addProperty("gpuModelInstancesLastFrame", VfxInstancedModelRenderer.lastInstances());
+        root.addProperty("gpuModelResidentUploadsLastFrame", VfxInstancedModelRenderer.residentUploads());
+        root.addProperty("gpuModelResidentUploadBytesLastFrame", VfxInstancedModelRenderer.residentUploadBytes());
         root.addProperty("gpuAnalyticDrawCallsLastFrame", VfxAnalyticSpriteRenderer.drawCalls());
         root.addProperty("gpuAnalyticInstancesLastFrame", VfxAnalyticSpriteRenderer.instances());
         root.addProperty("gpuAnalyticUploadedBytesLastFrame", VfxAnalyticSpriteRenderer.uploadedBytes());
@@ -118,6 +120,9 @@ final class VfxBenchReport {
             var emitter = ClientVfxManager.instances().getFirst().emitters().getFirst();
             root.addProperty("selectedParticleBackend", emitter.selectedBackend());
             root.addProperty("backendSelectionReason", emitter.backendReason());
+            root.addProperty("selectedRenderer", emitter.selectedRenderer());
+            root.addProperty("gpuResidentBirthBytes", emitter.gpuResidentBirthBytes());
+            root.addProperty("allocatedParticleStateBytes", emitter.allocatedParticleStateBytes());
         } else {
             root.addProperty("selectedParticleBackend", "instance expired");
             root.addProperty("backendSelectionReason", "instance not retained at report collection");

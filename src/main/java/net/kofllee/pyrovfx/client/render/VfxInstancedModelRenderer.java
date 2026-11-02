@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxParticle;
 import net.kofllee.pyrovfx.client.vfx.VfxDenseSpritePool;
+import net.kofllee.pyrovfx.client.vfx.VfxAnalyticSpritePool;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxModelRenderDefinition;
 import net.kofllee.pyrovfx.vfx.type.VfxModelRenderLayer;
@@ -60,18 +61,30 @@ public final class VfxInstancedModelRenderer {
             layout(location=4) in vec4 iColor;
             layout(location=5) in vec4 iRotation;
             layout(location=6) in vec2 iLight;
+            layout(location=8) in vec3 iBirthVelocity;
             uniform mat4 uMvp;
+            uniform int uAnalytic;
+            uniform vec3 uCamera, uAcceleration, uSharedScale;
+            uniform vec2 uMotion;
+            uniform vec4 uSharedColor;
             out vec2 vUv;
             out vec4 vColor;
             out vec4 vBakedColor;
             out vec2 vLight;
             void main() {
-                vec3 p = (aPosition - vec3(0.5)) * iScale;
-                vec3 t = 2.0 * cross(iRotation.xyz, p);
-                vec3 point = iPosition + p + iRotation.w * t + cross(iRotation.xyz, t);
+                vec3 scale = uAnalytic != 0 ? uSharedScale : iScale;
+                vec4 rot = uAnalytic != 0 ? vec4(0,0,0,1) : iRotation;
+                vec3 origin = iPosition;
+                if (uAnalytic != 0) {
+                    origin = iPosition - uCamera + iBirthVelocity * uMotion.x
+                             + uAcceleration * uMotion.y;
+                }
+                vec3 p = (aPosition - vec3(0.5)) * scale;
+                vec3 t = 2.0 * cross(rot.xyz, p);
+                vec3 point = origin + p + rot.w * t + cross(rot.xyz, t);
                 gl_Position = uMvp * vec4(point, 1.0);
                 vUv = aUv;
-                vColor = iColor;
+                vColor = uAnalytic != 0 ? uSharedColor : iColor;
                 vBakedColor = aBakedColor;
                 vLight = iLight;
             }
@@ -103,12 +116,13 @@ public final class VfxInstancedModelRenderer {
     private static final FloatBuffer MATRIX_BUFFER = ByteBuffer.allocateDirect(16 * Float.BYTES)
             .order(ByteOrder.nativeOrder()).asFloatBuffer();
     private static ByteBuffer instances;
-    private static int program, instanceVbo, vao, vertexVbo;
+    private static int program, instanceVbo, vao, analyticVao, vertexVbo;
     private static int capacity, mvpUniform;
     private static boolean unavailable;
     private static volatile boolean reloadPending;
     private static int lastDrawCalls;
     private static int lastInstances;
+    private static int residentUploads, residentUploadBytes;
     private static final Mesh UNSUPPORTED = new Mesh(0, 0);
     private static final Quaternionf ROTATION = new Quaternionf();
 
@@ -135,7 +149,63 @@ public final class VfxInstancedModelRenderer {
 
     public static int lastDrawCalls() { return lastDrawCalls; }
     public static int lastInstances() { return lastInstances; }
-    public static void resetFrameStats() { lastDrawCalls = lastInstances = 0; }
+    public static int residentUploads() { return residentUploads; }
+    public static int residentUploadBytes() { return residentUploadBytes; }
+    public static void resetFrameStats() { lastDrawCalls = lastInstances = residentUploads = residentUploadBytes = 0; }
+
+    /** One birth-state VBO per cohort; model transforms are advanced by the vertex shader. */
+    public static boolean renderAnalytic(VfxAnalyticSpritePool pool, PoseStack poses,
+                                         Camera camera, float partialTick) {
+        if (!pool.model() || pool.liveCount() <= 0 || !accepts(pool.definition())) return false;
+        RenderSystem.assertOnRenderThread();
+        if (reloadPending) {
+            destroy();
+            reloadPending = false;
+        }
+        var resource = pool.definition().render().model();
+        Mesh mesh = meshes.get(resource);
+        if (mesh == null) {
+            mesh = bake(resource);
+            meshes.put(resource, mesh == null ? UNSUPPORTED : mesh);
+        }
+        if (mesh == null || mesh == UNSUPPORTED) return false;
+        boolean submitted = false;
+        try {
+            if (program == 0) initialize();
+            if (pool.gpuBuffer() == 0 || pool.gpuGeneration() != VfxAnalyticSpriteRenderer.generation()
+                    || pool.dirty()) {
+                if (pool.gpuBuffer() != 0) VfxAnalyticSpriteRenderer.retireBuffer(pool.gpuBuffer());
+                int oldArray = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
+                int buffer = GL15.glGenBuffers();
+                try {
+                    GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, buffer);
+                    ByteBuffer data = pool.data();
+                    residentUploadBytes += data.remaining();
+                    GL15.glBufferData(GL15.GL_ARRAY_BUFFER, data, GL15.GL_STATIC_DRAW);
+                    residentUploads++;
+                } finally {
+                    GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, oldArray);
+                }
+                pool.setGpuBuffer(buffer, VfxAnalyticSpriteRenderer.generation());
+            }
+            pool.updateAppearance(partialTick);
+            Matrix4f mvp = new Matrix4f(RenderSystem.getProjectionMatrix())
+                    .mul(RenderSystem.getModelViewMatrix()).mul(poses.last().pose());
+            for (int start = 0; start < pool.liveCount(); start += MAX_BATCH) {
+                int count = Math.min(MAX_BATCH, pool.liveCount() - start);
+                drawResident(mesh, mvp, count, resource.renderLayer(), pool, start, camera, partialTick);
+                submitted = true;
+                lastDrawCalls++;
+                lastInstances += count;
+            }
+            return true;
+        } catch (RuntimeException ex) {
+            unavailable = true;
+            com.mojang.logging.LogUtils.getLogger().warn(
+                    "GPU resident model rendering failed; switching to Minecraft fallback", ex);
+            return submitted; // Do not redraw already submitted batches through Minecraft fallback.
+        }
+    }
 
     /** Render dense primitive model state directly, without materializing particle objects. */
     public static boolean renderDense(VfxDenseSpritePool pool, PoseStack poses,
@@ -375,6 +445,19 @@ public final class VfxInstancedModelRenderer {
 
     private static void draw(Mesh mesh, Matrix4f mvp, int count,
                              VfxModelRenderLayer layer, boolean worldLit) {
+        drawModel(mesh, mvp, count, layer, worldLit, null, 0, null, 0);
+    }
+
+    private static void drawResident(Mesh mesh, Matrix4f mvp, int count,
+                                     VfxModelRenderLayer layer, VfxAnalyticSpritePool pool,
+                                     int start, Camera camera, float partialTick) {
+        drawModel(mesh, mvp, count, layer, false, pool, start, camera, partialTick);
+    }
+
+    private static void drawModel(Mesh mesh, Matrix4f mvp, int count,
+                                  VfxModelRenderLayer layer, boolean worldLit,
+                                  VfxAnalyticSpritePool resident, int start,
+                                  Camera camera, float partialTick) {
         VfxInstancedSpriteRenderer.GlState state = new VfxInstancedSpriteRenderer.GlState();
         state.capture();
         int previousShaderLight = RenderSystem.getShaderTexture(2);
@@ -387,13 +470,37 @@ public final class VfxInstancedModelRenderer {
             // models instead of sampling texture id 0 (black geometry).
             if (worldLit) Minecraft.getInstance().gameRenderer.lightTexture().turnOnLightLayer();
             GL20.glUseProgram(program);
-            GL30.glBindVertexArray(vao);
+            GL30.glBindVertexArray(resident == null ? vao : analyticVao);
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, mesh.geometryVbo());
             attribute(0,3,VERTEX_FLOATS*Float.BYTES,0,0);
             attribute(1,2,VERTEX_FLOATS*Float.BYTES,3L*Float.BYTES,0);
             attribute(7,4,VERTEX_FLOATS*Float.BYTES,5L*Float.BYTES,0);
-            GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, instanceVbo);
-            GL15.glBufferData(GL15.GL_ARRAY_BUFFER, instances, GL15.GL_STREAM_DRAW);
+            if (resident == null) {
+                GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, instanceVbo);
+                GL15.glBufferData(GL15.GL_ARRAY_BUFFER, instances, GL15.GL_STREAM_DRAW);
+            } else {
+                GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, resident.gpuBuffer());
+                long base = (long) start * VfxAnalyticSpritePool.STRIDE;
+                attribute(2, 3, VfxAnalyticSpritePool.STRIDE, base, 1);
+                attribute(8, 3, VfxAnalyticSpritePool.STRIDE, base + 12, 1);
+            }
+            GL20.glUniform1i(GL20.glGetUniformLocation(program, "uAnalytic"), resident == null ? 0 : 1);
+            if (resident != null) {
+                var coefficients = resident.plan().coefficients(resident.age(), partialTick);
+                GL20.glUniform2f(GL20.glGetUniformLocation(program, "uMotion"),
+                        (float) coefficients[0], (float) coefficients[1]);
+                GL20.glUniform3f(GL20.glGetUniformLocation(program, "uCamera"),
+                        (float) camera.getPosition().x,
+                        (float) camera.getPosition().y, (float) camera.getPosition().z);
+                GL20.glUniform3f(GL20.glGetUniformLocation(program, "uAcceleration"),
+                        (float) resident.plan().accelerationX(), (float) resident.plan().accelerationY(),
+                        (float) resident.plan().accelerationZ());
+                GL20.glUniform3f(GL20.glGetUniformLocation(program, "uSharedScale"),
+                        (float) resident.scale().x, (float) resident.scale().y, (float) resident.scale().z);
+                GL20.glUniform4f(GL20.glGetUniformLocation(program, "uSharedColor"),
+                        (float) resident.color().r(), (float) resident.color().g(),
+                        (float) resident.color().b(), (float) resident.color().a());
+            }
             GL13.glActiveTexture(GL13.GL_TEXTURE0);
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, Minecraft.getInstance().getTextureManager()
                     .getTexture(InventoryMenu.BLOCK_ATLAS).getId());
@@ -452,6 +559,7 @@ public final class VfxInstancedModelRenderer {
         int oldArray = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
         try {
             vao = GL30.glGenVertexArrays();
+            analyticVao = GL30.glGenVertexArrays();
             vertexVbo = GL15.glGenBuffers();
             instanceVbo = GL15.glGenBuffers();
             GL30.glBindVertexArray(vao);
@@ -498,8 +606,9 @@ public final class VfxInstancedModelRenderer {
         if (vertexVbo != 0) GL15.glDeleteBuffers(vertexVbo);
         if (instanceVbo != 0) GL15.glDeleteBuffers(instanceVbo);
         if (vao != 0) GL30.glDeleteVertexArrays(vao);
+        if (analyticVao != 0) GL30.glDeleteVertexArrays(analyticVao);
         if (program != 0) GL20.glDeleteProgram(program);
-        vertexVbo=instanceVbo=vao=program=0;
+        vertexVbo=instanceVbo=vao=analyticVao=program=0;
         meshes.clear();
     }
 }

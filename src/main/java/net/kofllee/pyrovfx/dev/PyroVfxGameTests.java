@@ -418,6 +418,35 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void gpuAnalyticModelRoutingRejectsUnsupportedFeatures(GameTestHelper helper) {
+        JsonObject json = JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{
+                  "id":"model","spawn_shape":{"type":"sphere","radius":1},
+                  "motion":{"mode":"dynamic","dynamic":{"speed":0.2}},
+                  "render":{"type":"model","environment_lighting":false,
+                    "model":{"source":"custom","model":"pyro_vfx:vfx/ember_cube",
+                             "render_layer":"solid"},"color":"#FFFFFFFF",
+                    "scale":[0.2,0.2,0.2]}
+                }]}
+                """).getAsJsonObject();
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "analytic_model_routing");
+        var emitter = VfxDefinitionParser.parse(id, json).emitters().getFirst();
+        if (!VfxAnalyticPlan.analyse(emitter, true).supported())
+            throw new AssertionError("Unlit nonrotating baked model should admit resident GPU birth state");
+        int mask = net.kofllee.pyrovfx.client.vfx.ClientVfxEmitter.costMaskFor(emitter, true);
+        if ((mask & net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.GPU_ANALYTIC.bit()) == 0
+                || (mask & net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.CPU_MODEL.bit()) == 0
+                || (mask & net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.CPU_BASIC.bit()) != 0) {
+            throw new AssertionError("Resident GPU model must count both simulation and model rendering");
+        }
+        var render = json.getAsJsonArray("emitters").get(0).getAsJsonObject().getAsJsonObject("render");
+        render.addProperty("environment_lighting", true);
+        if (VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json).emitters().getFirst(), true).supported())
+            throw new AssertionError("World-light queries cannot become GPU-only");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void adaptiveSpawnsResetOnWorldExitAndDisable(GameTestHelper helper) {
         var adaptive = new VfxAdaptiveSpawnController();
         for (int tick = 0; tick < 30; tick++) {

@@ -518,10 +518,18 @@ public final class ClientVfxEmitter {
 
     /** The model and collision dimensions stack with the CPU simulation cost. */
     public int particleCostMask() {
-        if (analyticPlan.useGpu()) return VfxParticleCostClass.GPU_ANALYTIC.bit();
-        int mask = VfxParticleCostClass.CPU_BASIC.bit();
-        if (definition.motion().collision().collide()) mask |= VfxParticleCostClass.CPU_COLLISION.bit();
-        if (definition.render().type() == VfxRenderType.MODEL) mask |= VfxParticleCostClass.CPU_MODEL.bit();
+        return costMaskFor(definition, analyticPlan.useGpu());
+    }
+
+    public static int costMaskFor(VfxEmitterDefinition definition, boolean gpuAnalytic) {
+        int mask = gpuAnalytic ? VfxParticleCostClass.GPU_ANALYTIC.bit()
+                : VfxParticleCostClass.CPU_BASIC.bit();
+        if (!gpuAnalytic && definition.motion().collision().collide()) {
+            mask |= VfxParticleCostClass.CPU_COLLISION.bit();
+        }
+        if (definition.render().type() == VfxRenderType.MODEL) {
+            mask |= VfxParticleCostClass.CPU_MODEL.bit();
+        }
         return mask;
     }
 
@@ -531,7 +539,8 @@ public final class ClientVfxEmitter {
                 : "cpu_legacy";
     }
     public String backendReason() {
-        if (analyticPlan.useGpu()) return "GPU-resident sprite births; " + analyticPlan.reason();
+        if (analyticPlan.useGpu()) return (definition.render().type() == VfxRenderType.MODEL
+                ? "GPU-resident model births; " : "GPU-resident sprite births; ") + analyticPlan.reason();
         StringBuilder reason = new StringBuilder();
         reason.append(densePool == null ? "Legacy required: " : "SoA enabled: ");
         reason.append("motion=").append(definition.motion().mode().name().toLowerCase(java.util.Locale.ROOT));

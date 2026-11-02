@@ -2,6 +2,8 @@ package net.kofllee.pyrovfx.client.vfx;
 
 import net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer;
 import net.kofllee.pyrovfx.client.render.SpriteVfxParticleRenderer;
+import net.kofllee.pyrovfx.client.render.ModelVfxParticleRenderer;
+import net.kofllee.pyrovfx.vfx.type.VfxRenderType;
 import net.kofllee.pyrovfx.client.render.ClientVfxSpriteUvState;
 import net.kofllee.pyrovfx.client.render.ClientVfxSpriteUvResolver;
 import net.kofllee.pyrovfx.client.render.VfxSpriteUvRect;
@@ -45,7 +47,8 @@ public final class VfxAnalyticSpritePool {
             scale = d.render().appearance().scale().evaluate(null).toVec3();
             color = d.render().appearance().color().evaluate(null);
         }
-        uvState = ClientVfxSpriteUvResolver.resolve(d.render().sprite().uv(), null, 0.0);
+        uvState = d.render().sprite() == null ? null
+                : ClientVfxSpriteUvResolver.resolve(d.render().sprite().uv(), null, 0.0);
     }
 
     public void spawn(int amount, Vec3 origin, VfxExpressionContext scope, RandomSource random) {
@@ -83,6 +86,7 @@ public final class VfxAnalyticSpritePool {
         }
     }
     public int liveCount() { return count; }
+    public boolean model() { return definition.render().type() == VfxRenderType.MODEL; }
     /** Direct buffer capacity (not just currently live bytes). */
     public long allocatedStateBytes() { return states == null ? 0 : states.capacity(); }
     /** Uploaded birth-state payload only; excludes driver bookkeeping and mesh VBOs. */
@@ -164,6 +168,23 @@ public final class VfxAnalyticSpritePool {
         if (states == null || count == 0) return;
         updateAppearance(partial);
         double[] c = plan.coefficients(age, partial);
+        if (model()) {
+            for (int i = 0; i < count; i++) {
+                int offset = i * STRIDE;
+                Vec3 birth = new Vec3(states.getFloat(offset), states.getFloat(offset + 4),
+                        states.getFloat(offset + 8));
+                Vec3 velocity = new Vec3(states.getFloat(offset + 12),
+                        states.getFloat(offset + 16), states.getFloat(offset + 20));
+                Vec3 current = birth.add(velocity.scale(c[0])).add(
+                        plan.accelerationX() * c[1], plan.accelerationY() * c[1],
+                        plan.accelerationZ() * c[1]);
+                ClientVfxParticle snapshot = ClientVfxParticle.denseSnapshot(definition,
+                        birth, current, current, velocity, Vec3.ZERO, Vec3.ZERO,
+                        scale, scale, color, color, 0, plan.lifetime(), age, null);
+                ModelVfxParticleRenderer.render(snapshot, pose, buffer, camera, partial);
+            }
+            return;
+        }
         FallbackCursor cursor = new FallbackCursor(c[0], c[1]);
         for (int i = 0; i < count; i++) {
             cursor.index = i;

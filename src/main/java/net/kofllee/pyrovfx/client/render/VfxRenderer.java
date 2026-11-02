@@ -36,12 +36,17 @@ public final class VfxRenderer {
                         if (gpuFrame) VfxInstancedSpriteRenderer.flush();
                         bufferSource.endBatch();
                         queuedVanilla = false;
-                        if (!VfxAnalyticSpriteRenderer.render(analytic, poseStack, camera, partialTick)) {
+                        boolean rendered = analytic.model()
+                                ? VfxInstancedModelRenderer.renderAnalytic(analytic, poseStack, camera, partialTick)
+                                : VfxAnalyticSpriteRenderer.render(analytic, poseStack, camera, partialTick);
+                        if (!rendered) {
                             emitter.recordRenderer("Minecraft sprite fallback (analytic GPU unavailable)");
                             analytic.renderFallback(poseStack, bufferSource, camera, partialTick);
                             queuedVanilla = true;
                         } else {
-                            emitter.recordRenderer("GPU analytic sprite (resident birth data)");
+                            emitter.recordRenderer(analytic.model()
+                                    ? "GPU analytic model (resident birth data)"
+                                    : "GPU analytic sprite (resident birth data)");
                         }
                     }
                     var pool = emitter.densePool();
