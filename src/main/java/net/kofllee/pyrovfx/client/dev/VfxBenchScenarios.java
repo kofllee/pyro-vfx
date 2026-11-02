@@ -37,6 +37,8 @@ public final class VfxBenchScenarios {
         add(scenarios, "model_10k", "bench/model", 10_000);
         add(scenarios, "model_100k", "bench/model", 100_000);
         add(scenarios, "model_rotating_10k", "bench/model_rotating", 10_000);
+        add(scenarios, "model_rotating_unlit_10k", "bench/model_rotating_unlit", 10_000);
+        add(scenarios, "model_rotating_unlit_100k", "bench/model_rotating_unlit", 100_000);
         add(scenarios, "model_rotating_1k", "bench/model_rotating", 1_000);
         add(scenarios, "model_block_10k", "bench/model_block", 10_000);
         add(scenarios, "model_item_1k", "bench/model_item", 1_000);

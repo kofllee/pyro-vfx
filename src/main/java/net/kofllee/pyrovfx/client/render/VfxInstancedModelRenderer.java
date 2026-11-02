@@ -67,13 +67,14 @@ public final class VfxInstancedModelRenderer {
             uniform vec3 uCamera, uAcceleration, uSharedScale;
             uniform vec2 uMotion;
             uniform vec4 uSharedColor;
+            uniform vec4 uSharedRotation;
             out vec2 vUv;
             out vec4 vColor;
             out vec4 vBakedColor;
             out vec2 vLight;
             void main() {
                 vec3 scale = uAnalytic != 0 ? uSharedScale : iScale;
-                vec4 rot = uAnalytic != 0 ? vec4(0,0,0,1) : iRotation;
+                vec4 rot = uAnalytic != 0 ? uSharedRotation : iRotation;
                 vec3 origin = iPosition;
                 if (uAnalytic != 0) {
                     origin = iPosition - uCamera + iBirthVelocity * uMotion.x
@@ -500,6 +501,12 @@ public final class VfxInstancedModelRenderer {
                 GL20.glUniform4f(GL20.glGetUniformLocation(program, "uSharedColor"),
                         (float) resident.color().r(), (float) resident.color().g(),
                         (float) resident.color().b(), (float) resident.color().a());
+                Vec3 angles = resident.modelRotation(partialTick);
+                ROTATION.rotationXYZ((float) Math.toRadians(angles.x),
+                        (float) Math.toRadians(angles.y),
+                        (float) Math.toRadians(angles.z));
+                GL20.glUniform4f(GL20.glGetUniformLocation(program, "uSharedRotation"),
+                        ROTATION.x, ROTATION.y, ROTATION.z, ROTATION.w);
             }
             GL13.glActiveTexture(GL13.GL_TEXTURE0);
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, Minecraft.getInstance().getTextureManager()

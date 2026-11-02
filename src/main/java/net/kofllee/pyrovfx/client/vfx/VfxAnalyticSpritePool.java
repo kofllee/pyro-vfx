@@ -26,6 +26,7 @@ public final class VfxAnalyticSpritePool {
     public static final int STRIDE = 24;
     private final VfxEmitterDefinition definition;
     private final VfxAnalyticPlan plan;
+    private final VfxAnalyticModelRotation sharedModelRotation;
     private Vec3 scale;
     private VfxColor color;
     private final ClientVfxSpriteUvState uvState;
@@ -39,6 +40,8 @@ public final class VfxAnalyticSpritePool {
     public VfxAnalyticSpritePool(VfxEmitterDefinition d, VfxAnalyticPlan p) {
         definition = d;
         plan = p;
+        sharedModelRotation = d.render().type() == VfxRenderType.MODEL
+                ? VfxAnalyticModelRotation.from(d.rotation()) : null;
         animatedAppearance = !d.render().appearance().scale().isConstant()
                 || !d.render().appearance().color().isConstant();
         if (animatedAppearance) {
@@ -87,6 +90,9 @@ public final class VfxAnalyticSpritePool {
     }
     public int liveCount() { return count; }
     public boolean model() { return definition.render().type() == VfxRenderType.MODEL; }
+    public Vec3 modelRotation(float partial) {
+        return sharedModelRotation == null ? Vec3.ZERO : sharedModelRotation.angles(age, partial);
+    }
     /** Direct buffer capacity (not just currently live bytes). */
     public long allocatedStateBytes() { return states == null ? 0 : states.capacity(); }
     /** Uploaded birth-state payload only; excludes driver bookkeeping and mesh VBOs. */
@@ -169,6 +175,7 @@ public final class VfxAnalyticSpritePool {
         updateAppearance(partial);
         double[] c = plan.coefficients(age, partial);
         if (model()) {
+            Vec3 modelAngles = modelRotation(partial);
             for (int i = 0; i < count; i++) {
                 int offset = i * STRIDE;
                 Vec3 birth = new Vec3(states.getFloat(offset), states.getFloat(offset + 4),
@@ -179,7 +186,7 @@ public final class VfxAnalyticSpritePool {
                         plan.accelerationX() * c[1], plan.accelerationY() * c[1],
                         plan.accelerationZ() * c[1]);
                 ClientVfxParticle snapshot = ClientVfxParticle.denseSnapshot(definition,
-                        birth, current, current, velocity, Vec3.ZERO, Vec3.ZERO,
+                        birth, current, current, velocity, modelAngles, modelAngles,
                         scale, scale, color, color, 0, plan.lifetime(), age, null);
                 ModelVfxParticleRenderer.render(snapshot, pose, buffer, camera, partial);
             }

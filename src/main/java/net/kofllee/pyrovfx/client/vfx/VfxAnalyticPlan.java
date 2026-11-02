@@ -43,8 +43,9 @@ public record VfxAnalyticPlan(boolean supported, String reason,
             return reject("analytic backend supports once-lived instant or steady emitters");
         if (!d.triggers().isEmpty() || !d.particleTriggers().isEmpty())
             return reject("emitter/particle triggers require ordered CPU events");
-        if (d.rotation().mode() != VfxRotationMode.NONE)
-            return reject("rotation is not analytic");
+        if (d.rotation().mode() != VfxRotationMode.NONE
+                && (!model || !VfxAnalyticModelRotation.supports(d.rotation())))
+            return reject("rotation needs per-particle or runtime evaluation");
         if (d.motion().collision().collide())
             return reject("collision queries require Minecraft world state");
         var uv = sprite ? d.render().sprite().uv() : null;

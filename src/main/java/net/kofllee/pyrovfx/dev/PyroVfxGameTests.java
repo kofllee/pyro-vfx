@@ -468,6 +468,53 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void sharedModelRotationUsesAnalyticGpuAndMatchesLegacyTicks(GameTestHelper helper) {
+        var def = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "analytic_model_rotation"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","lifetime":{"active_ticks":20},"emitters":[{
+                  "id":"main","spawn_shape":{"type":"point"},
+                  "emitter_lifetime":{"active_ticks":1},
+                  "spawn_amount":{"mode":"instant","amount":1},
+                  "particle_lifetime":{"max_age_ticks":16},
+                  "rotation":{"mode":"dynamic","dynamic":{
+                    "start_rotation":[11,17,23],"angular_velocity":[70,100,35],
+                    "angular_acceleration":[5,9,3],"angular_drag":0.1}},
+                  "motion":{"mode":"dynamic","dynamic":{"speed":0.2}},
+                  "render":{"type":"model","environment_lighting":false,
+                    "model":{"source":"custom","model":"pyro_vfx:vfx/ember_cube","render_layer":"solid"},
+                    "color":"#FFFFFFFF","scale":[0.2,0.2,0.2]}
+                }]}
+                """).getAsJsonObject());
+        var emitter = def.emitters().getFirst();
+        if (!VfxAnalyticPlan.analyse(emitter, true).supported())
+            throw new AssertionError("Shared model rotation unnecessarily forces CPU");
+        var rotationPlan = net.kofllee.pyrovfx.client.vfx.VfxAnalyticModelRotation.from(emitter.rotation());
+        String original = System.getProperty("pyrovfx.cpu.forceLegacy");
+        ClientVfxInstance legacy;
+        try {
+            System.setProperty("pyrovfx.cpu.forceLegacy", "true");
+            legacy = new ClientVfxInstance(def, Vec3.ZERO, VfxPlayOptions.empty(), 989L);
+        } finally {
+            if (original == null) System.clearProperty("pyrovfx.cpu.forceLegacy");
+            else System.setProperty("pyrovfx.cpu.forceLegacy", original);
+        }
+        for (int n = 1; n < 9; n++) {
+            legacy.tick(null);
+            var particle = legacy.emitters().getFirst().legacyParticles().getFirst();
+            Vec3 atTick = rotationPlan.angles(n, 1.0f);
+            Vec3 halfway = rotationPlan.angles(n, 0.5f);
+            checkClose(particle.rotation().x, atTick.x);
+            checkClose(particle.rotation().y, atTick.y);
+            checkClose(particle.rotation().z, atTick.z);
+            checkClose(particle.interpolatedRotation(0.5f).x, halfway.x);
+            checkClose(particle.interpolatedRotation(0.5f).y, halfway.y);
+            checkClose(particle.interpolatedRotation(0.5f).z, halfway.z);
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void adaptiveSpawnsResetOnWorldExitAndDisable(GameTestHelper helper) {
         var adaptive = new VfxAdaptiveSpawnController();
         for (int tick = 0; tick < 30; tick++) {
