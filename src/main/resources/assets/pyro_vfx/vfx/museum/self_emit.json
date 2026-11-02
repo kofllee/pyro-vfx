@@ -20,7 +20,7 @@
     },
     "emit_again": {
       "type": "emit",
-      "emitter": "main"
+      "emitter": "child"
     },
     "on_hit": {
       "type": "sequence",
@@ -95,6 +95,56 @@
         "scale": [
           2.4,
           2.4,
+          1
+        ]
+      }
+    },
+    {
+      "id": "child",
+      "emitter_lifetime": {
+        "mode": "manual"
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 2
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.18
+      },
+      "offset": [
+        0,
+        0.3,
+        0
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 24
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "up",
+          "speed": 0.16,
+          "acceleration": [
+            0,
+            -0.04,
+            0
+          ],
+          "linear_drag": 0.1
+        }
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": "#66CCFFFF",
+        "scale": [
+          0.65,
+          0.65,
           1
         ]
       }

@@ -88,6 +88,10 @@ public final class VfxBenchScenarios {
                     exhibit.effect(), exhibit.count(), 0x50B0_2026L ^ exhibit.id().hashCode(),
                     10, 60));
         }
+        var selfEmit = net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("self_emit");
+        scenarios.put("museum_self_emit_near", new Scenario("museum_self_emit_near",
+                selfEmit.effect(), selfEmit.count(), 0x50B0_2026L ^ selfEmit.id().hashCode(),
+                10, 60));
         return Map.copyOf(scenarios);
     }
 

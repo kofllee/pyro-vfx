@@ -47,8 +47,20 @@ public final class VfxBenchHarness {
     private VfxBenchHarness() {}
 
     private static net.kofllee.pyrovfx.museum.VfxMuseumCatalog.Exhibit museumExhibit(String scenario) {
+        if (scenario.equals("museum_self_emit_near"))
+            return net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("self_emit");
         return scenario.startsWith("museum_")
                 ? net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find(scenario.substring(7)) : null;
+    }
+
+    private static Vec3 museumCamera(String scenario,
+            net.kofllee.pyrovfx.museum.VfxMuseumCatalog.Exhibit exhibit) {
+        if (scenario.equals("museum_self_emit_near"))
+            return new Vec3(exhibit.effectOrigin().getX() + 0.5,
+                    exhibit.effectOrigin().getY() + 0.5,
+                    exhibit.effectOrigin().getZ() + 2.0);
+        return new Vec3(exhibit.base().getX() + 7.5,
+                exhibit.base().getY() + 3.0, exhibit.base().getZ() + 13.3);
     }
 
     public static boolean enabled() {
@@ -134,9 +146,7 @@ public final class VfxBenchHarness {
             player.setGameMode(GameType.SPECTATOR);
             var museumExhibit = museumExhibit(scenario.name());
             Vec3 camera = museumExhibit == null ? CAMERA
-                    : new Vec3(museumExhibit.base().getX() + 7.5,
-                    museumExhibit.base().getY() + 3.0,
-                    museumExhibit.base().getZ() + 13.3);
+                    : museumCamera(scenario.name(), museumExhibit);
             player.teleportTo(camera.x, camera.y, camera.z);
             player.setYRot(museumExhibit == null ? 0 : 180);
             player.setXRot(museumExhibit == null ? 14 : 8);
@@ -192,8 +202,7 @@ public final class VfxBenchHarness {
             }
             var museum = museumExhibit(run.scenario.name());
             if (museum != null) {
-                Vec3 expected = new Vec3(museum.base().getX() + 7.5,
-                        museum.base().getY() + 3.0, museum.base().getZ() + 13.3);
+                Vec3 expected = museumCamera(run.scenario.name(), museum);
                 if (minecraft.player.position().distanceToSqr(expected) > 12) {
                     if (run.setupTicks > 650)
                         run.error = "Museum camera/stand never finished loading: " + museum.id();

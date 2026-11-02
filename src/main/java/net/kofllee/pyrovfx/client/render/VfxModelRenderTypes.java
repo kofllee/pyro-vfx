@@ -21,6 +21,7 @@ public final class VfxModelRenderTypes extends RenderStateShard {
         return CACHE.computeIfAbsent(layer, VfxModelRenderTypes::create);
     }
 
+
     private static RenderType create(VfxModelRenderLayer layer) {
         return switch (layer){
             case SOLID -> solid();

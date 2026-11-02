@@ -58,7 +58,7 @@
           "model": "pyro_vfx:vfx/ember_cube",
           "render_layer": "translucent"
         },
-        "color": "#FFFFFF80",
+        "color": "#FFFFFFFF",
         "scale": [
           1.05,
           1.05,

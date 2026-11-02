@@ -48,7 +48,10 @@ public final class PyroVfxClient {
 
     @SubscribeEvent
     public static void renderLevel(RenderLevelStageEvent event) {
-        if(event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) {
+        // AFTER_PARTICLES is before vanilla's clouds/weather composite in 1.21.1,
+        // causing clouds behind alpha smoke to paint over it. Render against
+        // the finished world depth/color, before hand and HUD instead.
+        if(event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) {
             return;
         }
 

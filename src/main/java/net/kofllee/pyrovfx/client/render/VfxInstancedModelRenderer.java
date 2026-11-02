@@ -178,7 +178,8 @@ public final class VfxInstancedModelRenderer {
                     .mul(RenderSystem.getModelViewMatrix()).mul(poses.last().pose());
             for (int start = 0; start < pool.liveCount(); start += MAX_BATCH) {
                 int count = Math.min(MAX_BATCH, pool.liveCount() - start);
-                drawResident(mesh, mvp, count, resource.renderLayer(), pool, start, camera, partialTick);
+                drawResident(mesh, mvp, count, resource.effectiveLayer(),
+                        pool, start, camera, partialTick);
                 submitted = true;
                 lastDrawCalls++;
                 lastInstances += count;
@@ -234,7 +235,7 @@ public final class VfxInstancedModelRenderer {
                 instances.putFloat((((light >> 20) & 15) + 0.5f) / 16f);
                 if (++batched[0] == MAX_BATCH) {
                     instances.flip();
-                    draw(readyMesh, mvp, batched[0], resource.renderLayer(),
+                    draw(readyMesh, mvp, batched[0], resource.effectiveLayer(),
                             pool.definition().render().environmentLighting());
                     lastDrawCalls++;
                     lastInstances += batched[0];
@@ -244,7 +245,7 @@ public final class VfxInstancedModelRenderer {
             }, partialTick);
             if (batched[0] > 0) {
                 instances.flip();
-                draw(mesh, mvp, batched[0], resource.renderLayer(),
+                draw(mesh, mvp, batched[0], resource.effectiveLayer(),
                         pool.definition().render().environmentLighting());
                 lastDrawCalls++;
                 lastInstances += batched[0];
@@ -274,7 +275,7 @@ public final class VfxInstancedModelRenderer {
         // the entire emitter is left to the Minecraft renderer.
         for (ClientVfxParticle particle : particles) {
             if (particle.emitterDefinition() != definition) return false;
-            if (resource.renderLayer() == VfxModelRenderLayer.SOLID
+            if (resource.effectiveLayer() == VfxModelRenderLayer.SOLID
                     && Math.abs(particle.interpolatedColor(partialTick).a() - 1.0) > 1.0e-6) return false;
         }
         try {
@@ -316,7 +317,7 @@ public final class VfxInstancedModelRenderer {
                 }
                 if (drawn != 0) {
                     instances.flip();
-                    draw(mesh, mvp, drawn, resource.renderLayer(),
+                    draw(mesh, mvp, drawn, resource.effectiveLayer(),
                             definition.render().environmentLighting());
                     lastDrawCalls++;
                     lastInstances += drawn;
@@ -360,7 +361,7 @@ public final class VfxInstancedModelRenderer {
         int priorLight = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
         GL13.glActiveTexture(GL13.GL_TEXTURE0);
         try {
-            // AFTER_PARTICLES does not guarantee the vanilla shader lightmap
+            // Custom AFTER_LEVEL rendering does not guarantee the vanilla shader lightmap
             // remains bound to shader sampler 2. Bind it explicitly for lit
             // models instead of sampling texture id 0 (black geometry).
             if (worldLit) Minecraft.getInstance().gameRenderer.lightTexture().turnOnLightLayer();

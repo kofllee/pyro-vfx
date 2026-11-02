@@ -181,7 +181,7 @@ final class VfxBenchReport {
         root.addProperty("gpuTimingNote", run.gpuSamples > 0
                 ? "Asynchronous GL_TIME_ELAPSED queries around VfxRenderer.render, excludes the rest of the Minecraft frame."
                 : "No completed OpenGL timer queries; GPU time unavailable.");
-        root.addProperty("frameTimingNote", "Wall-clock interval between AFTER_PARTICLES render-stage callbacks; not a GPU timer.");
+        root.addProperty("frameTimingNote", "Wall-clock interval between AFTER_LEVEL render-stage callbacks; not a GPU timer.");
         root.addProperty("renderTimingNote", "CPU wall-clock time of VfxRenderer.render; may contain driver calls, not GPU execution.");
         root.addProperty("allocationNote", "Current render/tick thread allocations if supported by HotSpot ThreadMXBean.");
         root.addProperty("recordedAtUtc", Instant.now().toString());

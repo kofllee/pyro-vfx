@@ -31,6 +31,8 @@ Sprites, 3D Models (custom, block, item, entity), Transparency (alpha smoke, dee
 
 All demo textures/models are existing repo assets. Each effect lives in `assets/pyro_vfx/vfx/museum/<id>.json`; all are generated from an explicit manifest (`src/main/resources/pyro_vfx_museum_exhibits.tsv`) by `python tools/generate_museum_effects.py`. Unlike benchmark fixtures, these have large **demo-only** scale multipliers and reduced spatial spread. Smoke demo billboards retain readable faces; CPU/GPU comparisons use identical effect definitions and seed.
 
+**Visual corrections (2026-11-03):** item models with alpha-cutout textures no longer render opaque black backgrounds on GPU or Minecraft fallback; Pyro smoke renders at `AFTER_LEVEL` so vanilla clouds no longer overpaint smoke; neutral stone-model displays no longer inherit a warm benchmark tint. The `self_emit` museum stand now demonstrates one bounded parent-to-child collision event instead of the deliberately recursive M0 stress fixture. Use `museum_self_emit_near` for a separate near-camera performance check. See [Minecraft visual regression report](../benchmarks/museum-visual-fixes-2026-11-03/README.md) and the comparison screenshots.
+
 ## Measurements and profiles
 
 Bench output is written to `run/pyrovfx-benchmarks/` with active particles, FPS, P95/P99 frame interval, CPU tick, GPU VFX time, tracked particle bytes, heap and spawn request time. GPU timing is async **Pyro rendering only**, not whole-frame GPU. Screenshots and report hash are recorded for visual comparisons.

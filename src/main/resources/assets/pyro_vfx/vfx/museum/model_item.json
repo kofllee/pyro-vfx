@@ -48,7 +48,7 @@
         "model": {
           "source": "item",
           "model": "minecraft:iron_ingot",
-          "render_layer": "solid"
+          "render_layer": "cutout"
         },
         "color": "#FFFFFFFF",
         "scale": [

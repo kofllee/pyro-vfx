@@ -47,7 +47,7 @@ public final class ItemModelVfxParticleRenderer {
                     ? VfxRenderLight.getParticleLight(particle, partialTick)
                     : LightTexture.FULL_BRIGHT;
 
-        RenderType renderType = VfxModelRenderTypes.get(modelDefinition.renderLayer());
+        RenderType renderType = VfxModelRenderTypes.get(modelDefinition.effectiveLayer());
         VertexConsumer consumer = bufferSource.getBuffer(renderType);
 
         BakedModel model = minecraft.getItemRenderer().getModel(
@@ -75,21 +75,20 @@ public final class ItemModelVfxParticleRenderer {
                 poseStack,
                 consumer,
                 color,
-                light,
-                renderType
+                light
         );
 
         poseStack.popPose();
     }
 
-    private static void renderItemBakedModel(BakedModel model, PoseStack poseStack, VertexConsumer consumer, VfxColor color, int light, RenderType renderType) {
+    private static void renderItemBakedModel(BakedModel model, PoseStack poseStack, VertexConsumer consumer, VfxColor color, int light) {
         RandomSource random = RandomSource.create(42L);
 
         for (Direction direction : Direction.values()) {
             random.setSeed(42L);
 
             renderQuads(
-                    model.getQuads(null, direction, random, ModelData.EMPTY, renderType),
+                    model.getQuads(null, direction, random, ModelData.EMPTY, null),
                     poseStack,
                     consumer,
                     color,
@@ -100,7 +99,7 @@ public final class ItemModelVfxParticleRenderer {
         random.setSeed(42L);
 
         renderQuads(
-                model.getQuads(null, null, random, ModelData.EMPTY, renderType),
+                model.getQuads(null, null, random, ModelData.EMPTY, null),
                 poseStack,
                 consumer,
                 color,

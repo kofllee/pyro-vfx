@@ -53,6 +53,14 @@ def generate() -> int:
             if amount.get("mode") == "instant":
                 amount["amount"] = "param.count"
             render = emitter.get("render", {})
+            if render.get("type") == "model":
+                # In historical bench fixtures several cubes were deliberately
+                # tinted warm (1,.85,.75). Museum material/lighting controls
+                # must be neutral so shading defects are visible.
+                render["color"] = "#FFFFFFFF"
+                if render.get("model", {}).get("source") == "item":
+                    # Texture alpha is real geometry information for items.
+                    render["model"]["render_layer"] = "cutout"
             if "scale" in render:
                 # XYZ are physical dimensions of a model; a sprite's third
                 # element is not a depth scale. Never squash 3D demos.
@@ -81,6 +89,30 @@ def generate() -> int:
                 if isinstance(shape.get("height"), (int, float)):
                     shape["height"] = min(float(shape["height"]), 2.5)
             # Avoid sky-high presentation beams in the museum.
+        if exhibit_id == "self_emit":
+            # The historical M0 stress fixture deliberately emits back into
+            # the same colliding emitter: 24 -> 576 -> 13,824 contacts.
+            # Keep that fixture unchanged, but make the interactive demo a
+            # bounded one-generation parent -> child event for reliable FPS.
+            data["events"]["emit_again"]["emitter"] = "child"
+            data["emitters"].append({
+                "id": "child",
+                "emitter_lifetime": {"mode": "manual"},
+                "spawn_amount": {"mode": "instant", "amount": 2},
+                "spawn_shape": {"type": "sphere", "radius": 0.18},
+                "offset": [0, 0.3, 0],
+                "particle_lifetime": {"max_age_ticks": 24},
+                "motion": {"mode": "dynamic", "dynamic": {
+                    "direction": "up", "speed": 0.16,
+                    "acceleration": [0, -0.04, 0],
+                    "linear_drag": 0.1
+                }},
+                "render": {"type": "sprite", "facing": "camera",
+                    "environment_lighting": False,
+                    "sprite": {"texture": "minecraft:textures/particle/generic_0.png",
+                               "blend_mode": "additive"},
+                    "color": "#66CCFFFF", "scale": [0.65, 0.65, 1]}
+            })
         output = OUTPUT / f"{exhibit_id}.json"
         output.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     for stale in OUTPUT.glob("*.json"):

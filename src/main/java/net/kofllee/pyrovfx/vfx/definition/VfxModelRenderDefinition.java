@@ -5,4 +5,10 @@ import net.kofllee.pyrovfx.vfx.type.VfxModelSourceType;
 import net.minecraft.resources.ResourceLocation;
 
 public record VfxModelRenderDefinition (VfxModelSourceType source, ResourceLocation model, String blockState, VfxModelRenderLayer renderLayer) {
+    /** Items use atlas pixels with transparency even when the JSON layer is
+     * solid; honor their cutout mask on CPU and GPU without changing blocks. */
+    public VfxModelRenderLayer effectiveLayer() {
+        return source == VfxModelSourceType.ITEM && renderLayer == VfxModelRenderLayer.SOLID
+                ? VfxModelRenderLayer.CUTOUT : renderLayer;
+    }
 }

@@ -88,6 +88,16 @@ public final class PyroVfxGameTests {
                     throw new AssertionError("Empty museum effect: " + exhibit.id());
                 if (!definition.parameters().containsKey("count"))
                     throw new AssertionError("Museum playback requires count parameter: " + exhibit.id());
+                if (exhibit.id().equals("self_emit")) {
+                    var emit = json.getAsJsonObject("events").getAsJsonObject("emit_again");
+                    if (!"child".equals(emit.get("emitter").getAsString())
+                            || definition.emitters().size() != 2
+                            || !definition.emitters().get(1).particleTriggers().isEmpty()
+                            || definition.emitters().get(1).spawnAmount().amount()
+                                .evaluateDouble(null) > 3) {
+                        throw new AssertionError("Museum self-emit must be bounded and not recursively spawn");
+                    }
+                }
                 for (var emitter : definition.emitters()) {
                     if (emitter.render().type() == net.kofllee.pyrovfx.vfx.type.VfxRenderType.MODEL
                             && emitter.render().appearance().scale().isConstant()) {
@@ -96,6 +106,14 @@ public final class PyroVfxGameTests {
                             throw new AssertionError("Museum squashed model depth: " + exhibit.id()
                                     + ", XYZ=" + size);
                         }
+                    }
+                    if (emitter.render().type() == net.kofllee.pyrovfx.vfx.type.VfxRenderType.MODEL
+                            && emitter.render().appearance().color().isConstant()) {
+                        var color = emitter.render().appearance().color().evaluate(null);
+                        if (Math.abs(color.r() - 1.0) > 0.0001
+                                || Math.abs(color.g() - 1.0) > 0.0001
+                                || Math.abs(color.b() - 1.0) > 0.0001)
+                            throw new AssertionError("Museum 3D model has warm tint: " + exhibit.id());
                     }
                 }
                 for (String line : net.kofllee.pyrovfx.museum.VfxMuseumWorld.expectedLines(
@@ -106,6 +124,24 @@ public final class PyroVfxGameTests {
             } catch (java.io.IOException ex) {
                 throw new AssertionError("Museum resource read failed: " + exhibit.id(), ex);
             }
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void itemAtlasTransparencyUsesCutoutWithoutChangingSolidBlockModels(GameTestHelper helper) {
+        var id = ResourceLocation.withDefaultNamespace("iron_ingot");
+        var item = new net.kofllee.pyrovfx.vfx.definition.VfxModelRenderDefinition(
+                net.kofllee.pyrovfx.vfx.type.VfxModelSourceType.ITEM, id, "",
+                net.kofllee.pyrovfx.vfx.type.VfxModelRenderLayer.SOLID);
+        var block = new net.kofllee.pyrovfx.vfx.definition.VfxModelRenderDefinition(
+                net.kofllee.pyrovfx.vfx.type.VfxModelSourceType.BLOCK, id, "",
+                net.kofllee.pyrovfx.vfx.type.VfxModelRenderLayer.SOLID);
+        if (item.effectiveLayer()
+                != net.kofllee.pyrovfx.vfx.type.VfxModelRenderLayer.CUTOUT
+                || block.effectiveLayer()
+                != net.kofllee.pyrovfx.vfx.type.VfxModelRenderLayer.SOLID) {
+            throw new AssertionError("Item transparency must not write black opaque atlas pixels");
         }
         helper.succeed();
     }
