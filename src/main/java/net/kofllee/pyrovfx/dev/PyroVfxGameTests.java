@@ -349,6 +349,37 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void alphaSmokeUsesDepthSortedGpuInstances(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "alpha_smoke_gpu"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{
+                  "id":"smoke","spawn_shape":{"type":"point"},
+                  "rotation":{"mode":"dynamic","dynamic":{"angular_velocity":[0,0,30]}},
+                  "render":{"type":"sprite","facing":"camera","environment_lighting":false,
+                    "sprite":{"texture":"minecraft:textures/particle/generic_0.png","blend_mode":"alpha"},
+                    "color":[1,1,1,0.3]}}
+                ]}
+                """).getAsJsonObject());
+        var emitter = definition.emitters().getFirst();
+        if (!net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.supportsGeometry(emitter))
+            throw new AssertionError("Fullbright alpha smoke should use the sorted GPU instancer");
+        long far = net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.depthSortKey(8, 0);
+        long near = net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.depthSortKey(1, 1);
+        long behind = net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.depthSortKey(-3, 2);
+        if (!(far < near && near < behind))
+            throw new AssertionError("Alpha particles must sort back-to-front in view space");
+        long[] keys = {near, behind, far,
+                net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.depthSortKey(8, 3)};
+        net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.sortAlphaOrder(keys, keys.length);
+        if ((int) keys[0] != 0 || (int) keys[1] != 3
+                || (int) keys[2] != 1 || (int) keys[3] != 2) {
+            throw new AssertionError("Depth sorting must preserve stable order for identical depths");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void additiveAndCutoutModelsKeepDenseSimulation(GameTestHelper helper) {
         var definition = VfxDefinitionParser.parse(
                 ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "dense_model_layers"),

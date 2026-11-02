@@ -25,6 +25,9 @@ import org.lwjgl.opengl.GL33;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Opt-in-by-capability, vanilla-only OpenGL 3.3 sprite instancing.
@@ -33,8 +36,8 @@ import java.nio.FloatBuffer;
  * OpenGL bindings and blend/depth/cull state are captured and restored.
  * Iris/Oculus (including shader-pack toggling) take the original RenderType path.
  *
- * Transparent alpha blending is deliberately not reordered into instance
- * groups: only additive sprites can safely merge across particles/materials.
+ * Alpha particles are collected and depth sorted across all eligible emitters,
+ * then drawn in contiguous, material-compatible instanced batches.
  */
 public final class VfxInstancedSpriteRenderer {
     private static final int INSTANCE_FLOATS = 16;
@@ -114,6 +117,17 @@ public final class VfxInstancedSpriteRenderer {
     private static ResourceLocation batchTexture;
     private static VfxFacingMode batchFacing;
     private static boolean batchRotating;
+    private static boolean batchAlpha;
+    private record AlphaMaterial(ResourceLocation texture, VfxFacingMode facing, boolean rotating) {}
+    private static final List<AlphaMaterial> ALPHA_MATERIALS = new ArrayList<>();
+    private static float[] alphaData = new float[0];
+    private static long[] alphaOrder = new long[0];
+    private static long[] alphaScratch = new long[0];
+    private static final int[] ALPHA_RADIX_COUNTS = new int[1 << 16];
+    private static int[] alphaMaterial = new int[0];
+    private static int alphaCount;
+    private static boolean collectingAlpha;
+    private static int collectingMaterial;
     private static int count;
     private static Matrix4f mvp;
     private static Camera camera;
@@ -136,7 +150,8 @@ public final class VfxInstancedSpriteRenderer {
     /** Pure capability check; usable by server GameTests without an OpenGL context. */
     public static boolean supportsGeometry(VfxEmitterDefinition definition) {
         if (definition.render().sprite() == null
-                || definition.render().sprite().blendMode() != VfxBlendMode.ADDITIVE
+                || (definition.render().sprite().blendMode() != VfxBlendMode.ADDITIVE
+                    && definition.render().sprite().blendMode() != VfxBlendMode.ALPHA)
                 || definition.render().environmentLighting()) {
             return false;
         }
@@ -206,6 +221,9 @@ public final class VfxInstancedSpriteRenderer {
         batchTexture = null;
         batchFacing = null;
         batchRotating = false;
+        batchAlpha = false;
+        alphaCount = 0;
+        ALPHA_MATERIALS.clear();
         drawCalls = submitted = culled = subpixelCulled = 0;
     }
 
@@ -224,6 +242,17 @@ public final class VfxInstancedSpriteRenderer {
         ResourceLocation texture = definition.render().sprite().texture();
         VfxFacingMode facing = definition.render().facing();
         boolean rotating = definition.rotation().mode() != net.kofllee.pyrovfx.vfx.type.VfxRotationMode.NONE;
+        if (definition.render().sprite().blendMode() == VfxBlendMode.ALPHA) {
+            collectingMaterial = ALPHA_MATERIALS.size();
+            ALPHA_MATERIALS.add(new AlphaMaterial(texture, facing, rotating));
+            collectingAlpha = true;
+            try {
+                pool.writeInstances(VfxInstancedSpriteRenderer::put, camera, partialTick);
+            } finally {
+                collectingAlpha = false;
+            }
+            return;
+        }
         if (batchTexture != null && (!batchTexture.equals(texture) || batchFacing != facing
                 || batchRotating != rotating)) {
             flush();
@@ -231,6 +260,7 @@ public final class VfxInstancedSpriteRenderer {
         batchTexture = texture;
         batchFacing = facing;
         batchRotating = rotating;
+        batchAlpha = false;
         pool.writeInstances(VfxInstancedSpriteRenderer::put, camera, partialTick);
     }
 
@@ -256,6 +286,33 @@ public final class VfxInstancedSpriteRenderer {
             subpixelCulled++;
             return;
         }
+        if (collectingAlpha) {
+            ensureAlphaCapacity(alphaCount + 1);
+            int offset = alphaCount * INSTANCE_FLOATS;
+            float depth = (float) (dx * camera.getLookVector().x()
+                    + dy * camera.getLookVector().y() + dz * camera.getLookVector().z());
+            alphaOrder[alphaCount] = depthSortKey(depth, alphaCount);
+            alphaMaterial[alphaCount] = collectingMaterial;
+            alphaData[offset++] = (float) dx;
+            alphaData[offset++] = (float) dy;
+            alphaData[offset++] = (float) dz;
+            alphaData[offset++] = sizeX;
+            alphaData[offset++] = sizeY;
+            alphaData[offset++] = red;
+            alphaData[offset++] = green;
+            alphaData[offset++] = blue;
+            alphaData[offset++] = alpha;
+            alphaData[offset++] = u0;
+            alphaData[offset++] = v0;
+            alphaData[offset++] = u1;
+            alphaData[offset++] = v1;
+            alphaData[offset++] = rotationX;
+            alphaData[offset++] = rotationY;
+            alphaData[offset] = rotationZ;
+            alphaCount++;
+            submitted++;
+            return;
+        }
         if (count >= MAX_BATCH) flush();
         ensureCapacity(count + 1);
         staging.putFloat((float) dx).putFloat((float) dy).putFloat((float) dz);
@@ -265,6 +322,78 @@ public final class VfxInstancedSpriteRenderer {
         staging.putFloat(rotationX).putFloat(rotationY).putFloat(rotationZ);
         count++;
         submitted++;
+    }
+
+    /** Signed long sort key: farthest first, stable order for equal depth. */
+    public static long depthSortKey(float depth, int index) {
+        int bits = Float.floatToIntBits(Float.isNaN(depth) ? Float.NEGATIVE_INFINITY : depth);
+        int ascending = bits < 0 ? ~bits : bits ^ Integer.MIN_VALUE;
+        int farFirst = ~ascending ^ Integer.MIN_VALUE;
+        return ((long) farFirst << 32) | (index & 0xFFFF_FFFFL);
+    }
+
+    private static void ensureAlphaCapacity(int required) {
+        if (required <= alphaOrder.length) return;
+        int capacity = Math.max(required, Math.max(256, alphaOrder.length * 2));
+        alphaOrder = Arrays.copyOf(alphaOrder, capacity);
+        alphaScratch = Arrays.copyOf(alphaScratch, capacity);
+        alphaMaterial = Arrays.copyOf(alphaMaterial, capacity);
+        alphaData = Arrays.copyOf(alphaData, capacity * INSTANCE_FLOATS);
+    }
+
+    /** Two stable 16-bit radix passes on signed view-depth keys; O(n) without boxing. */
+    public static void sortAlphaOrder(long[] order, int length) {
+        if (length < 2) return;
+        if (alphaScratch.length < length) alphaScratch = new long[length];
+        for (int shift = 0; shift < 32; shift += 16) {
+            Arrays.fill(ALPHA_RADIX_COUNTS, 0);
+            for (int i = 0; i < length; i++) {
+                int key = (int) (order[i] >>> 32) ^ Integer.MIN_VALUE;
+                ALPHA_RADIX_COUNTS[(key >>> shift) & 0xffff]++;
+            }
+            int next = 0;
+            for (int i = 0; i < ALPHA_RADIX_COUNTS.length; i++) {
+                int amount = ALPHA_RADIX_COUNTS[i];
+                ALPHA_RADIX_COUNTS[i] = next;
+                next += amount;
+            }
+            for (int i = 0; i < length; i++) {
+                long value = order[i];
+                int key = (int) (value >>> 32) ^ Integer.MIN_VALUE;
+                alphaScratch[ALPHA_RADIX_COUNTS[(key >>> shift) & 0xffff]++] = value;
+            }
+            System.arraycopy(alphaScratch, 0, order, 0, length);
+        }
+    }
+
+    private static void flushSortedAlpha() {
+        if (alphaCount == 0) return;
+        flush();
+        sortAlphaOrder(alphaOrder, alphaCount);
+        int previousMaterial = -1;
+        for (int index = 0; index < alphaCount; index++) {
+            int source = (int) alphaOrder[index];
+            int material = alphaMaterial[source];
+            AlphaMaterial spec = ALPHA_MATERIALS.get(material);
+            if (previousMaterial != material && previousMaterial >= 0) {
+                AlphaMaterial prev = ALPHA_MATERIALS.get(previousMaterial);
+                if (!prev.equals(spec)) flush();
+            }
+            if (count == MAX_BATCH) flush();
+            batchTexture = spec.texture();
+            batchFacing = spec.facing();
+            batchRotating = spec.rotating();
+            batchAlpha = true;
+            ensureCapacity(count + 1);
+            for (int channel = 0; channel < INSTANCE_FLOATS; channel++) {
+                staging.putFloat(alphaData[source * INSTANCE_FLOATS + channel]);
+            }
+            count++;
+            previousMaterial = material;
+        }
+        flush();
+        alphaCount = 0;
+        ALPHA_MATERIALS.clear();
     }
 
     private static final double MIN_DIAMETER_PX = parseLodThreshold();
@@ -317,11 +446,12 @@ public final class VfxInstancedSpriteRenderer {
             GL20.glUniform3f(rightUniform, rightX, rightY, rightZ);
             GL20.glUniform3f(upUniform, upX, upY, upZ);
             GL11.glEnable(GL11.GL_BLEND);
-            GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE,
+            GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA,
+                    batchAlpha ? GL11.GL_ONE_MINUS_SRC_ALPHA : GL11.GL_ONE,
                     GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
             GL11.glEnable(GL11.GL_DEPTH_TEST);
             GL11.glDepthFunc(GL11.GL_LEQUAL);
-            GL11.glDepthMask(true);
+            GL11.glDepthMask(!batchAlpha);
             if (Boolean.getBoolean("pyrovfx.render.debugSolid")) {
                 GL11.glDisable(GL11.GL_DEPTH_TEST);
                 GL11.glDepthMask(false);
@@ -344,8 +474,10 @@ public final class VfxInstancedSpriteRenderer {
 
     public static void finish() {
         flush();
+        flushSortedAlpha();
         batchTexture = null;
         batchRotating = false;
+        batchAlpha = false;
         camera = null;
         mvp = null;
     }

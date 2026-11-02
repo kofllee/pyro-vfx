@@ -65,7 +65,10 @@ public final class VfxRenderer {
                             gpuFrame = true;
                         }
                         VfxInstancedSpriteRenderer.append(pool);
-                        emitter.recordRenderer("GPU instanced sprite (per-frame instance upload)");
+                        emitter.recordRenderer(pool.definition().render().sprite().blendMode()
+                                == net.kofllee.pyrovfx.vfx.type.VfxBlendMode.ALPHA
+                                ? "GPU depth-sorted alpha sprite instancing"
+                                : "GPU additive sprite instancing");
                     } else {
                         if (gpuFrame) VfxInstancedSpriteRenderer.flush();
                         if (pool != null) {
@@ -124,7 +127,12 @@ public final class VfxRenderer {
             }
         } finally {
             try {
-                if (gpuFrame) VfxInstancedSpriteRenderer.finish();
+                if (gpuFrame) {
+                    // Minecraft's queued translucent geometry must land before
+                    // the depth-sorted Pyro alpha pass.
+                    bufferSource.endBatch();
+                    VfxInstancedSpriteRenderer.finish();
+                }
                 bufferSource.endBatch();
             } finally {
                 if (telemetryFrame) VfxGpuTelemetry.end();

@@ -1,0 +1,83 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "Dense layered alpha smoke for sorted GPU instancing A/B"
+  },
+  "parameters": {
+    "count": 10000
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 160
+  },
+  "emitters": [
+    {
+      "id": "main",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 3
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": 0.08,
+          "acceleration": [
+            0,
+            -0.06,
+            0
+          ],
+          "linear_drag": 0.2
+        }
+      },
+      "rotation": {
+        "mode": "dynamic",
+        "dynamic": {
+          "start_rotation": [
+            13,
+            27,
+            41
+          ],
+          "angular_velocity": [
+            60,
+            90,
+            140
+          ],
+          "angular_drag": 0.1
+        }
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": [
+          0.65,
+          0.72,
+          0.78,
+          "0.4 * (1.0 - particle.normalized_age)"
+        ],
+        "scale": [
+          0.4,
+          0.7,
+          1
+        ]
+      }
+    }
+  ]
+}

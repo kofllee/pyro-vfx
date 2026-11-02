@@ -47,6 +47,9 @@ public final class VfxBenchScenarios {
         add(scenarios, "sprite_uv_instanced", "bench/sprite_uv_instanced", 1_000);
         add(scenarios, "sprite_rotating_1k", "bench/sprite_rotating", 1_000);
         add(scenarios, "sprite_rotating_10k", "bench/sprite_rotating", 10_000);
+        add(scenarios, "sprite_alpha_smoke_1k", "bench/sprite_alpha_smoke", 1_000);
+        add(scenarios, "sprite_alpha_smoke_10k", "bench/sprite_alpha_smoke", 10_000);
+        add(scenarios, "sprite_alpha_smoke_100k", "bench/sprite_alpha_smoke", 100_000);
         add(scenarios, "analytic_uv_1k", "bench/analytic_uv", 1_000);
         add(scenarios, "analytic_uv_10k", "bench/analytic_uv", 10_000);
         add(scenarios, "analytic_age_1k", "bench/analytic_age", 1_000);
