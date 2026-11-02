@@ -147,16 +147,93 @@ into this work.
     particle. Fallback of a previously GPU-analytic pool to CPU rendering
     remains a special case; do not interpret caps as guaranteed FPS.
 
+13. **Dense 3D model streaming and general baked-quad instancing.**
+    Eligible solid `custom`, `block` and `item` models now use the
+    primitive-array SoA physics path and stream position, scale, color
+    and baked vertex tint to the GPU in batches (16,384 instances/draw).
+    Rotating models are GPU-instanced with per-particle quaternion and
+    lightmap coordinates, while their more complex simulation remains
+    object-based. Minecraft lightmap binding is explicit and restored after
+    rendering; unlit models bypass the lightmap sample. Translucent
+    depth-sorted models and animated `entity` geometry retain the legacy
+    path. These paths have **not** established equivalence for every
+    resource-pack model, item component, shaderpack or render layer.
+
+14. **Measured adaptive cost and larger ceilings.** New client config
+    defaults are 240,000 global active particles, 120,000 per-effect
+    active particles, 100,000 new particles/tick globally and per effect,
+    with 240,000 GPU analytic, 120,000 CPU sprite, 20,000 collision and
+    **120,000 model** particle class ceilings. These are hard *upper*
+    bounds, not safe throughput guarantees; existing config files retain
+    their explicit previous values. Per-effect CPU EMA now tightens
+    admission for particularly costly effects when the global quality
+    controller detects overload, respecting `metadata.priority`. It
+    does not delete live particles, slow physics or suppress events.
+
+15. **Continuous GPU analytic and collision precision.** Steady once-lived
+    analytic emitters now create birth cohorts; every cohort has its own
+    age uniform and once-uploaded position/velocity buffer. Immutable
+    shared-age curves are evaluated per cohort, not per particle; GPU
+    instances remain in GPU memory between render frames. Complex
+    per-particle expressions, transparent alpha sorting, external events
+    and arbitrary parametric motion still require fallback. Minecraft
+    multipart collision shapes are now cached as individual sub-boxes
+    (8,192-entry per-tick cache) with a bounds broadphase, preventing false
+    hits in cavities of complex collision shapes.
+
 ## Test evidence
 
-- `.\gradlew.bat clean build runGameTestServer --no-daemon --console=plain`
-  succeeded: **37/37 required NeoForge GameTests**, including ownership
+- `.\gradlew.bat build runGameTestServer --no-daemon --console=plain`
+  succeeded: **40/40 required NeoForge GameTests**, including ownership
   rejection, scalable admission, deterministic analytic UV frame selection
   and collision AABB math equivalence, plus age-only appearance interpolation
   and random/position-dependent fallback rejection, and bounded adaptive
   backoff/recovery, single-stall immunity and separate event and
   existing-particle safety checks, priority weight behavior,
   per-cost-class global caps and safe VRAM unknown-value fallback.
+  The new tests cover multipart collision gaps, shared-age analytic
+  curves and measured per-effect CPU admission.
+
+### Short 3D and continuous-emitter A/B (RTX 4090 Laptop, 1280x720)
+
+The following are **actual client benchmark reports**, with no long soak.
+All particle counts refer to observed peak live particles; 100k model
+was run with the existing developer heavy-benchmark opt-in. Screenshots
+were compared at equal definition SHA, seed, resolution and measurement
+window. The data is archived in `docs/benchmarks/m6-2026-11-02/universal-short/`.
+
+| Effect | Active particles | Model GPU instances | P95 full frame | Median CPU simulation |
+|---|---:|---:|---:|---:|
+| Custom model / dense | 10,000 | 10,000 | 1.667 ms | 0.407 ms |
+| Rotating, world-lit model | 10,000 | 10,000 | 4.740 ms | 0.747 ms |
+| Block model / dense | 10,000 | 10,000 | 1.432 ms | 0.396 ms |
+| Item model / dense | 10,000 | 10,000 | 2.220 ms | 0.420 ms |
+| Custom model / dense | 100,000 | 100,000 | 10.895 ms | 4.069 ms |
+| Continuous analytic GPU | 7,800 | n/a (GPU sprite cohorts) | 1.512 ms | 0.116 ms |
+| Continuous CPU fallback | 7,800 | n/a | 1.737 ms | 0.704 ms |
+
+At 1,000 item models, GPU instancing vs legacy P95 was 1.434 vs
+8.409 ms (visual RMS 0.028090, threshold 0.03); at 1,000 rotating
+world-lit models 1.393 vs 4.030 ms (RMS 0.014616).
+For continuous GPU analytic vs CPU dense, RMS was 0.000570.
+**These are single paired runs**, not repeatability statistics; the
+comparison is not a guarantee of a particular FPS on other hardware.
+GPU analytic continuous emits many draw calls (one per active cohort),
+so reducing cohort draw overhead remains a potential optimization.
+
+The post-lighting-fix 100k custom-model test recorded 7 GPU model
+draws in its sampled frame, 4.103 ms median Pyro-only GPU work and
+991 MiB peak JVM heap. No isolated cold-start GPU compilation latency is
+reported, and heap is not an estimate of Pyro's exclusive memory.
+
+To verify archived evidence and three independent screenshot comparisons:
+
+```powershell
+python tools/verify_universal_short.py
+java tools/CompareScreenshots.java docs/benchmarks/m6-2026-11-02/universal-short/screenshots/continuous_cpu.png docs/benchmarks/m6-2026-11-02/universal-short/screenshots/continuous_gpu.png 0.03
+java tools/CompareScreenshots.java docs/benchmarks/m6-2026-11-02/universal-short/screenshots/item_legacy.png docs/benchmarks/m6-2026-11-02/universal-short/screenshots/item_gpu.png 0.03
+java tools/CompareScreenshots.java docs/benchmarks/m6-2026-11-02/universal-short/screenshots/rotating_legacy.png docs/benchmarks/m6-2026-11-02/universal-short/screenshots/rotating_gpu.png 0.03
+```
 - Actual integrated-server Minecraft client benchmark (OpenGL 4.6 NVIDIA
   RTX 4090 Laptop, Windows 11, Minecraft 1.21.1, Java 21.0.5).
 - The CSV and JSON metrics below describe **real measured client runs**
@@ -361,10 +438,13 @@ unavailable hardware tests as passed.
   evaluation, independent
   particle age/rotation, alpha transparency ordering, continuous and
   event-driven analytic simulation, and stateful GPU compute evaluation.
-- GPU-model instancing expansion for all block/item/entity variants.
-- New collision broadphase and swept collision (the repeated per-block shape
-  lookup is now cached and measured); broader edge-case correctness and
-  compatibility for stateful/moving block shapes.
+- Geometry skinning and animations for `entity` models and
+  depth-sorted translucent 3D meshes; basic static baked custom/block/item
+  geometry is now batched, with lighting and per-instance rotation.
+- Swept collision/time-of-impact integration, moving block/state
+  invalidation within the same game tick, and chunk-aware collision
+  broadphase. Multipart voxel-shape intersection is implemented but does
+  not imply full rigid-body continuous collision detection.
 - Remaining adaptive-quality work: per-effect GPU attribution,
   visibility-aware cost control and precise Pyro-owned VRAM accounting.
   Current GPU timing is global and optional NVIDIA VRAM telemetry is
@@ -395,7 +475,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secon
 python tools/verify_adaptive_bench.py docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132543.json docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132645.json
 ```
 
-Next priority: add measured GPU-time and visibility signals, cost attribution
-for expensive CPU collision vs. cheap analytic bursts, and sensible effect
-priorities under overload. Expand compatibility tests for changing collision
-geometry, alpha overdraw, mixed effects and shader-mod fallback.
+Next priority: reduce GPU analytic cohort draw overhead, then verify
+fallback and render-state parity on actual integrated GPUs and real
+shader/optimization mod combinations. Do not infer 4K or cross-driver
+compatibility from 720p Nvidia results. No long-duration soak was run
+for this extension.

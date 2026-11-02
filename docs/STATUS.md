@@ -10,6 +10,11 @@ free-VRAM probe, plus repeatable client reload/soak fixtures. See
 [`M6_PROGRESS.md`](M6_PROGRESS.md) and
 [`COMPATIBILITY_MATRIX.md`](COMPATIBILITY_MATRIX.md). Passing local tests
 does not establish AMD/Intel, shaderpack or multiplayer compatibility.
+Recent short-client benchmarks also cover up to 100,000 GPU-instanced
+3D models, baked block/item model variants, world-lit rotating models and
+continuous GPU analytic birth cohorts. These fast paths are selectively
+admitted; animated entity models, unsorted-alpha transparency and
+per-particle mutable GPU expressions retain conservative fallbacks.
 
 ## Stable prototype features
 

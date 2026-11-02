@@ -10,7 +10,7 @@ python tools/test_compare_bench.py
 .\gradlew.bat clean build
 ```
 
-The 37 NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; event trigger order; rejection of removed vanilla particle definitions; configurable high budgets; shared-frame analytic UV animation and age-dependent appearance; collision AABB math equivalence; CPU-budget adaptive spawn backoff/recovery/disable and isolated CPU spike safety; per-effect quality priorities; GPU memory fallback classification; and independent particle-cost-class caps. They do **not** establish universal driver or modpack compatibility.
+The 40 NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; event trigger order; rejection of removed vanilla particle definitions; configurable high budgets; shared-frame analytic UV animation and age-dependent appearance; collision math and multipart-voxel gaps; CPU-budget adaptive spawn backoff/recovery/disable and isolated CPU spike safety; per-effect quality priorities and measured CPU-cost policy; shared-age analytic curves; GPU memory fallback classification; and independent particle-cost-class caps. They do **not** establish universal driver or modpack compatibility.
 
 ## GPU client
 
@@ -52,6 +52,13 @@ only for `soak_mixed`; 36,000 represents approximately 30 minutes at 20
 Minecraft ticks/s, not a guaranteed 30 wall-clock minutes. The benchmark
 performs three resource reloads and checks active-instance preservation.
 Both raw reports are archived; the full 36,000-tick run is not yet verified.
+Short 3D custom/block/item/rotating model tests up to 100,000 particles,
+and GPU-vs-CPU continuous analytic testing with screenshot comparison, are
+recorded under `docs/benchmarks/m6-2026-11-02/universal-short/`.
+Run `python tools/verify_universal_short.py` to validate archived source
+hashes, backends and particle counts. The CI pipeline also performs three
+Java screenshot RMS checks with a 0.03 threshold. These are individual
+short-run measurements, not long-term thermal or leak tests.
 Use `-GpuTelemetry` to exercise production-style asynchronous queries
 without nesting benchmark-specific GL queries. Optional `-ProbeVram`
 attempts NVIDIA's `GL_NVX_gpu_memory_info`, which reports device memory

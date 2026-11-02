@@ -15,6 +15,9 @@ sheet animation and shared-age color/scale animation, and per-effect/client part
 does not guarantee VRAM capacity or frame rate. A per-tick cache reduces
 repeat CPU block-shape queries for colliding particles (measured A/B results
 and reproduction steps are in `docs/M6_PROGRESS.md`).
+Short measured 3D model (10k–100k) and continuous GPU analytic comparisons,
+including screenshot parity checks and their limitations, are archived under
+`docs/benchmarks/m6-2026-11-02/universal-short/`.
 Optional CPU-time-aware spawn admission now scales the rate of **new**
 particles under sustained expensive Pyro simulation without removing live
 particles or changing event delivery. The adaptive client configuration is
