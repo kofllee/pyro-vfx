@@ -15,6 +15,8 @@ public final class VfxGlobalBudget {
     private int remainingActive;
     private int remainingSpawns;
     private int remainingEvents;
+    private int activeLimit;
+    private int spawnLimit;
     private long rejectedSpawns;
     private long rejectedEvents;
     private long rejectedInstances;
@@ -23,9 +25,17 @@ public final class VfxGlobalBudget {
     private int peakObservedParticles;
 
     public void beginTick(int currentParticles, boolean heavy) {
-        int activeLimit = heavy ? VfxRuntimeBudget.HEAVY_PARTICLES : MAX_ACTIVE_PARTICLES;
+        beginTick(currentParticles, heavy, VfxBudgetConfig.globalParticles(), VfxBudgetConfig.globalSpawns());
+    }
+
+    /** Explicit limits make high-capacity admission testable without changing global config. */
+    public void beginTick(int currentParticles, boolean heavy, int requestedActiveLimit, int requestedSpawnLimit) {
+        activeLimit = heavy ? Math.max(VfxRuntimeBudget.HEAVY_PARTICLES, requestedActiveLimit)
+                : Math.max(0, requestedActiveLimit);
+        spawnLimit = heavy ? Math.max(VfxRuntimeBudget.HEAVY_PARTICLES, requestedSpawnLimit)
+                : Math.max(0, requestedSpawnLimit);
         remainingActive = Math.max(0, activeLimit - Math.max(0, currentParticles));
-        remainingSpawns = heavy ? VfxRuntimeBudget.HEAVY_PARTICLES : MAX_SPAWNS_PER_TICK;
+        remainingSpawns = spawnLimit;
         remainingEvents = MAX_EVENTS_PER_TICK;
         peakObservedParticles = Math.max(peakObservedParticles, currentParticles);
     }
@@ -64,7 +74,7 @@ public final class VfxGlobalBudget {
 
     public boolean admitInstance(int activeInstances) {
         // Even an opt-in particle stress run must not disable effect-count safety.
-        if (activeInstances < MAX_INSTANCES) return true;
+        if (activeInstances < VfxBudgetConfig.activeEffects()) return true;
         rejectedInstances++;
         return false;
     }
@@ -77,9 +87,11 @@ public final class VfxGlobalBudget {
     public int peakObservedParticles() { return peakObservedParticles; }
     public int remainingSpawns() { return remainingSpawns; }
     public int remainingActive() { return remainingActive; }
+    public int activeLimit() { return activeLimit; }
+    public int spawnLimit() { return spawnLimit; }
 
     public void reset() {
-        remainingActive = remainingSpawns = remainingEvents = 0;
+        remainingActive = remainingSpawns = remainingEvents = activeLimit = spawnLimit = 0;
         rejectedSpawns = rejectedEvents = rejectedInstances = 0;
         admittedSpawns = admittedEvents = 0;
         peakObservedParticles = 0;

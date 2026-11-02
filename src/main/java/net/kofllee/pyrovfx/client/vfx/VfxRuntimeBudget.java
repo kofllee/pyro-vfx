@@ -22,8 +22,13 @@ public final class VfxRuntimeBudget {
     public void beginTick(int activeParticles, boolean heavyBenchmark, VfxGlobalBudget global) {
         this.global = global;
         remainingEvents = MAX_EVENTS_PER_TICK;
-        int limit = heavyBenchmark ? HEAVY_PARTICLES : MAX_ACTIVE_PARTICLES;
-        remainingSpawns = heavyBenchmark ? HEAVY_PARTICLES : MAX_SPAWNS_PER_TICK;
+        int limit = VfxBudgetConfig.effectParticles();
+        int spawns = VfxBudgetConfig.effectSpawns();
+        if (heavyBenchmark) {
+            limit = Math.max(limit, HEAVY_PARTICLES);
+            spawns = Math.max(spawns, HEAVY_PARTICLES);
+        }
+        remainingSpawns = spawns;
         remainingActive = Math.max(0, limit - Math.max(0, activeParticles));
     }
 

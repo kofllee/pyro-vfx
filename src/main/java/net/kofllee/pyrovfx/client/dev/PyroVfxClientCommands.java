@@ -142,7 +142,7 @@ public final class PyroVfxClientCommands {
         if (!ClientVfxManager.tryPlay(definition, position, options)) {
             player.displayClientMessage(Component.literal(
                     "Pyro VFX: global active-effect limit reached (" +
-                    net.kofllee.pyrovfx.client.vfx.VfxGlobalBudget.MAX_INSTANCES + ")")
+                    net.kofllee.pyrovfx.client.vfx.VfxBudgetConfig.activeEffects() + ")")
                     .withStyle(ChatFormatting.YELLOW), false);
             return 0;
         }
@@ -257,7 +257,9 @@ public final class PyroVfxClientCommands {
                         + ", particles: " + ClientVfxManager.getActiveParticleCount()),false);
         var budget = ClientVfxManager.globalBudget();
         player.displayClientMessage(Component.literal(
-                "Global budget: remaining active slots " + budget.remainingActive()
+                "Global budget: live ceiling " + budget.activeLimit()
+                        + ", spawn/tick ceiling " + budget.spawnLimit()
+                        + ", remaining active slots " + budget.remainingActive()
                         + ", remaining spawns/tick " + budget.remainingSpawns()
                         + ", peak observed " + budget.peakObservedParticles()
                         + "; rejected spawns/events/effects "
