@@ -515,6 +515,107 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void routingMatrixKeepsWorldFeaturesOutOfGpuAndOffLegacy(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "routing_matrix");
+        for (boolean model : new boolean[]{false, true}) {
+            for (boolean lit : new boolean[]{false, true}) {
+                for (boolean collision : new boolean[]{false, true}) {
+                    for (boolean rotation : new boolean[]{false, true}) {
+                        for (boolean translucent : new boolean[]{false, true}) {
+                            String render = model
+                                    ? """
+                                      {"type":"model","environment_lighting":%s,
+                                       "model":{"source":"custom","model":"pyro_vfx:vfx/ember_cube",
+                                                "render_layer":"%s"},"color":"#FFFFFFFF","scale":[1,1,1]}
+                                      """.formatted(lit, translucent ? "translucent" : "solid")
+                                    : """
+                                      {"type":"sprite","environment_lighting":%s,"facing":"camera",
+                                       "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                                                 "blend_mode":"%s"}}
+                                      """.formatted(lit, translucent ? "alpha" : "additive");
+                            String rotationJson = rotation
+                                    ? """
+                                      {"mode":"dynamic","dynamic":{"start_rotation":[10,20,30],
+                                        "angular_velocity":[60,90,45]}}
+                                      """
+                                    : """
+                                      {"mode":"none"}
+                                      """;
+                            String definitionJson = """
+                                    {"format":"pyro_vfx:1","emitters":[{
+                                      "id":"main","spawn_shape":{"type":"point"},
+                                      "emitter_lifetime":{"mode":"once","active_ticks":1},
+                                      "spawn_amount":{"mode":"instant","amount":1},
+                                      "motion":{"mode":"dynamic","dynamic":{"speed":0.2},
+                                                "collision":{"collide":%s}},
+                                      "rotation":%s,"render":%s
+                                    }]}
+                                    """.formatted(collision, rotationJson, render);
+                            var emitter = VfxDefinitionParser.parse(id,
+                                    JsonParser.parseString(definitionJson).getAsJsonObject())
+                                    .emitters().getFirst();
+                            if (!VfxDenseSpritePool.supports(emitter)) {
+                                throw new AssertionError("Unjustified Legacy route: " + model + "/"
+                                        + lit + "/" + collision + "/" + rotation + "/" + translucent);
+                            }
+                            boolean expectedGpu = !lit && !collision && !translucent
+                                    && (model || !rotation);
+                            if (VfxAnalyticPlan.analyse(emitter, true).supported() != expectedGpu) {
+                                throw new AssertionError("Incorrect GPU eligibility: " + model + "/"
+                                        + lit + "/" + collision + "/" + rotation + "/" + translucent);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void collisionEventCallbacksStayOrderedOnLegacy(GameTestHelper helper) {
+        var def = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "event_backend_guard"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","parameters":{"hit":0},"events":{"mark_hit":{
+                  "type":"set_param","param":"hit","value":1}},
+                 "emitters":[{
+                   "id":"main","spawn_shape":{"type":"point"},
+                   "particle_triggers":[{"type":"on_collision","event":"mark_hit"}],
+                   "motion":{"mode":"dynamic","dynamic":{"speed":1},
+                             "collision":{"collide":true}},
+                   "render":{"type":"sprite","sprite":{
+                     "texture":"minecraft:textures/particle/generic_0.png",
+                     "blend_mode":"additive"}}
+                }]}
+                """).getAsJsonObject());
+        var emitter = def.emitters().getFirst();
+        if (VfxDenseSpritePool.supports(emitter)
+                || VfxAnalyticPlan.analyse(emitter, true).supported()) {
+            throw new AssertionError("Collision callbacks cannot be bypassed by Dense or GPU routing");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void adaptiveHeapPressureDoesNotThrottleUnrelatedMinecraftMemory(GameTestHelper helper) {
+        long mib = 1024L * 1024;
+        if (net.kofllee.pyrovfx.client.vfx.VfxGpuMemoryPolicy.heapScale(
+                    4 * mib, 950 * mib, 1000 * mib) != 1.0
+                || net.kofllee.pyrovfx.client.vfx.VfxGpuMemoryPolicy.heapScale(
+                    40 * mib, 500 * mib, 1000 * mib) != 1.0
+                || net.kofllee.pyrovfx.client.vfx.VfxGpuMemoryPolicy.heapScale(
+                    40 * mib, 875 * mib, 1000 * mib) >= 1.0
+                || net.kofllee.pyrovfx.client.vfx.VfxGpuMemoryPolicy.heapScale(
+                    40 * mib, 960 * mib, 1000 * mib) >= 0.8
+                || net.kofllee.pyrovfx.client.vfx.VfxGpuMemoryPolicy.heapScale(
+                    40 * mib, -1, 1000 * mib) != 1.0) {
+            throw new AssertionError("Memory admission must need observed VFX allocation and high heap pressure");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void adaptiveSpawnsResetOnWorldExitAndDisable(GameTestHelper helper) {
         var adaptive = new VfxAdaptiveSpawnController();
         for (int tick = 0; tick < 30; tick++) {

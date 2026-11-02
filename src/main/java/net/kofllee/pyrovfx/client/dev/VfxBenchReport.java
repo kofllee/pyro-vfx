@@ -114,6 +114,7 @@ final class VfxBenchReport {
         root.addProperty("adaptiveCpuTargetOverrideMs",
                 System.getProperty("pyrovfx.bench.adaptiveTargetMs", "0"));
         root.addProperty("minimumAdaptiveSpawnScale", run.minimumAdaptiveScale);
+        root.addProperty("lastAdaptiveHeapSpawnScale", ClientVfxManager.adaptiveMemoryScale());
         root.addProperty("peakAdaptiveCpuEmaMs", run.peakAdaptiveCpuEmaMs);
         root.addProperty("adaptiveConstrainedTickSamples", run.adaptiveConstrainedTickSamples);
         if (!ClientVfxManager.instances().isEmpty() && !ClientVfxManager.instances().getFirst().emitters().isEmpty()) {

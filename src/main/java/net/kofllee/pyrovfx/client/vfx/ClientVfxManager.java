@@ -21,6 +21,8 @@ public final class ClientVfxManager {
     private static final VfxAdaptiveSpawnController ADAPTIVE_GPU = new VfxAdaptiveSpawnController();
     private static final int[] ACTIVE_BY_CLASS = new int[VfxParticleCostClass.values().length];
     private static long lastGpuSample;
+    private static int memorySampleTicks;
+    private static double memorySpawnScale = 1.0;
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
@@ -57,6 +59,8 @@ public final class ClientVfxManager {
             ADAPTIVE_SPAWNS.reset();
             ADAPTIVE_GPU.reset();
             lastGpuSample = 0;
+            memorySampleTicks = 0;
+            memorySpawnScale = 1.0;
             VfxCollisionQueryCache.clear();
             return;
         }
@@ -84,9 +88,18 @@ public final class ClientVfxManager {
             ADAPTIVE_GPU.reset();
         }
         int configuredSpawns = VfxBudgetConfig.globalSpawns();
+        // Heap pressure is sampled at a bounded cadence. Only substantially
+        // allocated VFX state can enable this extra admission safeguard.
+        boolean sampleMemory = adaptive && (memorySampleTicks++ % 20 == 0);
+        if (!adaptive || activeBeforeTick == 0) {
+            memorySampleTicks = 0;
+            memorySpawnScale = 1.0;
+        }
+        long allocatedStateBytes = 0;
         java.util.Arrays.fill(ACTIVE_BY_CLASS, 0);
         for (var instance : INSTANCES) {
             for (var emitter : instance.emitters()) {
+                if (sampleMemory) allocatedStateBytes += emitter.allocatedParticleStateBytes();
                 for (var dimension : VfxParticleCostClass.values()) {
                     if ((emitter.particleCostMask() & dimension.bit()) != 0) {
                         ACTIVE_BY_CLASS[dimension.ordinal()] += emitter.liveParticleCount();
@@ -94,12 +107,17 @@ public final class ClientVfxManager {
                 }
             }
         }
+        if (sampleMemory && activeBeforeTick > 0) {
+            Runtime vm = Runtime.getRuntime();
+            memorySpawnScale = VfxGpuMemoryPolicy.heapScale(allocatedStateBytes,
+                    vm.totalMemory() - vm.freeMemory(), vm.maxMemory());
+        }
         GLOBAL_BUDGET.beginTick(getActiveParticleCount(), heavy,
                 VfxBudgetConfig.globalParticles(), configuredSpawns, ACTIVE_BY_CLASS);
         double scale = adaptive ? Math.min(
                 Math.min(ADAPTIVE_SPAWNS.spawnScale(), ADAPTIVE_GPU.spawnScale()),
-                VfxGpuMemoryPolicy.spawnScale(VfxGpuTelemetry.freeVramMiB(),
-                        VfxGpuTelemetry.totalVramMiB())) : 1.0;
+                Math.min(VfxGpuMemoryPolicy.spawnScale(VfxGpuTelemetry.freeVramMiB(),
+                        VfxGpuTelemetry.totalVramMiB()), memorySpawnScale)) : 1.0;
         GLOBAL_BUDGET.setAdaptiveSpawnScale(scale);
         long startedNs = System.nanoTime();
         Iterator<ClientVfxInstance> iterator = INSTANCES.iterator();
@@ -143,6 +161,8 @@ public final class ClientVfxManager {
             ADAPTIVE_GPU.reset();
             VfxGpuTelemetry.requestReset();
             lastGpuSample = 0;
+            memorySampleTicks = 0;
+            memorySpawnScale = 1.0;
         }
         return level;
     }
@@ -155,12 +175,15 @@ public final class ClientVfxManager {
         ADAPTIVE_GPU.reset();
         VfxGpuTelemetry.requestReset();
         lastGpuSample = 0;
+        memorySampleTicks = 0;
+        memorySpawnScale = 1.0;
         VfxCollisionQueryCache.clear();
     }
 
     public static VfxGlobalBudget globalBudget() { return GLOBAL_BUDGET; }
     public static VfxAdaptiveSpawnController adaptiveSpawns() { return ADAPTIVE_SPAWNS; }
     public static VfxAdaptiveSpawnController adaptiveGpu() { return ADAPTIVE_GPU; }
+    public static double adaptiveMemoryScale() { return memorySpawnScale; }
 
     public static int getActiveInstanceCount(){
         return INSTANCES.size();
