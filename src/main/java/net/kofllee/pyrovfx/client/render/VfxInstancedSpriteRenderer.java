@@ -2,7 +2,7 @@ package net.kofllee.pyrovfx.client.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.kofllee.pyrovfx.client.vfx.VfxDenseSpritePool;
+import net.kofllee.pyrovfx.client.vfx.VfxDenseParticlePool;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
 import net.kofllee.pyrovfx.vfx.type.VfxBlendMode;
 import net.kofllee.pyrovfx.vfx.type.VfxFacingMode;
@@ -237,7 +237,7 @@ public final class VfxInstancedSpriteRenderer {
     public static int subpixelCulledParticles() { return subpixelCulled; }
     public static void resetFrameStats() { drawCalls = submitted = culled = subpixelCulled = 0; }
 
-    public static void append(VfxDenseSpritePool pool) {
+    public static void append(VfxDenseParticlePool pool) {
         VfxEmitterDefinition definition = pool.definition();
         ResourceLocation texture = definition.render().sprite().texture();
         VfxFacingMode facing = definition.render().facing();

@@ -35,7 +35,7 @@ import java.util.List;
  * or temporary Vec3 is created by physics or compaction.
  * All updates remain on Minecraft's client tick thread.
  */
-public final class VfxDenseSpritePool {
+public final class VfxDenseParticlePool {
     private static final double TICK_SECONDS = VfxTime.SECONDS_PER_TICK;
     private static final double TICK_SECONDS_SQUARED = TICK_SECONDS * TICK_SECONDS;
     private final VfxEmitterDefinition definition;
@@ -81,7 +81,7 @@ public final class VfxDenseSpritePool {
     private int size;
     private long collisionContactsLastTick;
 
-    public VfxDenseSpritePool(VfxEmitterDefinition definition) {
+    public VfxDenseParticlePool(VfxEmitterDefinition definition) {
         this.definition = definition;
         this.dynamic = definition.motion().mode() == VfxMotionMode.DYNAMIC;
         this.moving = definition.motion().mode() != VfxMotionMode.STATIC;

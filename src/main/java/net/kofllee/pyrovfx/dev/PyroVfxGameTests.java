@@ -10,7 +10,7 @@ import net.kofllee.pyrovfx.client.vfx.VfxGlobalBudget;
 import net.kofllee.pyrovfx.client.vfx.VfxAdaptiveSpawnController;
 import net.kofllee.pyrovfx.client.vfx.VfxCollisionQueryCache;
 import net.kofllee.pyrovfx.client.vfx.VfxAnalyticPlan;
-import net.kofllee.pyrovfx.client.vfx.VfxAnalyticSpritePool;
+import net.kofllee.pyrovfx.client.vfx.VfxAnalyticParticlePool;
 import net.kofllee.pyrovfx.client.vfx.VfxWorldIdentity;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxInstance;
 import net.kofllee.pyrovfx.client.vfx.VfxPlayOptions;
@@ -26,7 +26,7 @@ import net.kofllee.pyrovfx.vfx.expression.VfxNumberExpression;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionCompiler;
 import net.kofllee.pyrovfx.vfx.expression.VfxProgram;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxExpressionContexts;
-import net.kofllee.pyrovfx.client.vfx.VfxDenseSpritePool;
+import net.kofllee.pyrovfx.client.vfx.VfxDenseParticlePool;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxParticle;
 import net.kofllee.pyrovfx.client.vfx.VfxEventCommandQueue;
 import net.kofllee.pyrovfx.client.vfx.VfxEventRuntime;
@@ -291,7 +291,7 @@ public final class PyroVfxGameTests {
                 ]}
                 """).getAsJsonObject());
         for (var emitter : definition.emitters()) {
-            if (!VfxDenseSpritePool.supports(emitter)) {
+            if (!VfxDenseParticlePool.supports(emitter)) {
                 throw new AssertionError("Light sampling should belong to renderer, not force Legacy simulation");
             }
         }
@@ -342,7 +342,7 @@ public final class PyroVfxGameTests {
                 ]}
                 """).getAsJsonObject());
         var emitter = definition.emitters().getFirst();
-        if (!VfxDenseSpritePool.supports(emitter)
+        if (!VfxDenseParticlePool.supports(emitter)
                 || !net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.supportsGeometry(emitter))
             throw new AssertionError("Rotated additive sprite unnecessarily requires CPU quad rendering");
         helper.succeed();
@@ -394,7 +394,7 @@ public final class PyroVfxGameTests {
                 ]}
                 """).getAsJsonObject());
         for (var emitter : definition.emitters()) {
-            if (!VfxDenseSpritePool.supports(emitter))
+            if (!VfxDenseParticlePool.supports(emitter))
                 throw new AssertionError("Non-translucent model render layer should not force Legacy simulation");
         }
         helper.succeed();
@@ -414,7 +414,7 @@ public final class PyroVfxGameTests {
                 }]}
                 """).getAsJsonObject());
         var emitter = definition.emitters().getFirst();
-        if (!VfxDenseSpritePool.supports(emitter)
+        if (!VfxDenseParticlePool.supports(emitter)
                 || VfxAnalyticPlan.analyse(emitter, true).supported()) {
             throw new AssertionError("Translucent model must retain Dense simulation and Minecraft blend semantics");
         }
@@ -434,7 +434,7 @@ public final class PyroVfxGameTests {
                 }]}
                 """).getAsJsonObject());
         var emitter = definition.emitters().getFirst();
-        var pool = new VfxDenseSpritePool(emitter);
+        var pool = new VfxDenseParticlePool(emitter);
         if (pool.allocatedStateBytes() != 0) throw new AssertionError("Empty dense pool allocated particle storage");
         var effect = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0.0,
                 Map.of(), definition.curves(), RandomSource.create(2L), definition.program().variables());
@@ -464,7 +464,7 @@ public final class PyroVfxGameTests {
                     "sprite":{"texture":"minecraft:textures/particle/generic_0.png"}}
                 }]}
                 """).getAsJsonObject());
-        if (!VfxDenseSpritePool.supports(definition.emitters().getFirst()))
+        if (!VfxDenseParticlePool.supports(definition.emitters().getFirst()))
             throw new AssertionError("Collision without particle events should not require object-per-particle");
         helper.succeed();
     }
@@ -585,7 +585,7 @@ public final class PyroVfxGameTests {
                             var emitter = VfxDefinitionParser.parse(id,
                                     JsonParser.parseString(definitionJson).getAsJsonObject())
                                     .emitters().getFirst();
-                            if (!VfxDenseSpritePool.supports(emitter)) {
+                            if (!VfxDenseParticlePool.supports(emitter)) {
                                 throw new AssertionError("Unjustified Legacy route: " + model + "/"
                                         + lit + "/" + collision + "/" + rotation + "/" + translucent);
                             }
@@ -621,7 +621,7 @@ public final class PyroVfxGameTests {
                 }]}
                 """).getAsJsonObject());
         var emitter = def.emitters().getFirst();
-        if (VfxDenseSpritePool.supports(emitter)
+        if (VfxDenseParticlePool.supports(emitter)
                 || VfxAnalyticPlan.analyse(emitter, true).supported()) {
             throw new AssertionError("Collision callbacks cannot be bypassed by Dense or GPU routing");
         }
@@ -861,7 +861,7 @@ public final class PyroVfxGameTests {
         if(!plan.supported()) throw new AssertionError(plan.reason());
         if(VfxAnalyticPlan.analyse(definition.emitters().getFirst(),false).supported())
             throw new AssertionError("GPU unavailable must use CPU");
-        var pool=new VfxAnalyticSpritePool(definition.emitters().getFirst(),plan);
+        var pool=new VfxAnalyticParticlePool(definition.emitters().getFirst(),plan);
         var start=ClientVfxExpressionContexts.effectStart(Vec3.ZERO,0,
                 Map.of("count",20.0),definition.curves(),RandomSource.create(1),
                 definition.program().variables());
@@ -911,7 +911,7 @@ public final class PyroVfxGameTests {
         var emitter = effect.emitters().getFirst();
         var plan = VfxAnalyticPlan.analyse(emitter, true);
         if (!plan.supported()) throw new AssertionError(plan.reason());
-        var pool = new VfxAnalyticSpritePool(emitter, plan);
+        var pool = new VfxAnalyticParticlePool(emitter, plan);
         var scope = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
                 Map.of(), effect.curves(), RandomSource.create(4), effect.program().variables());
         pool.spawn(1, Vec3.ZERO, scope, RandomSource.create(5));
@@ -949,7 +949,7 @@ public final class PyroVfxGameTests {
         var definition = VfxDefinitionParser.parse(id, json);
         var plan = VfxAnalyticPlan.analyse(definition.emitters().getFirst(), true);
         if (!plan.supported()) throw new AssertionError(plan.reason());
-        var pool = new VfxAnalyticSpritePool(definition.emitters().getFirst(), plan);
+        var pool = new VfxAnalyticParticlePool(definition.emitters().getFirst(), plan);
         var scope = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
                 Map.of(), definition.curves(), RandomSource.create(21),
                 definition.program().variables());
@@ -999,7 +999,7 @@ public final class PyroVfxGameTests {
         var definition = VfxDefinitionParser.parse(id, base);
         var plan = VfxAnalyticPlan.analyse(definition.emitters().getFirst(), true);
         if (!plan.supported()) throw new AssertionError(plan.reason());
-        var pool = new VfxAnalyticSpritePool(definition.emitters().getFirst(), plan);
+        var pool = new VfxAnalyticParticlePool(definition.emitters().getFirst(), plan);
         var scope = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
                 Map.of(), definition.curves(), RandomSource.create(31),
                 definition.program().variables());
@@ -1468,7 +1468,7 @@ public final class PyroVfxGameTests {
                     PyroVfx.MOD_ID, "dense_replay_" + motionMode),
                     JsonParser.parseString(source).getAsJsonObject());
             var emitter = definition.emitters().getFirst();
-            if (!VfxDenseSpritePool.supports(emitter)) {
+            if (!VfxDenseParticlePool.supports(emitter)) {
                 throw new AssertionError("Expected eligible dense sprite: " + motionMode);
             }
             RandomSource denseRandom = RandomSource.create(983221L);
@@ -1495,7 +1495,7 @@ public final class PyroVfxGameTests {
             var initialDenseColor = emitter.render().appearance().color().evaluate(denseStart);
             var initialOldScale = emitter.render().appearance().scale().evaluate(oldStart).toVec3();
             var initialOldColor = emitter.render().appearance().color().evaluate(oldStart);
-            VfxDenseSpritePool pool = new VfxDenseSpritePool(emitter);
+            VfxDenseParticlePool pool = new VfxDenseParticlePool(emitter);
             pool.add(spawn, velocity, 6, 0.25, initialDenseScale, initialDenseColor, denseSpawn);
             ClientVfxParticle old = new ClientVfxParticle(emitter, spawn, velocity, Vec3.ZERO,
                     Vec3.ZERO, 6, 0.25, initialOldScale, initialOldColor, oldSpawn);
@@ -1698,13 +1698,13 @@ public final class PyroVfxGameTests {
         var def = VfxDefinitionParser.parse(ResourceLocation.fromNamespaceAndPath(
                 PyroVfx.MOD_ID, "dense_compaction"), json);
         var emitter = def.emitters().getFirst();
-        if (!VfxDenseSpritePool.supports(emitter)) {
+        if (!VfxDenseParticlePool.supports(emitter)) {
             throw new AssertionError("Static sprite should route to dense backend");
         }
         var effect = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
                 Map.of(), def.curves(), RandomSource.create(2L), def.program().variables());
         var context = ClientVfxExpressionContexts.emitterStart(effect, Vec3.ZERO, 0.5);
-        var pool = new VfxDenseSpritePool(emitter);
+        var pool = new VfxDenseParticlePool(emitter);
         for (int i = 1; i <= 3; i++) {
             Vec3 position = new Vec3(i, 4, 0);
             pool.add(position, Vec3.ZERO, i == 1 ? 1 : 3, 0.5,
@@ -1733,7 +1733,7 @@ public final class PyroVfxGameTests {
                 """));
         var colliding = VfxDefinitionParser.parse(ResourceLocation.fromNamespaceAndPath(
                 PyroVfx.MOD_ID, "collision_fallback"), json);
-        if (!VfxDenseSpritePool.supports(colliding.emitters().getFirst())) {
+        if (!VfxDenseParticlePool.supports(colliding.emitters().getFirst())) {
             throw new AssertionError("Collision without events must use the Dense collision component");
         }
         helper.succeed();

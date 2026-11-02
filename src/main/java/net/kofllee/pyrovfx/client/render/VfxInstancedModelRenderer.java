@@ -1,32 +1,22 @@
 package net.kofllee.pyrovfx.client.render;
 
+import net.kofllee.pyrovfx.client.render.VfxBakedModelMeshCache.Mesh;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxParticle;
-import net.kofllee.pyrovfx.client.vfx.VfxDenseSpritePool;
-import net.kofllee.pyrovfx.client.vfx.VfxAnalyticSpritePool;
+import net.kofllee.pyrovfx.client.vfx.VfxDenseParticlePool;
+import net.kofllee.pyrovfx.client.vfx.VfxAnalyticParticlePool;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxModelRenderDefinition;
 import net.kofllee.pyrovfx.vfx.type.VfxModelRenderLayer;
 import net.kofllee.pyrovfx.vfx.type.VfxModelSourceType;
 import net.kofllee.pyrovfx.vfx.type.VfxRenderType;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.client.renderer.LightTexture;
 import org.joml.Quaternionf;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.block.model.BakedQuad;
-import net.minecraft.client.resources.model.BakedModel;
-import net.minecraft.client.resources.model.ModelResourceLocation;
-import net.minecraft.core.Direction;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.client.model.data.ModelData;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
@@ -40,10 +30,7 @@ import org.lwjgl.opengl.GL33;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * GPU instancing of stable untinted CUSTOM, BLOCK and ITEM baked quads.
@@ -113,7 +100,6 @@ public final class VfxInstancedModelRenderer {
     private static final int VERTEX_FLOATS = 9;
     private static final int MAX_BATCH = 16384;
 
-    private static final Map<VfxModelRenderDefinition, Mesh> meshes = new HashMap<>();
     private static final FloatBuffer MATRIX_BUFFER = ByteBuffer.allocateDirect(16 * Float.BYTES)
             .order(ByteOrder.nativeOrder()).asFloatBuffer();
     private static ByteBuffer instances;
@@ -124,11 +110,8 @@ public final class VfxInstancedModelRenderer {
     private static int lastDrawCalls;
     private static int lastInstances;
     private static int residentUploads, residentUploadBytes;
-    private static final Mesh UNSUPPORTED = new Mesh(0, 0);
     private static final Quaternionf ROTATION = new Quaternionf();
 
-    /** Geometry is uploaded to one immutable GL VBO when first baked. */
-    private record Mesh(int geometryVbo, int vertexCount) {}
 
     private VfxInstancedModelRenderer() {}
 
@@ -155,7 +138,7 @@ public final class VfxInstancedModelRenderer {
     public static void resetFrameStats() { lastDrawCalls = lastInstances = residentUploads = residentUploadBytes = 0; }
 
     /** One birth-state VBO per cohort; model transforms are advanced by the vertex shader. */
-    public static boolean renderAnalytic(VfxAnalyticSpritePool pool, PoseStack poses,
+    public static boolean renderAnalytic(VfxAnalyticParticlePool pool, PoseStack poses,
                                          Camera camera, float partialTick) {
         if (!pool.model() || pool.liveCount() <= 0 || !accepts(pool.definition())) return false;
         RenderSystem.assertOnRenderThread();
@@ -164,12 +147,8 @@ public final class VfxInstancedModelRenderer {
             reloadPending = false;
         }
         var resource = pool.definition().render().model();
-        Mesh mesh = meshes.get(resource);
-        if (mesh == null) {
-            mesh = bake(resource);
-            meshes.put(resource, mesh == null ? UNSUPPORTED : mesh);
-        }
-        if (mesh == null || mesh == UNSUPPORTED) return false;
+        Mesh mesh = VfxBakedModelMeshCache.get(resource);
+        if (mesh == null) return false;
         boolean submitted = false;
         try {
             if (program == 0) initialize();
@@ -209,7 +188,7 @@ public final class VfxInstancedModelRenderer {
     }
 
     /** Render dense primitive model state directly, without materializing particle objects. */
-    public static boolean renderDense(VfxDenseSpritePool pool, PoseStack poses,
+    public static boolean renderDense(VfxDenseParticlePool pool, PoseStack poses,
                                       Camera camera, float partialTick) {
         if (pool.size() == 0 || !pool.model() || !accepts(pool.definition())
                 || !pool.fullyOpaque(partialTick)) return false;
@@ -219,12 +198,8 @@ public final class VfxInstancedModelRenderer {
             reloadPending = false;
         }
         VfxModelRenderDefinition resource = pool.definition().render().model();
-        Mesh mesh = meshes.get(resource);
-        if (mesh == null) {
-            mesh = bake(resource);
-            meshes.put(resource, mesh == null ? UNSUPPORTED : mesh);
-        }
-        if (mesh == UNSUPPORTED || mesh == null) return false;
+        Mesh mesh = VfxBakedModelMeshCache.get(resource);
+        if (mesh == null) return false;
         try {
             if (program == 0) initialize();
             Matrix4f mvp = new Matrix4f(RenderSystem.getProjectionMatrix())
@@ -288,12 +263,8 @@ public final class VfxInstancedModelRenderer {
         }
         VfxEmitterDefinition definition = particles.getFirst().emitterDefinition();
         VfxModelRenderDefinition resource = definition.render().model();
-        Mesh mesh = meshes.get(resource);
-        if (mesh == null) {
-            mesh = bake(resource);
-            meshes.put(resource, mesh == null ? UNSUPPORTED : mesh);
-        }
-        if (mesh == null || mesh == UNSUPPORTED) return false;
+        Mesh mesh = VfxBakedModelMeshCache.get(resource);
+        if (mesh == null) return false;
         // No partial rendering: if any instance needs a semantics-rich path,
         // the entire emitter is left to the Minecraft renderer.
         for (ClientVfxParticle particle : particles) {
@@ -356,88 +327,6 @@ public final class VfxInstancedModelRenderer {
         }
     }
 
-    /** Snapshot only un-tinted, stable quads. Other/custom multipart models fall back. */
-    private static Mesh bake(VfxModelRenderDefinition resource) {
-        Minecraft minecraft = Minecraft.getInstance();
-        BlockState blockState = null;
-        ItemStack itemStack = ItemStack.EMPTY;
-        BakedModel model;
-        switch (resource.source()) {
-            case CUSTOM -> model = minecraft.getModelManager().getModel(
-                    ModelResourceLocation.standalone(resource.model()));
-            case ITEM -> {
-                itemStack = new ItemStack(BuiltInRegistries.ITEM.get(resource.model()));
-                model = minecraft.getItemRenderer().getModel(itemStack, minecraft.level, null, 0);
-            }
-            case BLOCK -> {
-                blockState = BlockModelVfxParticleRenderer.resolveBlockState(resource);
-                model = minecraft.getBlockRenderer().getBlockModel(blockState);
-            }
-            default -> { return null; }
-        }
-        if (model == null) return null;
-        // Item models are resolved by the item renderer against Minecraft's
-        // baked item layer. Passing the custom entity RenderType into
-        // getQuads can produce an empty mesh even when the item is drawable.
-        RenderType renderType = resource.source() == VfxModelSourceType.ITEM
-                ? null : VfxModelRenderTypes.get(resource.renderLayer());
-        RandomSource random = RandomSource.create(42L);
-        List<BakedQuad> quads = new ArrayList<>();
-        for (Direction direction : Direction.values()) {
-            random.setSeed(42L);
-            quads.addAll(model.getQuads(blockState, direction, random, ModelData.EMPTY, renderType));
-        }
-        random.setSeed(42L);
-        quads.addAll(model.getQuads(blockState, null, random, ModelData.EMPTY, renderType));
-        if (quads.isEmpty()) {
-            com.mojang.logging.LogUtils.getLogger().warn(
-                    "Model instancing fallback: {} has no deterministic baked quads", resource);
-            return null;
-        }
-        // Each quad has 4 vertices. Preserve the original face vertex winding.
-        FloatBuffer meshData = ByteBuffer.allocateDirect(quads.size() * 6 * VERTEX_FLOATS * Float.BYTES)
-                .order(ByteOrder.nativeOrder()).asFloatBuffer();
-        for (BakedQuad quad : quads) {
-            if (quad.isTinted() && resource.source() != VfxModelSourceType.ITEM) {
-                com.mojang.logging.LogUtils.getLogger().warn(
-                        "Model instancing fallback: {} needs world-dependent quad tint", resource);
-                return null;
-            }
-            int tint = quad.isTinted()
-                    ? minecraft.getItemColors().getColor(itemStack, quad.getTintIndex()) : -1;
-            int[] data = quad.getVertices();
-            if (data.length < 4 * 6 || data.length % 4 != 0) {
-                com.mojang.logging.LogUtils.getLogger().warn(
-                        "Model instancing fallback: {} has unexpected vertex format", resource);
-                return null;
-            }
-            int stride = data.length / 4;
-            for (int index : new int[]{0,1,2,0,2,3}) {
-                int base = index * stride;
-                int packed = data[base+3]; // baked color is ABGR
-                meshData.put(Float.intBitsToFloat(data[base]));
-                meshData.put(Float.intBitsToFloat(data[base+1]));
-                meshData.put(Float.intBitsToFloat(data[base+2]));
-                meshData.put(Float.intBitsToFloat(data[base+4]));
-                meshData.put(Float.intBitsToFloat(data[base+5]));
-                meshData.put((packed & 255) / 255f * ((tint >> 16) & 255) / 255f);
-                meshData.put(((packed >> 8) & 255) / 255f * ((tint >> 8) & 255) / 255f);
-                meshData.put(((packed >> 16) & 255) / 255f * (tint & 255) / 255f);
-                meshData.put(((packed >>> 24) & 255) / 255f);
-            }
-        }
-        meshData.flip();
-        int oldArray = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
-        int geometry = GL15.glGenBuffers();
-        try {
-            GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, geometry);
-            GL15.glBufferData(GL15.GL_ARRAY_BUFFER, meshData, GL15.GL_STATIC_DRAW);
-        } finally {
-            GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, oldArray);
-        }
-        return new Mesh(geometry, quads.size() * 6);
-    }
-
     private static void ensureCapacity(int count) {
         if (capacity >= count && instances != null) return;
         capacity = Math.min(MAX_BATCH, Math.max(128, Math.max(count, capacity * 2)));
@@ -450,14 +339,14 @@ public final class VfxInstancedModelRenderer {
     }
 
     private static void drawResident(Mesh mesh, Matrix4f mvp, int count,
-                                     VfxModelRenderLayer layer, VfxAnalyticSpritePool pool,
+                                     VfxModelRenderLayer layer, VfxAnalyticParticlePool pool,
                                      int start, Camera camera, float partialTick) {
         drawModel(mesh, mvp, count, layer, false, pool, start, camera, partialTick);
     }
 
     private static void drawModel(Mesh mesh, Matrix4f mvp, int count,
                                   VfxModelRenderLayer layer, boolean worldLit,
-                                  VfxAnalyticSpritePool resident, int start,
+                                  VfxAnalyticParticlePool resident, int start,
                                   Camera camera, float partialTick) {
         VfxInstancedSpriteRenderer.GlState state = new VfxInstancedSpriteRenderer.GlState();
         state.capture();
@@ -481,9 +370,9 @@ public final class VfxInstancedModelRenderer {
                 GL15.glBufferData(GL15.GL_ARRAY_BUFFER, instances, GL15.GL_STREAM_DRAW);
             } else {
                 GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, resident.gpuBuffer());
-                long base = (long) start * VfxAnalyticSpritePool.STRIDE;
-                attribute(2, 3, VfxAnalyticSpritePool.STRIDE, base, 1);
-                attribute(8, 3, VfxAnalyticSpritePool.STRIDE, base + 12, 1);
+                long base = (long) start * VfxAnalyticParticlePool.STRIDE;
+                attribute(2, 3, VfxAnalyticParticlePool.STRIDE, base, 1);
+                attribute(8, 3, VfxAnalyticParticlePool.STRIDE, base + 12, 1);
             }
             GL20.glUniform1i(GL20.glGetUniformLocation(program, "uAnalytic"), resident == null ? 0 : 1);
             if (resident != null) {
@@ -607,15 +496,12 @@ public final class VfxInstancedModelRenderer {
 
     private static void destroy() {
         RenderSystem.assertOnRenderThread();
-        for (Mesh mesh : meshes.values()) {
-            if (mesh.geometryVbo() != 0) GL15.glDeleteBuffers(mesh.geometryVbo());
-        }
+        VfxBakedModelMeshCache.clear();
         if (vertexVbo != 0) GL15.glDeleteBuffers(vertexVbo);
         if (instanceVbo != 0) GL15.glDeleteBuffers(instanceVbo);
         if (vao != 0) GL30.glDeleteVertexArrays(vao);
         if (analyticVao != 0) GL30.glDeleteVertexArrays(analyticVao);
         if (program != 0) GL20.glDeleteProgram(program);
         vertexVbo=instanceVbo=vao=analyticVao=program=0;
-        meshes.clear();
     }
 }

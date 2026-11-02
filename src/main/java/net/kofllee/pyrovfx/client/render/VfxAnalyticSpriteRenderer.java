@@ -2,7 +2,7 @@ package net.kofllee.pyrovfx.client.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.kofllee.pyrovfx.client.vfx.VfxAnalyticSpritePool;
+import net.kofllee.pyrovfx.client.vfx.VfxAnalyticParticlePool;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
@@ -102,7 +102,7 @@ public final class VfxAnalyticSpriteRenderer {
         while (!RETIRED.isEmpty()) GL15.glDeleteBuffers(RETIRED.removeFirst());
     }
 
-    public static boolean render(VfxAnalyticSpritePool pool, PoseStack pose, Camera camera, float partial) {
+    public static boolean render(VfxAnalyticParticlePool pool, PoseStack pose, Camera camera, float partial) {
         RenderSystem.assertOnRenderThread();
         if (pool.liveCount() <= 0 || !gpuPossible()) return false;
         try {
@@ -179,7 +179,7 @@ public final class VfxAnalyticSpriteRenderer {
                 int total=pool.liveCount();
                 for(int start=0;start<total;start+=MAX_DRAW) {
                     int batch=Math.min(MAX_DRAW,total-start);
-                    long offset=(long)start*VfxAnalyticSpritePool.STRIDE;
+                    long offset=(long)start*VfxAnalyticParticlePool.STRIDE;
                     GL20.glVertexAttribPointer(2,3,GL11.GL_FLOAT,false,24,offset);
                     GL20.glVertexAttribPointer(3,3,GL11.GL_FLOAT,false,24,offset+12);
                     GL31.glDrawArraysInstanced(GL11.GL_TRIANGLE_STRIP,0,4,batch);

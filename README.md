@@ -34,6 +34,16 @@ Windows benchmarks can be launched unobtrusively on a second monitor through
 `docs/TEST_HARNESS.md` for the remaining OS focus limitations.
 See `docs/M6_PROGRESS.md` for verification and remaining work.
 
+The current runtime separates simulation from rendering: `VfxDenseParticlePool`
+and `VfxAnalyticParticlePool` handle SoA and resident birth-state particle
+data for sprites **and** baked models. GPU instancing also supports fullbright
+depth-sorted alpha smoke without constructing one render object per particle.
+The model renderer uses a separate cache for deterministic baked GL meshes.
+See [current status](docs/STATUS.md) and
+[alpha smoke A/B benchmarks](docs/benchmarks/alpha-smoke-instancing-2026-11-02/README.md).
+World-lit alpha, translucent model sorting and dynamic entity models retain
+conservative rendering paths; existing client TOML values are preserved.
+
 ## Current scope
 
 Pyro VFX currently includes:

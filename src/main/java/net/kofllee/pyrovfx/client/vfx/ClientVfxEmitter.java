@@ -41,9 +41,9 @@ public final class ClientVfxEmitter {
 
     private final List<ClientVfxParticle> particles = new ArrayList<>();
     private final List<ClientVfxParticle> pendingParticles = new ArrayList<>();
-    private final VfxDenseSpritePool densePool;
-    private final VfxAnalyticSpritePool analyticPool;
-    private final List<VfxAnalyticSpritePool> analyticBatches = new ArrayList<>();
+    private final VfxDenseParticlePool densePool;
+    private final VfxAnalyticParticlePool analyticPool;
+    private final List<VfxAnalyticParticlePool> analyticBatches = new ArrayList<>();
     private final VfxAnalyticPlan analyticPlan;
     private final VfxEventCommandQueue collisionEvents;
     private boolean updatingParticles;
@@ -63,10 +63,10 @@ public final class ClientVfxEmitter {
                         && net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer.gpuPossible());
         this.analyticPool = analyticPlan.useGpu()
                 && definition.spawnAmount().mode() == VfxSpawnAmountMode.INSTANT
-                ? new VfxAnalyticSpritePool(definition, analyticPlan) : null;
+                ? new VfxAnalyticParticlePool(definition, analyticPlan) : null;
         if (analyticPool != null) analyticBatches.add(analyticPool);
-        this.densePool = !analyticPlan.useGpu() && VfxDenseSpritePool.supports(definition)
-                ? new VfxDenseSpritePool(definition) : null;
+        this.densePool = !analyticPlan.useGpu() && VfxDenseParticlePool.supports(definition)
+                ? new VfxDenseParticlePool(definition) : null;
         this.collisionEvents = definition.particleTriggers().isEmpty() ? null : new VfxEventCommandQueue();
 
         this.emitterRandom = random.nextDouble();
@@ -141,7 +141,7 @@ public final class ClientVfxEmitter {
         }
         if (analyticPlan.useGpu()) {
             for (var iterator = analyticBatches.iterator(); iterator.hasNext();) {
-                VfxAnalyticSpritePool batch = iterator.next();
+                VfxAnalyticParticlePool batch = iterator.next();
                 batch.tick();
                 if (batch.liveCount() == 0) {
                     batch.close();
@@ -355,12 +355,12 @@ public final class ClientVfxEmitter {
         count = runtime.reserveSpawns(count, particleCostMask());
         if (analyticPlan.useGpu()) {
             if (count == 0) return;
-            VfxAnalyticSpritePool batch = analyticPool;
+            VfxAnalyticParticlePool batch = analyticPool;
             if (batch == null) {
                 // Continuous emitters are represented by short-lived birth
                 // cohorts, each with its own common age. This never updates
                 // individual particle state after the once-only GPU upload.
-                batch = new VfxAnalyticSpritePool(definition, analyticPlan);
+                batch = new VfxAnalyticParticlePool(definition, analyticPlan);
                 analyticBatches.add(batch);
             }
             batch.spawn(count, emitterPosition, emitterContext, random);
@@ -502,12 +502,12 @@ public final class ClientVfxEmitter {
         return Collections.unmodifiableList(particles);
     }
 
-    public VfxDenseSpritePool densePool() {
+    public VfxDenseParticlePool densePool() {
         return densePool;
     }
 
-    public VfxAnalyticSpritePool analyticPool() { return analyticPool; }
-    public List<VfxAnalyticSpritePool> analyticPools() { return analyticBatches; }
+    public VfxAnalyticParticlePool analyticPool() { return analyticPool; }
+    public List<VfxAnalyticParticlePool> analyticPools() { return analyticBatches; }
 
     public VfxParticleCostClass particleCostClass() {
         if (analyticPlan.useGpu()) return VfxParticleCostClass.GPU_ANALYTIC;
@@ -571,7 +571,7 @@ public final class ClientVfxEmitter {
         return result;
     }
     public void close() {
-        for (VfxAnalyticSpritePool batch : analyticBatches) batch.close();
+        for (VfxAnalyticParticlePool batch : analyticBatches) batch.close();
         analyticBatches.clear();
     }
 
@@ -593,7 +593,7 @@ public final class ClientVfxEmitter {
 
     public int liveParticleCount() {
         int gpuCount = 0;
-        for (VfxAnalyticSpritePool batch : analyticBatches) gpuCount += batch.liveCount();
+        for (VfxAnalyticParticlePool batch : analyticBatches) gpuCount += batch.liveCount();
         return particles.size() + pendingParticles.size()
                 + (densePool == null ? 0 : densePool.size()) + gpuCount;
     }

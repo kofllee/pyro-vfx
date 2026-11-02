@@ -10,11 +10,12 @@ free-VRAM probe, plus repeatable client reload/soak fixtures. See
 [`M6_PROGRESS.md`](M6_PROGRESS.md) and
 [`COMPATIBILITY_MATRIX.md`](COMPATIBILITY_MATRIX.md). Passing local tests
 does not establish AMD/Intel, shaderpack or multiplayer compatibility.
-Recent short-client benchmarks also cover up to 100,000 GPU-instanced
-3D models, baked block/item model variants, world-lit rotating models and
-continuous GPU analytic birth cohorts. These fast paths are selectively
-admitted; animated entity models, unsorted-alpha transparency and
-per-particle mutable GPU expressions retain conservative fallbacks.
+Recent Minecraft A/B benchmarks cover 100,000 GPU-resident unlit models,
+shared model rotation, block/item model variants, and sorted instanced
+full-bright alpha sprites (including dense animated smoke). Supported paths
+are selected independently for simulation and rendering. World-lit alpha,
+translucent baked models, animated entity renderers, and per-particle mutable
+GPU expressions retain conservative, semantics-preserving fallbacks.
 
 ## Stable prototype features
 
@@ -249,11 +250,12 @@ Particle triggers:
 
 ### Runtime execution and limits
 
-- Dense SoA-backed CPU simulation for eligible sprite particles, retaining the exact legacy runtime for complex features.
-- Instanced sprite and selected baked-model rendering with conservative frustum/size culling and Minecraft RenderType fallback.
-- GPU-resident analytic birth-state simulation for eligible static and closed-form dynamic additive sprites; no general-purpose compute backend.
-- 20,000 live particles and 20,000 spawn requests per tick per normal effect, with 4,096 event evaluations per effect/tick.
-- Client-global admission: 80,000 live VFX particles, 30,000 new VFX particles/tick, 8,192 event evaluations/tick and 256 active effects.
+- `VfxDenseParticlePool`: SoA CPU simulation for sprite and baked-model particles, including rotating, lit and event-free colliding variants. `VfxAnalyticParticlePool`: GPU birth-state simulation for eligible sprite and baked-model cohorts. Ordered event callbacks and entity models retain Legacy.
+- GPU instancing for additive sprites, depth-sorted alpha sprites, and eligible baked 3D models. Fullbright alpha is depth-sorted across emitters; world-lit alpha and shader-mod pipelines use Minecraft RenderType fallback.
+- GPU-resident closed-form motion for eligible additive sprites and opaque non-world-lit baked 3D models, optionally including shared constant-parameter rotation. No GPU Compute or general purpose expression kernel.
+- **Default client configuration:** 120,000 live particles and 100,000 new spawns/tick per effect, 4,096 events/effect/tick; globally 240,000 live particles, 100,000 spawns/tick, 8,192 events/tick, 256 effects. Per-dimension defaults: GPU analytic 240k, CPU basic 120k, collisions 20k, models 120k. These are safety ceilings, not expected performance.
+- **Existing TOML settings take precedence:** older `run/config/pyro_vfx-client.toml` files may retain deliberately reduced 20k/80k/10k limits. Do not overwrite or migrate the file merely to match current defaults; `VfxBudgetConfig` still uses the same section/key names, and NeoForge reads existing values.
+- Adaptive admission measures CPU tick time and asynchronous GPU VFX time; sampled heap pressure supplements this only for substantial tracked VFX state. Unknown VRAM or JVM measurements never imply zero available memory.
 - Dedicated developer-only heavy-count benchmark override; no automatic heavy override in production.
 - Deterministic reject-new-work behavior under load, observable rejection counters and JSON benchmark telemetry.
 

@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /** Six birth-state floats per particle; no per-particle work after spawning. */
-public final class VfxAnalyticSpritePool {
+public final class VfxAnalyticParticlePool {
     public static final int STRIDE = 24;
     private final VfxEmitterDefinition definition;
     private final VfxAnalyticPlan plan;
@@ -37,7 +37,7 @@ public final class VfxAnalyticSpritePool {
     private int gpuGeneration = -1;
     private boolean dirty = true;
 
-    public VfxAnalyticSpritePool(VfxEmitterDefinition d, VfxAnalyticPlan p) {
+    public VfxAnalyticParticlePool(VfxEmitterDefinition d, VfxAnalyticPlan p) {
         definition = d;
         plan = p;
         sharedModelRotation = d.render().type() == VfxRenderType.MODEL
