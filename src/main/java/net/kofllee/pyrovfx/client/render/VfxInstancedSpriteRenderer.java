@@ -9,7 +9,6 @@ import net.kofllee.pyrovfx.vfx.type.VfxFacingMode;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.fml.ModList;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.lwjgl.opengl.GL;
@@ -161,16 +160,7 @@ public final class VfxInstancedSpriteRenderer {
     }
 
     static boolean compatibleEnvironment() {
-        if (Boolean.getBoolean("pyrovfx.render.forceLegacy")) return false;
-        // Shader mods can replace framebuffer/program state at runtime. Never
-        // issue raw GL calls inside their pipeline without explicit integration.
-        ModList mods = ModList.get();
-        if (mods != null && (mods.isLoaded("iris") || mods.isLoaded("oculus")
-                || mods.isLoaded("neoculus") || mods.isLoaded("forgeoculus")
-                || mods.isLoaded("embeddium") || mods.isLoaded("sodium"))) {
-            return false;
-        }
-        return true;
+        return VfxRenderCompatibility.compatibleEnvironment();
     }
 
     public static boolean ready() {

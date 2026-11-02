@@ -83,6 +83,11 @@ public final class VfxBenchScenarios {
         add(scenarios, "curves", "examples/curves", 0);
         add(scenarios, "events", "examples/event_sequence", 0);
         add(scenarios, "uv_animation", "examples/animated_sprite", 0);
+        for (var exhibit : net.kofllee.pyrovfx.museum.VfxMuseumCatalog.exhibits()) {
+            scenarios.put("museum_" + exhibit.id(), new Scenario("museum_" + exhibit.id(),
+                    exhibit.effect(), exhibit.count(), 0x50B0_2026L ^ exhibit.id().hashCode(),
+                    10, 60));
+        }
         return Map.copyOf(scenarios);
     }
 

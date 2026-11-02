@@ -66,6 +66,7 @@ neoForge {
             systemProperty 'pyrovfx.bench.secondMonitorBackground', providers.gradleProperty('benchSecondMonitorBackground').orElse('false').get()
             systemProperty 'pyrovfx.collision.disableCache', providers.gradleProperty('benchDisableCollisionCache').orElse('false').get()
             systemProperty 'pyrovfx.bench.auto', providers.gradleProperty('benchScenario').orElse('sprite_1k').get()
+            systemProperty 'pyrovfx.bench.museumBuild', providers.gradleProperty('benchMuseumBuild').orElse('false').get()
             systemProperty 'pyrovfx.bench.gpuTelemetry', providers.gradleProperty('benchGpuTelemetry').orElse('false').get()
             systemProperty 'pyrovfx.model.forceLegacy', providers.gradleProperty('benchModelForceLegacy').orElse('false').get()
             systemProperty 'pyrovfx.bench.vramProbe', providers.gradleProperty('benchVramProbe').orElse('false').get()

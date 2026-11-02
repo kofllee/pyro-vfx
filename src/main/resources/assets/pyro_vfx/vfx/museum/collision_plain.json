@@ -1,0 +1,83 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "Museum / Collisions / Contact response: Dense collision queries without particle callbacks. Read on-stand controls to replay and compare."
+  },
+  "parameters": {
+    "count": 48,
+    "hit": 0
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 160
+  },
+  "emitters": [
+    {
+      "id": "main",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 1.0
+      },
+      "offset": [
+        0,
+        4,
+        0
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "down",
+          "speed": 1,
+          "acceleration": [
+            0,
+            -8,
+            0
+          ],
+          "linear_drag": 0
+        },
+        "collision": {
+          "collide": true,
+          "collision_type": "sphere",
+          "collision_size": [
+            0.05,
+            0.05,
+            0.05
+          ],
+          "collision_drag": 1,
+          "bounciness": 0.2,
+          "expire_on_contact": false
+        }
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": "#FFBB66FF",
+        "scale": [
+          0.6,
+          0.6,
+          1
+        ]
+      }
+    }
+  ]
+}

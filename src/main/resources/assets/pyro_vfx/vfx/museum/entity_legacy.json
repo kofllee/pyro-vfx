@@ -1,0 +1,70 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "Museum / Backends / Legacy entity: Minecraft entity behavior path. Read on-stand controls to replay and compare."
+  },
+  "parameters": {
+    "count": 16
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 160
+  },
+  "emitters": [
+    {
+      "id": "main",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 1.55
+      },
+      "offset": [
+        0,
+        0,
+        0
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": 0.25,
+          "acceleration": [
+            0,
+            -0.1,
+            0
+          ],
+          "linear_drag": 0.1
+        }
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "model",
+        "environment_lighting": false,
+        "model": {
+          "source": "entity",
+          "model": "minecraft:pig",
+          "render_layer": "solid"
+        },
+        "color": "#FFFFFFFF",
+        "scale": [
+          1.0,
+          1.0,
+          0.2
+        ]
+      }
+    }
+  ]
+}

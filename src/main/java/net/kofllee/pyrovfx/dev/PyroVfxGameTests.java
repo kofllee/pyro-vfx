@@ -61,6 +61,50 @@ public final class PyroVfxGameTests {
     private PyroVfxGameTests() {}
 
     @GameTest(template = "empty")
+    public static void museumCatalogHasCompleteValidEffectsAndPhysicalControls(GameTestHelper helper) {
+        var entries = net.kofllee.pyrovfx.museum.VfxMuseumCatalog.exhibits();
+        if (entries.size() < 30
+                || entries.stream().map(e -> e.category()).distinct().count() < 10)
+            throw new AssertionError("Museum must cover all core categories with 30+ standalone exhibits");
+        var buttons = new java.util.HashSet<net.minecraft.core.BlockPos>();
+        for (var exhibit : entries) {
+            if (exhibit.count() < 1 || exhibit.visualScale() < 1
+                    || exhibit.title().isBlank() || exhibit.description().isBlank()
+                    || !net.kofllee.pyrovfx.museum.VfxMuseumCatalog.inside(
+                        exhibit.button(net.kofllee.pyrovfx.museum.VfxMuseumCatalog.Action.PLAY).getX(),
+                        exhibit.button(net.kofllee.pyrovfx.museum.VfxMuseumCatalog.Action.PLAY).getY(),
+                        exhibit.button(net.kofllee.pyrovfx.museum.VfxMuseumCatalog.Action.PLAY).getZ()))
+                throw new AssertionError("Invalid museum panel: " + exhibit.id());
+            for (var action : net.kofllee.pyrovfx.museum.VfxMuseumCatalog.Action.values())
+                if (!buttons.add(exhibit.button(action)))
+                    throw new AssertionError("Overlapping museum button: " + exhibit.id());
+            String name = "assets/pyro_vfx/vfx/museum/" + exhibit.id() + ".json";
+            try (var resource = PyroVfxGameTests.class.getClassLoader().getResourceAsStream(name)) {
+                if (resource == null) throw new AssertionError("Missing museum effect: " + name);
+                var json = JsonParser.parseReader(new java.io.InputStreamReader(
+                        resource, StandardCharsets.UTF_8)).getAsJsonObject();
+                var definition = VfxDefinitionParser.parse(exhibit.effect(), json);
+                if (definition.emitters().isEmpty())
+                    throw new AssertionError("Empty museum effect: " + exhibit.id());
+                if (!definition.parameters().containsKey("count"))
+                    throw new AssertionError("Museum playback requires count parameter: " + exhibit.id());
+            } catch (java.io.IOException ex) {
+                throw new AssertionError("Museum resource read failed: " + exhibit.id(), ex);
+            }
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void installedRendererModsDoNotForceGlobalCpuFallback(GameTestHelper helper) {
+        if (!net.kofllee.pyrovfx.client.render.VfxRenderCompatibility.eligible(false, false)
+                || net.kofllee.pyrovfx.client.render.VfxRenderCompatibility.eligible(false, true)
+                || net.kofllee.pyrovfx.client.render.VfxRenderCompatibility.eligible(true, false))
+            throw new AssertionError("Only active incompatible shader pipeline or explicit override may deny GPU");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void adaptiveSpawnsBackOffAndRecoverWithoutBreakingHardBudgets(GameTestHelper helper) {
         var adaptive = new VfxAdaptiveSpawnController();
         var global = new VfxGlobalBudget();

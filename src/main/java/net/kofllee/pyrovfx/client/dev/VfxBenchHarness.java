@@ -41,9 +41,15 @@ public final class VfxBenchHarness {
 
     private static Run current;
     private static int autoIndex;
+    private static boolean museumBuiltThisSession;
     private static int autoExitTicks = -1;
 
     private VfxBenchHarness() {}
+
+    private static net.kofllee.pyrovfx.museum.VfxMuseumCatalog.Exhibit museumExhibit(String scenario) {
+        return scenario.startsWith("museum_")
+                ? net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find(scenario.substring(7)) : null;
+    }
 
     public static boolean enabled() {
         return ENABLED;
@@ -108,6 +114,12 @@ public final class VfxBenchHarness {
             run.originalGameMode = player.gameMode.getGameModeForPlayer();
             run.originalDayTime = player.serverLevel().getDayTime();
             player.serverLevel().setDayTime(6000L);
+            if (scenario.name().startsWith("museum_")
+                    && Boolean.getBoolean("pyrovfx.bench.museumBuild")
+                    && !museumBuiltThisSession) {
+                net.kofllee.pyrovfx.museum.VfxMuseumWorld.build(player.serverLevel());
+                museumBuiltThisSession = true;
+            }
             if (scenario.name().contains("collision") || scenario.name().equals("adaptive_steady")
                     || scenario.name().equals("soak_mixed")) {
                 // Deterministic solid obstacle, independent of the test world's terrain.
@@ -120,9 +132,14 @@ public final class VfxBenchHarness {
                 }
             }
             player.setGameMode(GameType.SPECTATOR);
-            player.teleportTo(CAMERA.x, CAMERA.y, CAMERA.z);
-            player.setYRot(0);
-            player.setXRot(14);
+            var museumExhibit = museumExhibit(scenario.name());
+            Vec3 camera = museumExhibit == null ? CAMERA
+                    : new Vec3(museumExhibit.base().getX() + 7.5,
+                    museumExhibit.base().getY() + 3.0,
+                    museumExhibit.base().getZ() + 13.3);
+            player.teleportTo(camera.x, camera.y, camera.z);
+            player.setYRot(museumExhibit == null ? 0 : 180);
+            player.setXRot(museumExhibit == null ? 14 : 8);
         });
         return "Started " + name + " (seed=" + scenario.seed() + "). Results: run/pyrovfx-benchmarks/";
     }
@@ -152,10 +169,13 @@ public final class VfxBenchHarness {
             return 0;
         }
         if (minecraft.player != null) {
-            minecraft.player.setYRot(0.0F);
-            minecraft.player.setXRot(14.0F);
-            minecraft.player.yRotO = 0.0F;
-            minecraft.player.xRotO = 14.0F;
+            var museumExhibit = museumExhibit(run.scenario.name());
+            float yaw = museumExhibit == null ? 0 : 180;
+            float pitch = museumExhibit == null ? 14 : 8;
+            minecraft.player.setYRot(yaw);
+            minecraft.player.setXRot(pitch);
+            minecraft.player.yRotO = yaw;
+            minecraft.player.xRotO = pitch;
         }
         if (Minecraft.getInstance().level == null) {
             run.error = "World was unloaded during test";
@@ -169,6 +189,16 @@ public final class VfxBenchHarness {
         if (!run.spawned) {
             if (++run.setupTicks < 40) {
                 return 0;
+            }
+            var museum = museumExhibit(run.scenario.name());
+            if (museum != null) {
+                Vec3 expected = new Vec3(museum.base().getX() + 7.5,
+                        museum.base().getY() + 3.0, museum.base().getZ() + 13.3);
+                if (minecraft.player.position().distanceToSqr(expected) > 12) {
+                    if (run.setupTicks > 650)
+                        run.error = "Museum camera/stand never finished loading: " + museum.id();
+                    return 0;
+                }
             }
             if (run.scenario.name().equals("model_rotation")) {
                 // A narrow pillar 4/16 away from its pivot, rotated by +45 degrees
@@ -199,6 +229,10 @@ public final class VfxBenchHarness {
             VfxPlayOptions options = run.scenario.particles() > 0
                     ? VfxPlayOptions.builder().param("count", run.scenario.particles()).build()
                     : VfxPlayOptions.empty();
+            Vec3 effectPosition = museum == null ? ORIGIN
+                    : new Vec3(museum.effectOrigin().getX() + 0.5,
+                    museum.effectOrigin().getY() + 0.5,
+                    museum.effectOrigin().getZ() + 0.5);
             if (run.scenario.name().equals("global_budget_spike")) {
                 // Heavy override remains DISABLED: exercise production global admission.
                 var request = VfxPlayOptions.builder().param("count",
@@ -207,7 +241,7 @@ public final class VfxBenchHarness {
                     ClientVfxManager.playSeeded(run.definition, ORIGIN, request, run.scenario.seed() + i);
                 }
             } else {
-                ClientVfxManager.playSeeded(run.definition, ORIGIN, options, run.scenario.seed());
+                ClientVfxManager.playSeeded(run.definition, effectPosition, options, run.scenario.seed());
             }
             run.spawnNs = System.nanoTime() - start;
             run.spawned = true;

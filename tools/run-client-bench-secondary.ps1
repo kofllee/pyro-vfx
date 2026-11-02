@@ -18,7 +18,9 @@ param(
     [int]$SoakTicks = 600,
     [switch]$AdaptiveSpawns,
     [double]$AdaptiveCpuTargetMs = 0,
-    [switch]$RenderStateAudit
+    [switch]$RenderStateAudit,
+    [switch]$MuseumBuild,
+    [string]$World = 'Test VFX'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -102,9 +104,11 @@ public static class PyroBenchDesktop {
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $logDir = Join-Path $root 'run/pyrovfx-benchmarks'
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-$log = Join-Path $logDir 'secondary-bench-launch.log'
+$log = Join-Path $logDir ("secondary-bench-" + (Get-Date -Format 'yyyyMMdd-HHmmssfff') + ".log")
 $gradle = Join-Path $root 'gradlew.bat'
 $args = @('runClientBench',
+    "-PbenchWorld=$World",
+    "-PbenchMuseumBuild=$($MuseumBuild.IsPresent.ToString().ToLowerInvariant())",
     "-PbenchScenario=$Scenario",
     "-PbenchWidth=$Width", "-PbenchHeight=$Height",
     '-PbenchSecondMonitorBackground=true',

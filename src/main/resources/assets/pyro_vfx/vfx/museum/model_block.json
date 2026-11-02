@@ -1,0 +1,63 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "Museum / 3D Models / Block geometry: Vanilla block mesh sampling. Read on-stand controls to replay and compare."
+  },
+  "parameters": {
+    "count": 24
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 160
+  },
+  "emitters": [
+    {
+      "id": "main",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 1.55
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": 0.25,
+          "acceleration": [
+            0,
+            -0.1,
+            0
+          ],
+          "linear_drag": 0.1
+        }
+      },
+      "render": {
+        "type": "model",
+        "environment_lighting": false,
+        "model": {
+          "source": "block",
+          "model": "minecraft:stone",
+          "block_state": "minecraft:stone",
+          "render_layer": "solid"
+        },
+        "color": "#FFFFFFFF",
+        "scale": [
+          0.65,
+          0.65,
+          0.13
+        ]
+      }
+    }
+  ]
+}

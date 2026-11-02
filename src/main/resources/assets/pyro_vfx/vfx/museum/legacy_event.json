@@ -1,0 +1,77 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "Museum / Backends / Legacy event path: Required event-capable fallback. Read on-stand controls to replay and compare."
+  },
+  "parameters": {
+    "count": 24,
+    "stage": 0
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 160
+  },
+  "events": {
+    "initialize": {
+      "type": "set_param",
+      "param": "stage",
+      "value": 1
+    },
+    "increment": {
+      "type": "set_param",
+      "param": "stage",
+      "value": "param.stage + 1"
+    },
+    "start": {
+      "type": "sequence",
+      "events": [
+        "initialize",
+        "increment"
+      ]
+    }
+  },
+  "triggers": [
+    {
+      "type": "on_creation",
+      "event": "start"
+    }
+  ],
+  "emitters": [
+    {
+      "id": "main",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "point"
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": "#FFFFFFFF",
+        "scale": [
+          0.5,
+          0.5,
+          1
+        ]
+      }
+    }
+  ]
+}

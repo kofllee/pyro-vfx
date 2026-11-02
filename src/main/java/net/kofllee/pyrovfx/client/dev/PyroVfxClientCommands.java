@@ -70,6 +70,7 @@ public final class PyroVfxClientCommands {
                         .then(literal("backend")
                                 .executes(context -> showBackends())
                         )
+                        .then(VfxMuseumClient.commands())
                         .then(literal("play_at")
                                 .then(argument("effect", ResourceLocationArgument.id())
                                         .suggests(PyroVfxClientCommands::suggestEffects)
@@ -251,6 +252,8 @@ public final class PyroVfxClientCommands {
     private static int showBackends() {
         Player player = Minecraft.getInstance().player;
         if (player == null) return 0;
+        player.displayClientMessage(Component.literal("GPU renderer compatibility: "
+                + net.kofllee.pyrovfx.client.render.VfxRenderCompatibility.reason()), false);
         player.displayClientMessage(Component.literal(
                 "Pyro VFX CPU/GPU backends — active effects: "
                         + ClientVfxManager.getActiveInstanceCount()
