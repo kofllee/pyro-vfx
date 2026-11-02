@@ -190,7 +190,8 @@ public final class VfxBenchHarness {
         long elapsed = System.nanoTime() - startNs;
         long allocatedAfter = allocatedBytes();
         int index = run.elapsedTicks++;
-        if (run.scenario.name().equals("reload_active") && index == 10) {
+        if ((run.scenario.name().equals("reload_active")
+                || run.scenario.name().equals("model_reload_active")) && index == 10) {
             run.reloadFuture = Minecraft.getInstance().reloadResourcePacks();
         }
         if (run.reloadFuture != null && run.reloadFuture.isDone() && !run.reloadCompleted) {
@@ -243,8 +244,35 @@ public final class VfxBenchHarness {
             }
         }
         if (run.elapsedTicks >= run.scenario.warmupTicks() + run.scenario.sampleTicks()) {
-            if (run.scenario.name().equals("reload_active") && !run.reloadCompleted) {
+            if ((run.scenario.name().equals("reload_active")
+                    || run.scenario.name().equals("model_reload_active")) && !run.reloadCompleted) {
                 run.error = "Client resource reload not observed before benchmark ended";
+            }
+            if (Boolean.getBoolean("pyrovfx.bench.requireGpuInstancing")) {
+                String name = run.scenario.name();
+                if ((name.equals("sprite_1k") || name.equals("sprite_10k")
+                        || name.equals("sprite_uv_instanced") || name.equals("sprite_world_z")
+                        || name.equals("sprite_horizontal"))
+                        && net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.drawCalls() == 0) {
+                    run.error = "Expected actual sprite GPU instancing, got no draws: " + name;
+                }
+                if ((name.equals("model_1k") || name.equals("model_reload_active"))
+                        && net.kofllee.pyrovfx.client.render.VfxInstancedModelRenderer.lastDrawCalls() == 0) {
+                    run.error = "Expected actual model GPU instancing, got no draws: " + name;
+                }
+                if ((name.equals("dynamic_1k") || name.equals("sprite_lit_fallback"))
+                        && net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.drawCalls() != 0) {
+                    run.error = "Alpha or world-lit sprite bypassed required RenderType fallback";
+                }
+                if (name.equals("sprite_frustum")
+                        && (net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.culledParticles() == 0
+                            || net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.submittedParticles() == 0)) {
+                    run.error = "GPU frustum test did not both cull and render visible particles";
+                }
+                if (name.equals("sprite_lod")
+                        && net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.subpixelCulledParticles() == 0) {
+                    run.error = "Subpixel GPU LOD failed to discard tiny distant sprites";
+                }
             }
             if (run.scenario.name().equals("budget_spike")
                     && run.peakParticles != VfxRuntimeBudget.MAX_ACTIVE_PARTICLES) {

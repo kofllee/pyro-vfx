@@ -51,6 +51,12 @@ neoForge {
             programArguments.addAll '--quickPlaySingleplayer', providers.gradleProperty('benchWorld').orElse('Test VFX').get()
             systemProperty 'pyrovfx.bench.auto', providers.gradleProperty('benchScenario').orElse('sprite_1k').get()
             systemProperty 'pyrovfx.bench.allowHeavy', providers.gradleProperty('benchHeavy').orElse('false').get()
+            systemProperty 'pyrovfx.render.forceLegacy', providers.gradleProperty('benchLegacyRender').orElse('false').get()
+            systemProperty 'pyrovfx.render.debugNoCulling', providers.gradleProperty('benchNoCulling').orElse('false').get()
+            systemProperty 'pyrovfx.render.debugSolid', providers.gradleProperty('benchGpuDebug').orElse('false').get()
+            systemProperty 'pyrovfx.render.minDiameterPx', providers.gradleProperty('benchMinDiameterPx').orElse('0.20').get()
+            systemProperty 'pyrovfx.render.stateAudit', providers.gradleProperty('benchRenderStateAudit').orElse('false').get()
+            systemProperty 'pyrovfx.bench.requireGpuInstancing', providers.gradleProperty('benchRequireGpuInstancing').orElse('false').get()
             systemProperty 'pyrovfx.cpu.forceLegacy', providers.gradleProperty('benchLegacyCpu').orElse('false').get()
             systemProperty 'pyrovfx.bench.autoExit', 'true'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id

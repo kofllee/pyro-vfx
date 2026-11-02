@@ -10,7 +10,9 @@ import net.kofllee.pyrovfx.client.vfx.VfxWorldIdentity;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxInstance;
 import net.kofllee.pyrovfx.client.vfx.VfxPlayOptions;
 import net.kofllee.pyrovfx.client.render.VfxSpriteUvSampler;
+import net.kofllee.pyrovfx.client.render.VfxRenderVisibility;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
 import net.kofllee.pyrovfx.vfx.curve.VfxCurveDefinition;
 import net.kofllee.pyrovfx.vfx.curve.VfxCurvePoint;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
@@ -51,6 +53,26 @@ import java.lang.reflect.Proxy;
 @PrefixGameTestTemplate(false)
 public final class PyroVfxGameTests {
     private PyroVfxGameTests() {}
+
+    @GameTest(template = "empty")
+    public static void conservativeRenderFrustumAndSubpixelLod(GameTestHelper helper) {
+        Matrix4f identity = new Matrix4f();
+        if (!VfxRenderVisibility.visible(identity, 0, 0, 0, 0.25)
+                || !VfxRenderVisibility.visible(identity, 1.05, 0, 0, 0.10)
+                || VfxRenderVisibility.visible(identity, 3, 0, 0, 0.10)
+                || VfxRenderVisibility.visible(identity, 0, 0, 4, 0.10)) {
+            throw new AssertionError("Frustum culling discarded a boundary sprite or kept a far-off sprite");
+        }
+        if (!VfxRenderVisibility.exceedsPixelFootprint(identity, 0, 0, 0,
+                0.001, 480, 0.25)
+                || VfxRenderVisibility.exceedsPixelFootprint(identity, 0, 0, 0,
+                0.00001, 480, 0.25)
+                || !VfxRenderVisibility.exceedsPixelFootprint(identity, 0, 0, 0,
+                0.00001, 480, 0)) {
+            throw new AssertionError("LOD should remove only subpixel geometry when enabled");
+        }
+        helper.succeed();
+    }
 
     @GameTest(template = "empty")
     public static void expressionVariables(GameTestHelper helper) {

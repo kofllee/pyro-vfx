@@ -4,6 +4,8 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.kofllee.pyrovfx.client.render.ClientVfxSpriteUvResolver;
 import net.kofllee.pyrovfx.client.render.ClientVfxSpriteUvState;
 import net.kofllee.pyrovfx.client.render.SpriteVfxParticleRenderer;
+import net.kofllee.pyrovfx.client.render.VfxSpriteUvSampler;
+import net.kofllee.pyrovfx.client.render.VfxSpriteUvRect;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.expression.VfxVariableLayout;
@@ -85,8 +87,35 @@ public final class VfxDenseSpritePool {
     }
 
     public boolean dynamic() { return dynamic; }
+    public VfxEmitterDefinition definition() { return definition; }
     public int size() { return size; }
     public int capacity() { return age.length; }
+
+    @FunctionalInterface
+    public interface InstanceConsumer {
+        void append(double x, double y, double z, float sizeX, float sizeY,
+                    float r, float g, float b, float a,
+                    float u0, float v0, float u1, float v1);
+    }
+
+    /** No particle objects or snapshots; converts dense simulation data to packed GPU instances. */
+    public void writeInstances(InstanceConsumer writer, Camera camera, float partialTick) {
+        for (int i = 0; i < size; i++) {
+            double x = dynamic ? prevX[i] + (px[i] - prevX[i]) * partialTick : px[i];
+            double y = dynamic ? prevY[i] + (py[i] - prevY[i]) * partialTick : py[i];
+            double z = dynamic ? prevZ[i] + (pz[i] - prevZ[i]) * partialTick : pz[i];
+            float sx = (float) (prevScaleX[i] + (scaleX[i] - prevScaleX[i]) * partialTick);
+            float sy = (float) (prevScaleY[i] + (scaleY[i] - prevScaleY[i]) * partialTick);
+            float cr = (float) (prevR[i] + (r[i] - prevR[i]) * partialTick);
+            float cg = (float) (prevG[i] + (g[i] - prevG[i]) * partialTick);
+            float cb = (float) (prevB[i] + (b[i] - prevB[i]) * partialTick);
+            float ca = (float) (prevA[i] + (a[i] - prevA[i]) * partialTick);
+            cursor.index = i;
+            VfxSpriteUvRect rect = VfxSpriteUvSampler.sample(cursor);
+            writer.append(x, y, z, sx, sy, cr, cg, cb, ca,
+                    rect.u0(), rect.v0(), rect.u1(), rect.v1());
+        }
+    }
 
     public void add(Vec3 spawn, Vec3 velocity, int life, double random,
                     Vec3 initialScale, VfxColor initialColor, VfxExpressionContext spawnContext) {

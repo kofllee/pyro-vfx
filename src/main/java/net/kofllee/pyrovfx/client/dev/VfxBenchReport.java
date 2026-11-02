@@ -5,6 +5,8 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
+import net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer;
+import net.kofllee.pyrovfx.client.render.VfxInstancedModelRenderer;
 import org.lwjgl.opengl.GL11;
 
 import java.io.IOException;
@@ -68,6 +70,13 @@ final class VfxBenchReport {
         root.addProperty("scenario", run.scenario.name());
         root.addProperty("cpuParticleBackend", Boolean.getBoolean("pyrovfx.cpu.forceLegacy")
                 ? "legacy-forced" : "auto-dense-with-feature-fallback");
+        root.addProperty("gpuInstancingRequested", !Boolean.getBoolean("pyrovfx.render.forceLegacy"));
+        root.addProperty("gpuInstancedDrawCallsLastFrame", VfxInstancedSpriteRenderer.drawCalls());
+        root.addProperty("gpuInstancedParticlesLastFrame", VfxInstancedSpriteRenderer.submittedParticles());
+        root.addProperty("gpuFrustumCulledLastFrame", VfxInstancedSpriteRenderer.culledParticles());
+        root.addProperty("gpuSubpixelCulledLastFrame", VfxInstancedSpriteRenderer.subpixelCulledParticles());
+        root.addProperty("gpuModelDrawCallsLastFrame", VfxInstancedModelRenderer.lastDrawCalls());
+        root.addProperty("gpuModelInstancesLastFrame", VfxInstancedModelRenderer.lastInstances());
         root.addProperty("effect", run.scenario.effect().toString());
         root.addProperty("effectSha256", effectHash(run.scenario.effect()));
         root.addProperty("seed", run.scenario.seed());

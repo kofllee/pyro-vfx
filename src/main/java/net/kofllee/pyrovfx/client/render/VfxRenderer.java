@@ -14,39 +14,70 @@ public final class VfxRenderer {
 
     public static void render(PoseStack poseStack, Camera camera, float partialTick){
         Minecraft minecraft = Minecraft.getInstance();
+        VfxInstancedSpriteRenderer.resetFrameStats();
+        VfxInstancedModelRenderer.resetFrameStats();
 
         MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
 
-        for(ClientVfxInstance instance: ClientVfxManager.instances()){
-            for(var emitter : instance.emitters()) {
-                if (emitter.densePool() != null) {
-                    emitter.densePool().render(poseStack, bufferSource, camera, partialTick);
-                }
-                for (ClientVfxParticle particle : emitter.legacyParticles()) {
-                if(particle.emitterDefinition().render().type() == VfxRenderType.SPRITE){
-                    SpriteVfxParticleRenderer.render(
-                            particle,
-                            poseStack,
-                            bufferSource,
-                            camera,
-                            partialTick
-                    );
-                }
+        boolean gpuFrame = false;
+        boolean queuedVanilla = false;
+        try {
+            for(ClientVfxInstance instance: ClientVfxManager.instances()){
+                for(var emitter : instance.emitters()) {
+                    var pool = emitter.densePool();
+                    if (pool != null && pool.size() > 0
+                            && VfxInstancedSpriteRenderer.matches(pool.definition())) {
+                        // World vertex buffers must flush before raw GL draws,
+                        // preserving Minecraft's RenderType ordering.
+                        if (queuedVanilla || !gpuFrame) {
+                            // The shared BufferSource may also contain work
+                            // submitted by another mod before our event.
+                            bufferSource.endBatch();
+                            queuedVanilla = false;
+                        }
+                        if (!gpuFrame) {
+                            VfxInstancedSpriteRenderer.begin(poseStack, camera, partialTick);
+                            gpuFrame = true;
+                        }
+                        VfxInstancedSpriteRenderer.append(pool);
+                    } else {
+                        if (gpuFrame) VfxInstancedSpriteRenderer.flush();
+                        if (pool != null) {
+                            pool.render(poseStack, bufferSource, camera, partialTick);
+                            queuedVanilla |= pool.size() > 0;
+                        }
+                    }
 
-
-                if (particle.emitterDefinition().render().type() == VfxRenderType.MODEL) {
-                    ModelVfxParticleRenderer.render(
-                            particle,
-                            poseStack,
-                            bufferSource,
-                            camera,
-                            partialTick
-                    );
-                }
+                    if (!emitter.legacyParticles().isEmpty()) {
+                        if (gpuFrame) VfxInstancedSpriteRenderer.flush();
+                        var legacy = emitter.legacyParticles();
+                        boolean modelInstanced = false;
+                        if (VfxInstancedModelRenderer.accepts(emitter.definition())) {
+                            // Flush *all* Minecraft-managed geometry, including
+                            // upstream submissions not owned by this renderer.
+                            bufferSource.endBatch();
+                            queuedVanilla = false;
+                            modelInstanced = VfxInstancedModelRenderer.render(
+                                    legacy, poseStack, camera, partialTick);
+                        }
+                        if (modelInstanced) continue;
+                        for (ClientVfxParticle particle : legacy) {
+                            if(particle.emitterDefinition().render().type() == VfxRenderType.SPRITE){
+                                SpriteVfxParticleRenderer.render(
+                                        particle, poseStack, bufferSource, camera, partialTick);
+                            }
+                            if (particle.emitterDefinition().render().type() == VfxRenderType.MODEL) {
+                                ModelVfxParticleRenderer.render(
+                                        particle, poseStack, bufferSource, camera, partialTick);
+                            }
+                        }
+                        queuedVanilla = true;
+                    }
                 }
             }
+        } finally {
+            if (gpuFrame) VfxInstancedSpriteRenderer.finish();
+            bufferSource.endBatch();
         }
-
-        bufferSource.endBatch();
     }
 }

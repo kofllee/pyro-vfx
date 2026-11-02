@@ -30,6 +30,13 @@ public final class VfxBenchScenarios {
         add(scenarios, "model_inheritance", "bench/static", 1);
         add(scenarios, "event_order", "bench/event_order", 1);
         add(scenarios, "model_1k", "bench/model", 1_000);
+        add(scenarios, "model_reload_active", "bench/model", 1);
+        add(scenarios, "sprite_uv_instanced", "bench/sprite_uv_instanced", 1_000);
+        add(scenarios, "sprite_lit_fallback", "bench/sprite_lit_fallback", 1_000);
+        add(scenarios, "sprite_world_z", "bench/sprite_world_z", 1_000);
+        add(scenarios, "sprite_horizontal", "bench/sprite_horizontal", 1_000);
+        add(scenarios, "sprite_frustum", "bench/sprite_frustum", 1_000);
+        add(scenarios, "sprite_lod", "bench/sprite_lod", 1_000);
         add(scenarios, "budget_spike", "bench/budget_spike", 0);
         add(scenarios, "reload_active", "bench/static", 1);
         add(scenarios, "curves", "examples/curves", 0);
