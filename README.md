@@ -18,7 +18,14 @@ and reproduction steps are in `docs/M6_PROGRESS.md`).
 Optional CPU-time-aware spawn admission now scales the rate of **new**
 particles under sustained expensive Pyro simulation without removing live
 particles or changing event delivery. The adaptive client configuration is
-documented in `docs/M6_PROGRESS.md`; this is not yet GPU/VRAM-aware.
+documented in `docs/M6_PROGRESS.md`; it also consumes nonblocking
+Pyro-only GPU timing, with optional NVIDIA free-memory telemetry.
+The final hardening pass adds per-effect adaptive priority classes, asynchronous
+GPU timing, an optional NVIDIA free-VRAM probe, mixed-workload reload tests,
+and CI GameTests. GPU timers measure only Pyro VFX rendering, not whole-frame
+GPU time; VRAM probes are off by default. See
+[`docs/COMPATIBILITY_MATRIX.md`](docs/COMPATIBILITY_MATRIX.md) for what was
+actually verified versus hardware/mod configurations still untested.
 Windows benchmarks can be launched unobtrusively on a second monitor through
 `tools/run-client-bench-secondary.ps1`, without mouse grab; see
 `docs/TEST_HARNESS.md` for the remaining OS focus limitations.

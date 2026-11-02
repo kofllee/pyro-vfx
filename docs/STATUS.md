@@ -4,6 +4,13 @@ This document describes the current capabilities and limitations of Pyro VFX.
 
 Pyro VFX is an actively developed experimental VFX engine. The M0–M4 CPU/GPU architecture and the M5 global-budget safety layer are implemented and have targeted tests; it is **not** yet a finished public tool or a production-reliability guarantee. See [M5 verification and outstanding limits](M5_DECISION_AND_VERIFICATION.md).
 
+The most recent hardening adds opt-in/automatic admission budgets,
+`metadata.priority` classes, asynchronous GPU timing and an optional NVIDIA
+free-VRAM probe, plus repeatable client reload/soak fixtures. See
+[`M6_PROGRESS.md`](M6_PROGRESS.md) and
+[`COMPATIBILITY_MATRIX.md`](COMPATIBILITY_MATRIX.md). Passing local tests
+does not establish AMD/Intel, shaderpack or multiplayer compatibility.
+
 ## Stable prototype features
 
 These systems are implemented and form the current core of the project.
@@ -319,7 +326,8 @@ Minecraft `RenderType` rendering as a compatibility fallback.
 - Visibility radius packets.
 - Per-effect performance statistics.
 - Per-emitter performance statistics.
-- Per-render-type budgets.
+- Fully cost-weighted per-render-type GPU/VRAM budgets (a global quality
+  controller and per-effect quality priority are implemented).
 - Distance culling.
 - Full quality-tier and distance-based spawn LOD (render-only size LOD is implemented).
 - Dedicated reload command.

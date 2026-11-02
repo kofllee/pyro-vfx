@@ -88,7 +88,8 @@ Full root shape:
 ```json
 "metadata": {
   "author": "example",
-  "description": "Description for developers and future editor tooling."
+  "description": "Description for developers and future editor tooling.",
+  "priority": "normal"
 }
 ```
 
@@ -97,9 +98,18 @@ Current fields:
 ```text
 author
 description
+priority
 ```
 
-Metadata does not affect runtime behavior.
+`priority` is optional; accepted values are `ambient`, `normal`
+(default), `important` and `critical`. It only affects the relative
+fraction of **new particle spawns** admitted during adaptive overload:
+ambient is cut most, important is protected more, and critical bypasses
+*adaptive quality reduction* but not any global/per-effect hard safety caps.
+Existing particle simulation, collision physics and event delivery are
+never skipped. Execution order of effects is unchanged; this is not a
+guaranteed strict priority queue if the global hard cap is already exhausted.
+Other metadata fields have no runtime side effects.
 
 ## 5. Value forms
 

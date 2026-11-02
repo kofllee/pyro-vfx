@@ -99,18 +99,64 @@ into this work.
    keep the policy disabled unless `-PbenchAdaptive=true` is supplied.
    The developer-only `-PbenchAdaptiveTargetMs` lets a test deliberately
    exercise a tighter CPU budget without changing user configuration.
-   **This is CPU-only adaptive spawn admission, not GPU/VRAM timing, automatic
-   texture quality or a full cross-backend cost model.**
+   This was initially CPU-only adaptive spawn admission; subsequent work
+   (item 10) adds optional GPU-time and free-memory signals, but not automatic
+   texture quality or a full cross-backend cost model.
+
+9. **Prioritized admission and per-effect cost diagnostics.** Optional
+   `metadata.priority` values `ambient`, `normal`, `important`,
+   `critical` control how strongly new particle spawns are reduced during
+   overload, without changing effect tick order, physics or events. The
+   `critical` tier bypasses only adaptive quality reduction and still
+   obeys all hard caps. Per-effect CPU tick EMA and selected backends
+   are displayed by `/pyrovfx backend`. Execution order remains the
+   original insertion order; this is not strict priority scheduling.
+
+10. **Asynchronous GPU cost and optional VRAM pressure.** Added a bounded
+    8-query OpenGL 3.3 `GL_TIME_ELAPSED` ring, polling only available
+    results. The GPU policy uses a separate EMA and only new GPU samples;
+    the effective adaptive spawn scale is the minimum of CPU, GPU and
+    optional VRAM pressure. On unsupported drivers the GPU signal is
+    ignored, never treated as a zero-time or out-of-memory reading.
+    Query resources are invalidated on reload/world reset on the render
+    thread. GPU timings cover **Pyro VFX render submission**, not total
+    scene GPU time, and default policy targets 2.0 ms. The optional
+    NVIDIA-only `GL_NVX_gpu_memory_info` probe is off by default because
+    it measures device-wide available memory and may add driver overhead.
+    On unsupported hardware VRAM remains unknown and does not throttle.
+
+11. **Mixed render/reload and CI hardening.** Added the `soak_mixed`
+    real-client fixture (analytic GPU sprite, translucent CPU sprites,
+    colliding CPU particles), three automated resource reloads, and
+    report fields for reload cycles and asynchronous GPU samples.
+    The benchmark supports 300–36,000 measured ticks without unbounded
+    sample-array growth. `build.yml` now requires headless GameTests and
+    archive integrity checks alongside compilation. A configured CI step
+    is **not** equivalent to a verified successful GitHub Actions run.
+
+12. **Per-render-cost hard ceilings.** New spawn requests are classified
+    into `GPU_ANALYTIC`, `CPU_BASIC`, `CPU_COLLISION` and `CPU_MODEL`.
+    `pyro_vfx-client.toml` exposes `gpu_analytic_particles` (80k default),
+    `cpu_basic_particles` (80k), `cpu_collision_particles` (20k) and
+    `cpu_model_particles` (10k). These caps apply *in addition to* the
+    global active and per-instance limits and do not delete particles.
+    Budget accounting is shared across all effects, including manual or
+    event-driven spawn requests. `/pyrovfx backend` and benchmark JSON
+    show per-class admitted/rejected counts. The classification is a
+    **coarse safety class**, not calibrated CPU/GPU time per individual
+    particle. Fallback of a previously GPU-analytic pool to CPU rendering
+    remains a special case; do not interpret caps as guaranteed FPS.
 
 ## Test evidence
 
-- `.\gradlew.bat build runGameTestServer --no-daemon --console=plain`
-  succeeded: **34/34 required NeoForge GameTests**, including ownership
+- `.\gradlew.bat clean build runGameTestServer --no-daemon --console=plain`
+  succeeded: **37/37 required NeoForge GameTests**, including ownership
   rejection, scalable admission, deterministic analytic UV frame selection
   and collision AABB math equivalence, plus age-only appearance interpolation
   and random/position-dependent fallback rejection, and bounded adaptive
   backoff/recovery, single-stall immunity and separate event and
-  existing-particle safety checks.
+  existing-particle safety checks, priority weight behavior,
+  per-cost-class global caps and safe VRAM unknown-value fallback.
 - Actual integrated-server Minecraft client benchmark (OpenGL 4.6 NVIDIA
   RTX 4090 Laptop, Windows 11, Minecraft 1.21.1, Java 21.0.5).
 - The CSV and JSON metrics below describe **real measured client runs**
@@ -255,10 +301,59 @@ samples, controller activation and safe budget checks are reproducible:
 python tools/verify_adaptive_bench.py docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132543.json docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132645.json
 ```
 
-The new CPU target protects server/client responsiveness from sustained
-VFX simulation cost, but does not measure async GPU pressure or texture VRAM.
+The CPU target protects client responsiveness from sustained
+VFX simulation cost. This historical A/B predates the later GPU-time and
+VRAM signals; these are verified separately below.
 It does not promise any global FPS threshold, equality between effect
 instances under saturation, or immunity to short bursts.
+
+### Final renderer telemetry and mixed-workload verification
+
+Real client, NVIDIA RTX 4090 Laptop, Windows 11, NeoForge 1.21.1,
+1280x720, VSync off and the secondary-monitor/mouse-passthrough launcher.
+
+| Scenario | Measured ticks | Resource reloads | GPU query samples | Peak particles | CPU median | Frame P95 |
+|---|---:|---:|---:|---:|---:|---:|
+| `soak_mixed` | 600 | 3/3 | 5,794 | 2,388 | 0.244 ms | 2.546 ms |
+| `soak_mixed` | 1,800 | 3/3 | 46,722 | 2,388 | 0.223 ms | 2.619 ms |
+
+The mixed fixture simultaneously exercises an analytic GPU additive burst,
+CPU translucency and colliding particles. The longer run recorded 14,400
+real frames and **completed successfully**. Peak heap was 1,238 MiB
+and 157 Java GC collections were observed during the run; these are
+whole-client figures, not allocated memory belonging solely to Pyro.
+The two durations are not enough to assert zero leaks over 30 minutes.
+
+Following the introduction of independent cost-class budgets, the mixed
+workload was executed again for 600 ticks and three full reloads, with a
+successful render-state audit. The run recorded **2,388** peak live
+particles, **5,205** completed GPU queries and the following spawn totals
+in the new cost-class counters: GPU analytic **600**, CPU basic **7,560**,
+CPU collision **9,450**, CPU model **0**. No category exceeded its limit,
+and no spawn requests were rejected in this moderate-load test. The
+raw report `soak_mixed-20261102-135159.json` and screenshot are archived.
+
+A separate `analytic_age_10k` run with explicit
+`-GpuTelemetry -ProbeVram` succeeded with 10,000 GPU analytic instances,
+7,052 nonblocking timer results and an NVIDIA-only free memory reading
+of **14,275 MiB free / 16,376 MiB total**. This is device-wide available
+VRAM, **not Pyro's VRAM usage**. On devices without that NVIDIA extension,
+the measurement remains unknown and the memory-pressure heuristic is
+disabled. The probe is *off by default* in client configuration.
+
+Raw JSON, screenshot samples and source fixtures are archived under
+`docs/benchmarks/m6-2026-11-02/`. Verification:
+
+```powershell
+python tools/verify_soak_bench.py docs/benchmarks/m6-2026-11-02/soak_mixed-20261102-134026.json docs/benchmarks/m6-2026-11-02/soak_mixed-20261102-134356.json
+```
+
+**Release gate assessment:** local code builds and gameplay tests pass,
+and documented NVIDIA client scenarios work. Production/driver-agnostic
+certification is **not complete**: a 36,000-tick soak, Intel/AMD GPUs,
+shaderpacks and multiplayer clients are still not verified. See
+[`COMPATIBILITY_MATRIX.md`](COMPATIBILITY_MATRIX.md) rather than treating
+unavailable hardware tests as passed.
 
 ## Not yet implemented or verified
 
@@ -270,10 +365,10 @@ instances under saturation, or immunity to short bursts.
 - New collision broadphase and swept collision (the repeated per-block shape
   lookup is now cached and measured); broader edge-case correctness and
   compatibility for stateful/moving block shapes.
-- Remaining adaptive-quality work: GPU time, VRAM, visibility and
-  per-backend/priority cost attribution; the initial CPU-timed spawn
-  controller is deliberately narrower. CPU admission alone is insufficient
-  to guarantee safe 4M-particle effects.
+- Remaining adaptive-quality work: per-effect GPU attribution,
+  visibility-aware cost control and precise Pyro-owned VRAM accounting.
+  Current GPU timing is global and optional NVIDIA VRAM telemetry is
+  device-wide. Neither is a guarantee of safe 4M-particle effects.
 - Dedicated mixed-workload tests with alpha overdraw at 1080p/1440p,
   **true** 3840x2160 results, cold-start/frame-stall distributions,
   long-running soak/GL resource leak checks, and repeated reload/world

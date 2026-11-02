@@ -10,7 +10,7 @@ python tools/test_compare_bench.py
 .\gradlew.bat clean build
 ```
 
-The 34 NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; event trigger order; rejection of removed vanilla particle definitions; configurable high budgets; shared-frame analytic UV animation and age-dependent appearance; collision AABB math equivalence; and CPU-budget adaptive spawn backoff/recovery/disable and isolated CPU spike safety. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
+The 37 NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; event trigger order; rejection of removed vanilla particle definitions; configurable high budgets; shared-frame analytic UV animation and age-dependent appearance; collision AABB math equivalence; CPU-budget adaptive spawn backoff/recovery/disable and isolated CPU spike safety; per-effect quality priorities; GPU memory fallback classification; and independent particle-cost-class caps. They do **not** establish universal driver or modpack compatibility.
 
 ## GPU client
 
@@ -32,12 +32,30 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secon
 python tools/verify_adaptive_bench.py docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132543.json docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132645.json
 ```
 
-The adaptive runtime samples only CPU time spent in Pyro's tick, reducing
-new spawn requests after sustained expensive simulation. It neither
-measures asynchronous GPU rendering nor changes event budgets, physics of
-already live particles or client-configured hard limits. Old benchmark
+The adaptive runtime samples CPU time spent in Pyro's tick and (when supported)
+asynchronous GPU time around Pyro rendering. It never times the entire scene
+or waits for a GPU result to become available. An optional NVIDIA-only
+device-wide free-VRAM probe is disabled by default. Adaptation changes neither
+event budgets nor physics of already live particles or configured hard limits. Old benchmark
 fixtures are unaffected: automated client benchmarks disable adaptation
 unless `-PbenchAdaptive=true` is explicitly selected.
+
+For a bounded mixed GPU/CPU/alpha/collision reload stress run on Windows:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -Scenario soak_mixed -SoakTicks 1800 -Uncapped -GpuTelemetry -RenderStateAudit
+python tools/verify_soak_bench.py docs/benchmarks/m6-2026-11-02/soak_mixed-20261102-134026.json docs/benchmarks/m6-2026-11-02/soak_mixed-20261102-134356.json
+```
+
+`-SoakTicks` is bounded to 300–36,000 measurement ticks and is used
+only for `soak_mixed`; 36,000 represents approximately 30 minutes at 20
+Minecraft ticks/s, not a guaranteed 30 wall-clock minutes. The benchmark
+performs three resource reloads and checks active-instance preservation.
+Both raw reports are archived; the full 36,000-tick run is not yet verified.
+Use `-GpuTelemetry` to exercise production-style asynchronous queries
+without nesting benchmark-specific GL queries. Optional `-ProbeVram`
+attempts NVIDIA's `GL_NVX_gpu_memory_info`, which reports device memory
+and may be unsupported; it is **not** an estimate of Pyro-owned VRAM.
 
 The launcher checks that a secondary monitor exists, creates no separate
 console, moves the window there, sets mouse passthrough, releases the
