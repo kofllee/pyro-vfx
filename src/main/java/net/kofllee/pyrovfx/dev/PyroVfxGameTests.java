@@ -58,6 +58,32 @@ public final class PyroVfxGameTests {
     private PyroVfxGameTests() {}
 
     @GameTest(template = "empty")
+    public static void renderDefinitionsAlwaysUsePyroOwnedParticles(GameTestHelper helper) {
+        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "render_ownership");
+        JsonObject source = JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{
+                  "id":"one","spawn_shape":{"type":"point"},
+                  "render":{"type":"sprite","sprite":{
+                    "texture":"minecraft:textures/particle/generic_0.png"}}
+                }]}
+                """).getAsJsonObject();
+        var owned = VfxDefinitionParser.parse(id, source);
+        if (owned.emitters().getFirst().render().type()
+                != net.kofllee.pyrovfx.vfx.type.VfxRenderType.SPRITE) {
+            throw new AssertionError("Sprite is not owned by Pyro VFX");
+        }
+        source.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                .getAsJsonObject("render").addProperty("type", "minecraft_particle");
+        try {
+            VfxDefinitionParser.parse(id, source);
+            throw new AssertionError("Removed vanilla ParticleEngine bridge was accepted");
+        } catch (IllegalArgumentException expected) {
+            if (!expected.getMessage().contains("was removed")) throw expected;
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void globalBudgetIsSharedAcrossIndependentEffects(GameTestHelper helper) {
         var global = new VfxGlobalBudget();
         global.beginTick(0, false);

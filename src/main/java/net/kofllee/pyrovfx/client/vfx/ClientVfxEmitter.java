@@ -1,6 +1,5 @@
 package net.kofllee.pyrovfx.client.vfx;
 
-import net.kofllee.pyrovfx.client.render.VanillaParticleBridge;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxRotationSampler;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxSpawnPositionSampler;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxMotionSampler;
@@ -383,12 +382,6 @@ public final class ClientVfxEmitter {
                     definition.rotation(),
                     particleSpawnContext
             );
-
-            if (definition.render().type() == VfxRenderType.MINECRAFT_PARTICLE) {
-                VanillaParticleBridge.spawn(level, definition.render(), particlePosition, velocity);
-                emittedParticles++;
-                continue;
-            }
 
             if (definition.render().type() != VfxRenderType.SPRITE
                     && definition.render().type() != VfxRenderType.MODEL) {

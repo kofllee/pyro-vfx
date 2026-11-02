@@ -891,25 +891,15 @@ Angular acceleration uses degrees per second squared.
 Current render types:
 
 ```text
-minecraft_particle
 sprite
 model
 ```
 
-## 22. Minecraft particle rendering
-
-```json
-"render": {
-  "type": "minecraft_particle",
-  "minecraft_particle": {
-    "particle": "minecraft:smoke"
-  }
-}
-```
-
-This delegates spawning to Minecraft.
-
-Pyro VFX does not retain or render the resulting vanilla particle itself.
+The former `minecraft_particle` type is **removed**. Definitions using it
+are rejected with a migration error rather than silently losing their particles.
+Use a `sprite` with a texture or a `model` instead. The default render type
+when the `type` field is absent is now `sprite`. Minecraft `RenderType`
+may still be used to submit Pyro-owned particles for graphics compatibility.
 
 ## 23. Sprite rendering
 

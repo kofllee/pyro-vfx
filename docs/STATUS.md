@@ -168,7 +168,6 @@ Dynamic rotation supports:
 
 Current render types:
 
-- `minecraft_particle`
 - `sprite`
 - `model`
 
@@ -293,9 +292,11 @@ Emitter `timeline` triggers use the emitter age.
 
 Manual emitters do not run their normal lifetime triggers.
 
-### Minecraft particle fallback
+### Particle ownership
 
-`minecraft_particle` delegates spawning to Minecraft's particle system. Pyro VFX does not keep those particles in its own particle list after spawning.
+Pyro VFX owns the lifetime and simulation of every particle that it creates.
+The previous `minecraft_particle` renderer is removed; this does not remove
+Minecraft `RenderType` rendering as a compatibility fallback.
 
 ## Not implemented
 

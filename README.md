@@ -23,7 +23,7 @@ Pyro VFX currently includes:
 - static, dynamic and parametric motion;
 - block collision and collision-triggered events;
 - dynamic and parametric rotation;
-- Minecraft particle fallback rendering;
+- Pyro-owned particle lifecycle (no delegation to Minecraft ParticleEngine);
 - custom sprite particles;
 - custom, block, item and entity model particles;
 - sprite UV regions and sprite-sheet animation;

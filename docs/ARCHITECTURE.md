@@ -22,7 +22,7 @@ JSON resource
     -> ClientVfxInstance
     -> ClientVfxEmitter
     -> ClientVfxParticle
-    -> Sprite, model or Minecraft particle rendering
+    -> Pyro sprite or model rendering (instanced/analytic/RenderType)
 ```
 
 ## Main packages
@@ -461,9 +461,10 @@ EntityModelVfxParticleRenderer
 
 Model lookup and draw behavior depend on the configured source.
 
-### Minecraft particle bridge
+### Particle ownership
 
-`VanillaParticleBridge` delegates fallback particles to the Minecraft level particle system.
+All particle lifetimes stay in Pyro VFX CPU/GPU pools. Minecraft RenderTypes
+are still usable for GPU/driver compatibility; no ParticleEngine bridge exists.
 
 ## Development commands
 

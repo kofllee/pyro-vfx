@@ -629,9 +629,13 @@ public final class VfxDefinitionParser {
 
 
     private static VfxRenderDefinition parseRender(JsonObject json) {
+        if ("minecraft_particle".equalsIgnoreCase(getString(json, "type", "sprite"))) {
+            throw new IllegalArgumentException("render.type 'minecraft_particle' was removed: "
+                    + "use 'sprite' with a texture or 'model'; Pyro VFX owns all particle lifecycles");
+        }
         VfxRenderType type = parseEnum(
                 VfxRenderType.class,
-                getString(json, "type", "minecraft_particle"),
+                getString(json, "type", "sprite"),
                 "render type"
         );
 
@@ -644,9 +648,6 @@ public final class VfxDefinitionParser {
         boolean environmentLighting = getBoolean(json, "environment_lighting", false);
 
         return switch (type) {
-            case MINECRAFT_PARTICLE -> VfxRenderDefinition.minecraftParticle(
-                    parseMinecraftParticleRender(getObject(json, "minecraft_particle"))
-            );
             case SPRITE -> VfxRenderDefinition.sprite(
                     facing,
                     environmentLighting,
@@ -768,12 +769,6 @@ public final class VfxDefinitionParser {
                 getBoolean(json, "random_start_frame", false)
         );
 
-    }
-
-    private static VfxMinecraftParticleRenderDefinition parseMinecraftParticleRender(JsonObject json) {
-        return new VfxMinecraftParticleRenderDefinition(
-                ResourceLocation.parse(getString(json, "particle", "minecraft:smoke"))
-        );
     }
 
     private static VfxSpawnShapeDefinition parseSpawnShape(JsonObject json) {

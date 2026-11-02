@@ -7,23 +7,10 @@ public record VfxRenderDefinition (
         VfxRenderType type,
         VfxFacingMode facing,
         boolean environmentLighting,
-        VfxMinecraftParticleRenderDefinition minecraftParticle,
         VfxSpriteRenderDefinition sprite,
         VfxModelRenderDefinition model,
         VfxParticleAppearanceDefinition appearance
 ) {
-    public static VfxRenderDefinition minecraftParticle(VfxMinecraftParticleRenderDefinition minecraftParticle) {
-        return new VfxRenderDefinition(
-                VfxRenderType.MINECRAFT_PARTICLE,
-                VfxFacingMode.CAMERA,
-                true,
-                minecraftParticle,
-                null,
-                null,
-                VfxParticleAppearanceDefinition.defaultAppearance()
-        );
-    }
-
     public static VfxRenderDefinition sprite(
             VfxFacingMode facing,
             boolean environmentLighting,
@@ -34,7 +21,6 @@ public record VfxRenderDefinition (
                 VfxRenderType.SPRITE,
                 facing,
                 environmentLighting,
-                null,
                 sprite,
                 null,
                 appearance
@@ -50,7 +36,6 @@ public record VfxRenderDefinition (
                 VfxRenderType.MODEL,
                 VfxFacingMode.WORLD_Z,
                 environmentLighting,
-                null,
                 null,
                 model,
                 appearance
