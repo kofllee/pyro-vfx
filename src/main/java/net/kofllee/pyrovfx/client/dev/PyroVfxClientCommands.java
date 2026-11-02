@@ -256,6 +256,12 @@ public final class PyroVfxClientCommands {
                         + ClientVfxManager.getActiveInstanceCount()
                         + ", particles: " + ClientVfxManager.getActiveParticleCount()),false);
         var budget = ClientVfxManager.globalBudget();
+        var adaptive = ClientVfxManager.adaptiveSpawns();
+        player.displayClientMessage(Component.literal(
+                "Adaptive spawn budget: " + Math.round(adaptive.spawnScale() * 100) + "%"
+                        + ", Pyro CPU EMA: " + String.format(java.util.Locale.ROOT, "%.3f", adaptive.cpuEmaMs()) + " ms"
+                        + ", constrained ticks: " + adaptive.constrainedTicks()
+                        + ", observations: " + adaptive.samples()), false);
         player.displayClientMessage(Component.literal(
                 "Global budget: live ceiling " + budget.activeLimit()
                         + ", spawn/tick ceiling " + budget.spawnLimit()

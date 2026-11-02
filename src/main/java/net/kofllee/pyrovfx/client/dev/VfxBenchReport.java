@@ -98,6 +98,13 @@ final class VfxBenchReport {
         root.addProperty("globalRejectedSpawns", globalBudget.rejectedSpawns());
         root.addProperty("globalRejectedEvents", globalBudget.rejectedEvents());
         root.addProperty("globalRejectedEffects", globalBudget.rejectedInstances());
+        root.addProperty("adaptiveEnabledForBenchmark",
+                Boolean.getBoolean("pyrovfx.bench.adaptive"));
+        root.addProperty("adaptiveCpuTargetOverrideMs",
+                System.getProperty("pyrovfx.bench.adaptiveTargetMs", "0"));
+        root.addProperty("minimumAdaptiveSpawnScale", run.minimumAdaptiveScale);
+        root.addProperty("peakAdaptiveCpuEmaMs", run.peakAdaptiveCpuEmaMs);
+        root.addProperty("adaptiveConstrainedTickSamples", run.adaptiveConstrainedTickSamples);
         if (!ClientVfxManager.instances().isEmpty() && !ClientVfxManager.instances().getFirst().emitters().isEmpty()) {
             var emitter = ClientVfxManager.instances().getFirst().emitters().getFirst();
             root.addProperty("selectedParticleBackend", emitter.selectedBackend());

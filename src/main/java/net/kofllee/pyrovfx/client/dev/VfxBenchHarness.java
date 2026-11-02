@@ -107,7 +107,7 @@ public final class VfxBenchHarness {
             run.originalGameMode = player.gameMode.getGameModeForPlayer();
             run.originalDayTime = player.serverLevel().getDayTime();
             player.serverLevel().setDayTime(6000L);
-            if (scenario.name().contains("collision")) {
+            if (scenario.name().contains("collision") || scenario.name().equals("adaptive_steady")) {
                 // Deterministic solid obstacle, independent of the test world's terrain.
                 for (int x = -4; x <= 4; x++) {
                     for (int z = -4; z <= 4; z++) {
@@ -242,6 +242,10 @@ public final class VfxBenchHarness {
             }
         }
         if (index >= run.scenario.warmupTicks()) {
+            var adaptive = ClientVfxManager.adaptiveSpawns();
+            run.minimumAdaptiveScale = Math.min(run.minimumAdaptiveScale, adaptive.spawnScale());
+            run.peakAdaptiveCpuEmaMs = Math.max(run.peakAdaptiveCpuEmaMs, adaptive.cpuEmaMs());
+            if (adaptive.spawnScale() < 0.999999) run.adaptiveConstrainedTickSamples++;
             run.collisionCacheHits += net.kofllee.pyrovfx.client.vfx.VfxCollisionQueryCache.hits();
             run.collisionCacheMisses += net.kofllee.pyrovfx.client.vfx.VfxCollisionQueryCache.misses();
             if (run.tickCount < run.simulationNs.length) {
@@ -559,6 +563,9 @@ public final class VfxBenchHarness {
         long collisionContacts;
         long collisionCacheHits;
         long collisionCacheMisses;
+        double minimumAdaptiveScale = 1.0;
+        double peakAdaptiveCpuEmaMs;
+        int adaptiveConstrainedTickSamples;
         boolean collisionEventObserved;
         CompletableFuture<Void> reloadFuture;
         boolean reloadCompleted;

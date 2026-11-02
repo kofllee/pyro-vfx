@@ -8,6 +8,8 @@ param(
     [switch]$DisableCollisionCache,
     [switch]$RequireGpuAnalytic,
     [switch]$ForceCpuAnalytic,
+    [switch]$AdaptiveSpawns,
+    [double]$AdaptiveCpuTargetMs = 0,
     [switch]$RenderStateAudit
 )
 
@@ -102,6 +104,8 @@ $args = @('runClientBench',
     "-PbenchDisableCollisionCache=$($DisableCollisionCache.IsPresent.ToString().ToLowerInvariant())",
     "-PbenchRequireGpuAnalytic=$($RequireGpuAnalytic.IsPresent.ToString().ToLowerInvariant())",
     "-PbenchLegacyAnalytic=$($ForceCpuAnalytic.IsPresent.ToString().ToLowerInvariant())",
+    "-PbenchAdaptive=$($AdaptiveSpawns.IsPresent.ToString().ToLowerInvariant())",
+    "-PbenchAdaptiveTargetMs=$AdaptiveCpuTargetMs",
     "-PbenchRenderStateAudit=$($RenderStateAudit.IsPresent.ToString().ToLowerInvariant())",
     '--no-daemon', '--console=plain')
 

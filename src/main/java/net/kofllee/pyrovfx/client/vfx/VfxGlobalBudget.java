@@ -17,6 +17,7 @@ public final class VfxGlobalBudget {
     private int remainingEvents;
     private int activeLimit;
     private int spawnLimit;
+    private double adaptiveSpawnScale = 1.0;
     private long rejectedSpawns;
     private long rejectedEvents;
     private long rejectedInstances;
@@ -42,7 +43,12 @@ public final class VfxGlobalBudget {
 
     public int reserveSpawns(int requested) {
         if (requested <= 0) return 0;
-        int granted = Math.min(requested, Math.min(remainingSpawns, remainingActive));
+        // A changing global ceiling alone would not affect regular, small
+        // steady emitters. Reduce each request too, without changing its
+        // physics/event schedule or deleting already living particles.
+        int scaled = Math.min(requested, Math.max(1,
+                (int) Math.floor(requested * adaptiveSpawnScale)));
+        int granted = Math.min(scaled, Math.min(remainingSpawns, remainingActive));
         remainingActive -= granted;
         remainingSpawns -= granted;
         admittedSpawns += granted;
@@ -89,11 +95,16 @@ public final class VfxGlobalBudget {
     public int remainingActive() { return remainingActive; }
     public int activeLimit() { return activeLimit; }
     public int spawnLimit() { return spawnLimit; }
+    public double adaptiveSpawnScale() { return adaptiveSpawnScale; }
+    public void setAdaptiveSpawnScale(double scale) {
+        adaptiveSpawnScale = Double.isFinite(scale) ? Math.clamp(scale, 0.01, 1.0) : 1.0;
+    }
 
     public void reset() {
         remainingActive = remainingSpawns = remainingEvents = activeLimit = spawnLimit = 0;
         rejectedSpawns = rejectedEvents = rejectedInstances = 0;
         admittedSpawns = admittedEvents = 0;
         peakObservedParticles = 0;
+        adaptiveSpawnScale = 1.0;
     }
 }

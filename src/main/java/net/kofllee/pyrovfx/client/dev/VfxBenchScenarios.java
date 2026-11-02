@@ -39,6 +39,7 @@ public final class VfxBenchScenarios {
         add(scenarios, "analytic_uv_10k", "bench/analytic_uv", 10_000);
         add(scenarios, "analytic_age_1k", "bench/analytic_age", 1_000);
         add(scenarios, "analytic_age_10k", "bench/analytic_age", 10_000);
+        add(scenarios, "adaptive_steady", "bench/adaptive_steady", 0);
         add(scenarios, "sprite_lit_fallback", "bench/sprite_lit_fallback", 1_000);
         add(scenarios, "sprite_world_z", "bench/sprite_world_z", 1_000);
         add(scenarios, "sprite_horizontal", "bench/sprite_horizontal", 1_000);

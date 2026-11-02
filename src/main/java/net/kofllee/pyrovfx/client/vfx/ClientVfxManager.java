@@ -16,6 +16,7 @@ public final class ClientVfxManager {
     private static final List<ClientVfxInstance> INSTANCES = new ArrayList<>();
     private static final VfxWorldIdentity WORLD_IDENTITY = new VfxWorldIdentity();
     private static final VfxGlobalBudget GLOBAL_BUDGET = new VfxGlobalBudget();
+    private static final VfxAdaptiveSpawnController ADAPTIVE_SPAWNS = new VfxAdaptiveSpawnController();
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
@@ -49,6 +50,7 @@ public final class ClientVfxManager {
             for (ClientVfxInstance instance : INSTANCES) instance.close();
             INSTANCES.clear();
             GLOBAL_BUDGET.reset();
+            ADAPTIVE_SPAWNS.reset();
             VfxCollisionQueryCache.clear();
             return;
         }
@@ -56,7 +58,19 @@ public final class ClientVfxManager {
         VfxCollisionQueryCache.beginTick(level);
         boolean heavy = !net.neoforged.fml.loading.FMLEnvironment.production
                 && Boolean.getBoolean("pyrovfx.bench.allowHeavy");
-        GLOBAL_BUDGET.beginTick(getActiveParticleCount(), heavy);
+        // Preserve baseline results for automated benchmarks unless explicitly
+        // enabled by a dedicated testing flag.
+        boolean automaticBenchmark = !System.getProperty("pyrovfx.bench.auto", "").isBlank();
+        boolean adaptive = !heavy && VfxBudgetConfig.adaptiveSpawns()
+                && (!automaticBenchmark || Boolean.getBoolean("pyrovfx.bench.adaptive"));
+        int configuredSpawns = VfxBudgetConfig.globalSpawns();
+        int effectiveSpawns = adaptive
+                ? ADAPTIVE_SPAWNS.effectiveSpawnLimit(configuredSpawns)
+                : configuredSpawns;
+        GLOBAL_BUDGET.beginTick(getActiveParticleCount(), heavy,
+                VfxBudgetConfig.globalParticles(), effectiveSpawns);
+        GLOBAL_BUDGET.setAdaptiveSpawnScale(adaptive ? ADAPTIVE_SPAWNS.spawnScale() : 1.0);
+        long startedNs = System.nanoTime();
         Iterator<ClientVfxInstance> iterator = INSTANCES.iterator();
         while(iterator.hasNext()){
             ClientVfxInstance instance = iterator.next();
@@ -75,6 +89,15 @@ public final class ClientVfxManager {
                 iterator.remove();
             }
         }
+        double targetMs = VfxBudgetConfig.cpuTickTargetMs();
+        if (!net.neoforged.fml.loading.FMLEnvironment.production && automaticBenchmark
+                && Boolean.getBoolean("pyrovfx.bench.adaptive")) {
+            double override = Double.parseDouble(System.getProperty("pyrovfx.bench.adaptiveTargetMs", "0"));
+            if (override >= 0.25 && override <= 20) targetMs = override;
+        }
+        ADAPTIVE_SPAWNS.observe(System.nanoTime() - startedNs, getActiveParticleCount(),
+                adaptive, targetMs,
+                VfxBudgetConfig.minimumAdaptiveSpawnPercent());
     }
 
     private static ClientLevel trackWorld() {
@@ -83,6 +106,7 @@ public final class ClientVfxManager {
             for (ClientVfxInstance instance : INSTANCES) instance.close();
             INSTANCES.clear();
             GLOBAL_BUDGET.reset();
+            ADAPTIVE_SPAWNS.reset();
         }
         return level;
     }
@@ -91,10 +115,12 @@ public final class ClientVfxManager {
         for (ClientVfxInstance instance : INSTANCES) instance.close();
         INSTANCES.clear();
         GLOBAL_BUDGET.reset();
+        ADAPTIVE_SPAWNS.reset();
         VfxCollisionQueryCache.clear();
     }
 
     public static VfxGlobalBudget globalBudget() { return GLOBAL_BUDGET; }
+    public static VfxAdaptiveSpawnController adaptiveSpawns() { return ADAPTIVE_SPAWNS; }
 
     public static int getActiveInstanceCount(){
         return INSTANCES.size();

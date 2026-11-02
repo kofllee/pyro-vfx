@@ -7,6 +7,7 @@ import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.vfx.VfxLifetimeRuntime;
 import net.kofllee.pyrovfx.client.vfx.VfxRuntimeBudget;
 import net.kofllee.pyrovfx.client.vfx.VfxGlobalBudget;
+import net.kofllee.pyrovfx.client.vfx.VfxAdaptiveSpawnController;
 import net.kofllee.pyrovfx.client.vfx.VfxCollisionQueryCache;
 import net.kofllee.pyrovfx.client.vfx.VfxAnalyticPlan;
 import net.kofllee.pyrovfx.client.vfx.VfxAnalyticSpritePool;
@@ -58,6 +59,78 @@ import java.lang.reflect.Proxy;
 @PrefixGameTestTemplate(false)
 public final class PyroVfxGameTests {
     private PyroVfxGameTests() {}
+
+    @GameTest(template = "empty")
+    public static void adaptiveSpawnsBackOffAndRecoverWithoutBreakingHardBudgets(GameTestHelper helper) {
+        var adaptive = new VfxAdaptiveSpawnController();
+        var global = new VfxGlobalBudget();
+        for (int tick = 0; tick < 36; tick++) {
+            adaptive.observe(9_000_000L, 10_000, true, 3.0, 25);
+        }
+        if (adaptive.spawnScale() >= 0.5 || adaptive.spawnScale() < 0.25
+                || adaptive.effectiveSpawnLimit(20_000) > 10_000
+                || adaptive.constrainedTicks() == 0) {
+            throw new AssertionError("Persistent expensive Pyro CPU work did not reduce spawn throughput safely");
+        }
+        global.beginTick(12_000, false, 80_000, adaptive.effectiveSpawnLimit(30_000));
+        global.setAdaptiveSpawnScale(adaptive.spawnScale());
+        int limit = global.spawnLimit();
+        if (limit < 1 || limit > 30_000 || global.activeLimit() != 80_000
+                || global.reserveSpawns(50_000) != limit
+                || global.remainingActive() != 68_000 - limit
+                || !global.enterEvent()) {
+            throw new AssertionError("Adaptive policy bypassed global active cap or throttled events");
+        }
+        global.beginTick(4_000, false, 80_000, adaptive.effectiveSpawnLimit(30_000));
+        global.setAdaptiveSpawnScale(adaptive.spawnScale());
+        int smallRequestGranted = global.reserveSpawns(300);
+        if (smallRequestGranted <= 0 || smallRequestGranted >= 300) {
+            throw new AssertionError("Adaptive spawn policy did not throttle smaller steady requests");
+        }
+        for (int tick = 0; tick < 720; tick++) {
+            adaptive.observe(150_000L, 8_000, true, 3.0, 25);
+        }
+        if (adaptive.effectiveSpawnLimit(30_000) != 30_000
+                || Math.abs(adaptive.spawnScale() - 1.0) > 0.00001) {
+            throw new AssertionError("Adaptation did not restore full spawn capacity after recovery");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void adaptiveSpawnsResetOnWorldExitAndDisable(GameTestHelper helper) {
+        var adaptive = new VfxAdaptiveSpawnController();
+        for (int tick = 0; tick < 30; tick++) {
+            adaptive.observe(10_000_000L, 2_000, true, 2.0, 35);
+        }
+        if (adaptive.spawnScale() >= 1.0) throw new AssertionError("Missing overload detection");
+        adaptive.observe(10_000_000L, 0, true, 2.0, 35);
+        if (adaptive.spawnScale() != 1.0 || adaptive.samples() != 0
+                || adaptive.constrainedTicks() != 0) {
+            throw new AssertionError("Adaptive state leaked across world transitions");
+        }
+        for (int tick = 0; tick < 30; tick++) {
+            adaptive.observe(10_000_000L, 2_000, true, 2.0, 35);
+        }
+        adaptive.observe(10_000_000L, 2_000, false, 2.0, 35);
+        if (adaptive.spawnScale() != 1.0 || adaptive.effectiveSpawnLimit(0) != 0
+                || adaptive.effectiveSpawnLimit(1) != 1) {
+            throw new AssertionError("Disabling adaptation did not restore configured ceilings");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void adaptiveSpawnsIgnoreIsolatedCpuSpike(GameTestHelper helper) {
+        var adaptive = new VfxAdaptiveSpawnController();
+        for (int i = 0; i < 12; i++) adaptive.observe(250_000L, 2_000, true, 3.0, 25);
+        adaptive.observe(100_000_000L, 2_000, true, 3.0, 25);
+        for (int i = 0; i < 40; i++) adaptive.observe(250_000L, 2_000, true, 3.0, 25);
+        if (adaptive.spawnScale() != 1.0 || adaptive.effectiveSpawnLimit(30_000) != 30_000) {
+            throw new AssertionError("One CPU stall throttled many subsequent healthy ticks");
+        }
+        helper.succeed();
+    }
 
     @GameTest(template = "empty")
     public static void cachedCollisionBoundsMatchOriginalAabbIntersections(GameTestHelper helper) {

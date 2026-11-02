@@ -18,6 +18,9 @@ public final class VfxBudgetConfig {
     private static final ModConfigSpec.IntValue EFFECT_PARTICLES;
     private static final ModConfigSpec.IntValue EFFECT_SPAWNS;
     private static final ModConfigSpec.IntValue ACTIVE_EFFECTS;
+    private static final ModConfigSpec.BooleanValue ADAPTIVE_SPAWNS;
+    private static final ModConfigSpec.DoubleValue CPU_TICK_BUDGET_MS;
+    private static final ModConfigSpec.IntValue MIN_ADAPTIVE_SPAWN_PERCENT;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -34,6 +37,16 @@ public final class VfxBudgetConfig {
                 .defineInRange("effect_spawns_per_tick", VfxRuntimeBudget.MAX_SPAWNS_PER_TICK, 100, 1_000_000);
         ACTIVE_EFFECTS = builder.comment("Maximum concurrently running VFX instances.")
                 .defineInRange("active_effects", VfxGlobalBudget.MAX_INSTANCES, 1, 4_096);
+        builder.pop();
+        builder.comment("Optional dynamic throttling of NEW particle spawns when Pyro CPU simulation is expensive.",
+                        "Never removes existing particles or throttles redstone/event triggers.")
+                .push("adaptive_spawns");
+        ADAPTIVE_SPAWNS = builder.comment("Automatically reduce the spawn rate if Pyro CPU simulation exceeds its target.")
+                .define("enabled", true);
+        CPU_TICK_BUDGET_MS = builder.comment("Target milliseconds of Pyro VFX CPU simulation per game tick (not total frame time).")
+                .defineInRange("cpu_tick_target_ms", 3.0, 0.25, 20.0);
+        MIN_ADAPTIVE_SPAWN_PERCENT = builder.comment("Smallest allowed fraction of configured spawn capacity under sustained overload.")
+                .defineInRange("minimum_spawn_percent", 25, 5, 100);
         builder.pop();
         SPEC = builder.build();
     }
@@ -56,4 +69,17 @@ public final class VfxBudgetConfig {
     public static int effectParticles() { return value(EFFECT_PARTICLES, VfxRuntimeBudget.MAX_ACTIVE_PARTICLES); }
     public static int effectSpawns() { return value(EFFECT_SPAWNS, VfxRuntimeBudget.MAX_SPAWNS_PER_TICK); }
     public static int activeEffects() { return value(ACTIVE_EFFECTS, VfxGlobalBudget.MAX_INSTANCES); }
+    public static boolean adaptiveSpawns() {
+        if (!FMLEnvironment.dist.isClient()) return false;
+        try { return ADAPTIVE_SPAWNS.get(); }
+        catch (IllegalStateException notLoadedYet) { return true; }
+    }
+    public static double cpuTickTargetMs() {
+        if (!FMLEnvironment.dist.isClient()) return 3.0;
+        try { return CPU_TICK_BUDGET_MS.get(); }
+        catch (IllegalStateException notLoadedYet) { return 3.0; }
+    }
+    public static int minimumAdaptiveSpawnPercent() {
+        return value(MIN_ADAPTIVE_SPAWN_PERCENT, 25);
+    }
 }
