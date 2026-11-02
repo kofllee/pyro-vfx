@@ -41,8 +41,13 @@ depth-sorted alpha smoke without constructing one render object per particle.
 The model renderer uses a separate cache for deterministic baked GL meshes.
 See [current status](docs/STATUS.md) and
 [alpha smoke A/B benchmarks](docs/benchmarks/alpha-smoke-instancing-2026-11-02/README.md).
-World-lit alpha, translucent model sorting and dynamic entity models retain
-conservative rendering paths; existing client TOML values are preserved.
+Eligible GPU Analytic sprites now compile supported appearance expressions
+and immutable curves from the existing CPU parser, including per-birth random,
+age, closed-form position and velocity dependencies. See
+[GPU expressions A/B](docs/benchmarks/gpu-expressions-2026-11-02/README.md).
+World-lit alpha, translucent model sorting, dynamic entity models and
+stateful expressions retain conservative fallbacks; existing client TOML
+values are preserved.
 
 ## Current scope
 

@@ -1,5 +1,20 @@
 # M6 implementation checkpoint — 2026-11-02
 
+**Current implementation addendum (2026-11-03).** This file preserves the
+historical M6 checkpoint below. Later work added depth-sorted GPU alpha
+instancing, sprite/model SoA and analytic pool renames, a baked model GL mesh
+cache, and an expression parser-integrated GLSL appearance subset with
+immutable curves, birth random, age and closed-form motion variables.
+Historical fallback limitations below reflect their earlier date.
+The real-client A/B reports and remaining restrictions are recorded in
+[`alpha smoke`](benchmarks/alpha-smoke-instancing-2026-11-02/README.md),
+[`GPU expressions`](benchmarks/gpu-expressions-2026-11-02/README.md)
+and [`Entity renderer`](benchmarks/entity-model-study-2026-11-02/README.md).
+Existing `pyro_vfx-client.toml` files retain user-edited budgets; only
+newly generated configs receive the current defaults from the config spec.
+External driver/shaderpack compatibility and long reliability soaks remain
+unverified; this is not a production-readiness claim.
+
 **Status: partial implementation, not M6 completion and not production-ready.**
 
 Target: Minecraft 1.21.1, NeoForge 21.1.229, Java 21.

@@ -11,11 +11,12 @@ free-VRAM probe, plus repeatable client reload/soak fixtures. See
 [`COMPATIBILITY_MATRIX.md`](COMPATIBILITY_MATRIX.md). Passing local tests
 does not establish AMD/Intel, shaderpack or multiplayer compatibility.
 Recent Minecraft A/B benchmarks cover 100,000 GPU-resident unlit models,
-shared model rotation, block/item model variants, and sorted instanced
-full-bright alpha sprites (including dense animated smoke). Supported paths
-are selected independently for simulation and rendering. World-lit alpha,
-translucent baked models, animated entity renderers, and per-particle mutable
-GPU expressions retain conservative, semantics-preserving fallbacks.
+shared model rotation, block/item model variants, sorted instanced
+full-bright alpha sprites (including dense animated smoke), and GPU
+appearance expressions/curves. Supported paths are selected independently
+for simulation and rendering. World-lit alpha, translucent baked models,
+animated entity renderers, stateful expression calls, mutable parameters,
+world queries and unsupported GPU semantics retain CPU/Minecraft fallbacks.
 
 ## Stable prototype features
 
@@ -252,7 +253,8 @@ Particle triggers:
 
 - `VfxDenseParticlePool`: SoA CPU simulation for sprite and baked-model particles, including rotating, lit and event-free colliding variants. `VfxAnalyticParticlePool`: GPU birth-state simulation for eligible sprite and baked-model cohorts. Ordered event callbacks and entity models retain Legacy.
 - GPU instancing for additive sprites, depth-sorted alpha sprites, and eligible baked 3D models. Fullbright alpha is depth-sorted across emitters; world-lit alpha and shader-mod pipelines use Minecraft RenderType fallback.
-- GPU-resident closed-form motion for eligible additive sprites and opaque non-world-lit baked 3D models, optionally including shared constant-parameter rotation. No GPU Compute or general purpose expression kernel.
+- GPU-resident closed-form motion for eligible additive sprites and opaque non-world-lit baked 3D models, optionally including shared constant-parameter rotation. For eligible GPU additive sprites, color and XY scale can be compiled from the existing expression parser to bounded GLSL, including birth random, age, supported immutable curves, position, previous position, velocity, speed and spawn position. No GPU Compute or arbitrary world-state expression execution.
+- A 100k curve-heavy Minecraft A/B improved P95 frame intervals from 24.06 ms to 1.73 ms; a 100k motion-expression case improved from 26.62 ms to 1.23 ms in a single paired test. These are synthetic RTX 4090 Laptop results, not production guarantees. See [raw GPU expression reports](benchmarks/gpu-expressions-2026-11-02/README.md) and [entity-model investigation](benchmarks/entity-model-study-2026-11-02/README.md). A dedicated GPU expression reload scenario passes.
 - **Default client configuration:** 120,000 live particles and 100,000 new spawns/tick per effect, 4,096 events/effect/tick; globally 240,000 live particles, 100,000 spawns/tick, 8,192 events/tick, 256 effects. Per-dimension defaults: GPU analytic 240k, CPU basic 120k, collisions 20k, models 120k. These are safety ceilings, not expected performance.
 - **Existing TOML settings take precedence:** older `run/config/pyro_vfx-client.toml` files may retain deliberately reduced 20k/80k/10k limits. Do not overwrite or migrate the file merely to match current defaults; `VfxBudgetConfig` still uses the same section/key names, and NeoForge reads existing values.
 - Adaptive admission measures CPU tick time and asynchronous GPU VFX time; sampled heap pressure supplements this only for substantial tracked VFX state. Unknown VRAM or JVM measurements never imply zero available memory.
