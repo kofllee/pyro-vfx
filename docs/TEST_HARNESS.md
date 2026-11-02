@@ -10,9 +10,31 @@ python tools/test_compare_bench.py
 .\gradlew.bat clean build
 ```
 
-The 30 NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; event trigger order; rejection of removed vanilla particle definitions; configurable high budgets; shared-frame analytic UV animation; and collision AABB math equivalence. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
+The 31 NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; event trigger order; rejection of removed vanilla particle definitions; configurable high budgets; shared-frame analytic UV animation and age-dependent appearance; and collision AABB math equivalence. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
 
 ## GPU client
+
+For *unobtrusive Windows runs on a multi-monitor desktop*, use the launcher
+below instead of starting `runClientBench` directly:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -Scenario analytic_age_1k -Width 1280 -Height 720 -RequireGpuAnalytic -RenderStateAudit
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -Scenario analytic_age_1k -Width 1280 -Height 720 -ForceCpuAnalytic -RenderStateAudit
+```
+
+The launcher checks that a secondary monitor exists, creates no separate
+console, moves the window there, sets mouse passthrough, releases the
+Minecraft cursor and keeps the window behind the user's current work.
+If Minecraft briefly steals OS foreground on first show, a 50-ms Win32
+watchdog attempts to restore the previously active application. The
+development-only window-creation Mixin requests `GLFW_FOCUSED=false`
+and `GLFW_FOCUS_ON_SHOW=false`; a Windows `WS_EX_NOACTIVATE` flag is
+added by the launcher. **No guarantee of zero focus changes shorter than
+50 ms is made.** Reports record `environment.windowX/windowY`,
+`backgroundSecondMonitorRequested`, `windowFocused` (GLFW state)
+and `mousePassthrough`. The OS foreground state is independently checked
+by the launcher, since GLFW's focused state may not match Windows foreground.
+The regular mod's window behavior is unaffected.
 
 With a working graphical Windows session, the existing `run/saves/Test VFX` world:
 

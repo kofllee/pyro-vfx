@@ -10,9 +10,18 @@ The original M2 dynamic integrator uses `v[n] = (v[n-1] + a * dt²) * q`, `p[n] 
 
 ## Capability routing
 
-**gpu_analytic** requires available OpenGL 3.3 and a compatible Minecraft renderer; a full-bright additive sprite with camera, camera-horizontal or world-Z facing; instant once-only spawning; no collision, particle/emitter events or rotation; and compile-time constant appearance, life, shape and dynamic speed/acceleration/drag/direction expressions. Static motion is also supported.
+**gpu_analytic** requires available OpenGL 3.3 and a compatible Minecraft renderer; a full-bright additive sprite with camera, camera-horizontal or world-Z facing; instant once-only spawning; no collision, particle/emitter events or rotation; and compile-time constant life, shape and dynamic speed/acceleration/drag/direction expressions. Static motion is also supported.
 
 M6 additionally accepts `full`, `static` and `animated` sprite UVs with constant sheet parameters and no per-particle random start. One UV rectangle is evaluated once per emitter render using the established CPU frame scheduler and passed to the vertex shader as `uUvRect`. This retains the 24-byte birth-state stride and one-time GPU upload for animated bursts. Random starts, variable sheet parameters and per-particle UV phase remain on CPU paths; arbitrary appearance expressions and alpha blending are still unsupported by this analytic backend.
+
+M6 now also supports additive color and scale expressions referencing only
+`particle.age`, `particle.lifetime` and `particle.normalized_age`.
+Every particle in one instant burst has the same age, so the engine evaluates
+the expression once or twice **per emitter render** (including CPU-compatible
+previous/current age interpolation) and sends color/scale as GPU uniforms.
+This is not a general GPU expression compiler. Mutable parameters, random,
+curves, particle position/velocity and other per-particle state still use
+the CPU backends. Birth-state memory and upload frequency remain unchanged.
 
 Pure constant arithmetic is folded by M1 before selection. The initial spawn count can use a parameter such as `param.count`. Expressions depending on time, mutable parameters, per-particle random values, state, or nonconstant curves are deliberately **not** compiled to GPU and remain supported on the **cpu_dense** or **cpu_legacy** fallback. Dynamic analytical motion never performs world collision queries. Alpha blending, world lighting, models and advanced rotations retain their existing backend.
 
@@ -26,6 +35,6 @@ Known shader/optimization mods (Iris, Oculus, Sodium, Embeddium) trigger the ori
 
 ## Validation and limits
 
-Use `runClientBench` with `sprite_10k`, `sprite_100k`, `sprite_1m`; 100k and 1M require explicit `-PbenchHeavy=true`. For shared UV animation use `analytic_uv_1k`; compare with `-PbenchLegacyAnalytic=true` using identical seed and video settings. Archive real client reports through `tools/summarize_m4.py` and verify the observed count and exactly one 24-byte-per-particle GPU upload. Normal gameplay particle caps are configurable from M6 onward; developer-only heavy benchmarks still use the explicit override.
+Use `runClientBench` with `sprite_10k`, `sprite_100k`, `sprite_1m`; 100k and 1M require explicit `-PbenchHeavy=true`. For shared UV animation use `analytic_uv_1k`; for age-dependent appearance use `analytic_age_1k`. Compare with `-PbenchLegacyAnalytic=true` using identical seed and video settings. Archive real client reports through `tools/summarize_m4.py` and verify the observed count and exactly one 24-byte-per-particle GPU upload. Normal gameplay particle caps are configurable from M6 onward; developer-only heavy benchmarks still use the explicit override.
 
 Do not extrapolate the result to transparency-heavy effects, colliding particles, arbitrary curves, shader packs, GPU compute or every driver. GPU simulation and render CPU timing must be distinguished from end-to-end frame P95.

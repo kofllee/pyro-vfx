@@ -58,12 +58,37 @@ into this work.
    with the original AABB.move/intersects rule over 1024 deterministic cases.
    **This optimizes repeated block queries, not broadphase or swept collision.**
 
+6. **Shared-age appearance on GPU Analytic.** Once-only additive bursts now
+   accept color/scale expressions depending exclusively on
+   `particle.age`, `particle.lifetime` and `particle.normalized_age`.
+   Expression compilation retains per-number dependency metadata for
+   conservative backend selection. One CPU uniform update per emitter
+   draw matches the pre-increment CPU age evaluation and previous/current
+   partial-tick interpolation. This avoids per-particle appearance evaluation
+   on eligible GPU effects, without claiming arbitrary GPU expression
+   compilation. Randomness, curves, position-dependent appearance and
+   mutable parameters retain the CPU path.
+
+7. **Second-monitor, cursor-safe benchmark launch.** On Windows,
+   `tools/run-client-bench-secondary.ps1` refuses to launch unless an
+   independent second monitor is present and the requested window fits.
+   The development-only GLFW window hook requests an unfocused window at
+   creation; the tick policy relocates it, releases Minecraft mouse grab
+   and enables mouse passthrough. A Win32 watchdog applies
+   `WS_EX_NOACTIVATE`, pushes it behind other windows and restores the
+   previous app if Minecraft becomes foreground. The regular game launch
+   is unchanged. Measured window position, mouse passthrough and GLFW
+   focus flags are included in client benchmark reports. **A platform
+   focus switch shorter than the watchdog polling interval cannot be
+   categorically ruled out.**
+
 ## Test evidence
 
 - `.\gradlew.bat build runGameTestServer --no-daemon --console=plain`
-  succeeded: **30/30 required NeoForge GameTests**, including ownership
+  succeeded: **31/31 required NeoForge GameTests**, including ownership
   rejection, scalable admission, deterministic analytic UV frame selection
-  and collision AABB math equivalence.
+  and collision AABB math equivalence, plus age-only appearance interpolation
+  and random/position-dependent fallback rejection.
 - Actual integrated-server Minecraft client benchmark (OpenGL 4.6 NVIDIA
   RTX 4090 Laptop, Windows 11, Minecraft 1.21.1, Java 21.0.5).
 - The CSV and JSON metrics below describe **real measured client runs**
@@ -147,9 +172,40 @@ These results do not establish correctness during in-tick block mutations,
 moving block collision geometries, shader-mod interactions or extremely
 large/unloaded world regions. World collision still runs on the client thread.
 
+### Shared-age appearance and desktop-safe launcher
+
+A real Minecraft client (Windows 11, RTX 4090 Laptop, NeoForge 1.21.1)
+completed the new `analytic_age_1k` scenario with a matching CPU fallback
+using the same SHA-256, seed, 1280x720 window and VSync setting. The shared-age
+GPU route recorded 1,000 GPU analytic sprites and **0.03170 ms** median CPU
+simulation; forced `cpu_dense` recorded **0.10185 ms**. End-to-end frame
+P95 was **9.999 ms** vs **10.158 ms**, so this single matched pair does
+not establish a significant full-frame FPS benefit. The screenshot comparator
+returned RGB RMS **0.006248** (threshold 0.03, passed) with a changed pixel
+fraction of 0.000229. The two raw JSON reports and exact screenshots are
+stored in the M6 benchmark archive.
+
+Windows reported an existing Chrome window as foreground before and after
+the final second-monitor A/B launch. The watchdog detected one Minecraft
+window and **zero** 50-ms foreground-restore attempts; that is evidence
+that Windows foreground did not appear to transfer to Minecraft during
+the sampled intervals. GLFW independently returned `windowFocused=true`
+in its internal report, while `mousePassthrough=true` and the window
+was moved to the secondary display. Thus do not equate GLFW's internal
+focused flag with a verified foreground-app switch. A sub-50-ms initial
+focus transition remains unexcluded, and the launcher is Windows-specific.
+
+To run without stealing the main display or cursor:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -Scenario analytic_age_1k -Width 1280 -Height 720 -RequireGpuAnalytic -RenderStateAudit
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -Scenario analytic_age_1k -Width 1280 -Height 720 -ForceCpuAnalytic -RenderStateAudit
+```
+
 ## Not yet implemented or verified
 
-- General appearance/expression/curve compilation to GPU, independent
+- General appearance/curve compilation to GPU beyond shared-age uniform
+  evaluation, independent
   particle age/rotation, alpha transparency ordering, continuous and
   event-driven analytic simulation, and stateful GPU compute evaluation.
 - GPU-model instancing expansion for all block/item/entity variants.
