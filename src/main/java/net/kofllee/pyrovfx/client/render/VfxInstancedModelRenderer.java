@@ -163,7 +163,7 @@ public final class VfxInstancedModelRenderer {
             instances.clear();
             final int[] batched = {0};
             final Mesh readyMesh = mesh;
-            pool.writeModelInstances((x,y,z,sx,sy,sz,r,g,b,a) -> {
+            pool.writeModelInstances((x,y,z,sx,sy,sz,r,g,b,a,rx,ry,rz) -> {
                 double px = x - cameraPos.x;
                 double py = y - cameraPos.y;
                 double pz = z - cameraPos.z;
@@ -172,11 +172,19 @@ public final class VfxInstancedModelRenderer {
                 instances.putFloat((float)px).putFloat((float)py).putFloat((float)pz);
                 instances.putFloat(sx).putFloat(sy).putFloat(sz);
                 instances.putFloat(r).putFloat(g).putFloat(b).putFloat(a);
-                instances.putFloat(0).putFloat(0).putFloat(0).putFloat(1);
-                instances.putFloat(15.5f / 16).putFloat(15.5f / 16);
+                ROTATION.rotationXYZ((float)Math.toRadians(rx),
+                        (float)Math.toRadians(ry), (float)Math.toRadians(rz));
+                instances.putFloat(ROTATION.x).putFloat(ROTATION.y)
+                        .putFloat(ROTATION.z).putFloat(ROTATION.w);
+                int light = pool.definition().render().environmentLighting()
+                        ? VfxRenderLight.getParticleLight(x, y, z)
+                        : LightTexture.FULL_BRIGHT;
+                instances.putFloat((((light >> 4) & 15) + 0.5f) / 16f);
+                instances.putFloat((((light >> 20) & 15) + 0.5f) / 16f);
                 if (++batched[0] == MAX_BATCH) {
                     instances.flip();
-                    draw(readyMesh, mvp, batched[0], resource.renderLayer(), false);
+                    draw(readyMesh, mvp, batched[0], resource.renderLayer(),
+                            pool.definition().render().environmentLighting());
                     lastDrawCalls++;
                     lastInstances += batched[0];
                     batched[0] = 0;
@@ -185,7 +193,8 @@ public final class VfxInstancedModelRenderer {
             }, partialTick);
             if (batched[0] > 0) {
                 instances.flip();
-                draw(mesh, mvp, batched[0], resource.renderLayer(), false);
+                draw(mesh, mvp, batched[0], resource.renderLayer(),
+                        pool.definition().render().environmentLighting());
                 lastDrawCalls++;
                 lastInstances += batched[0];
             }

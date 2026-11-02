@@ -87,7 +87,11 @@ public final class ClientVfxManager {
         java.util.Arrays.fill(ACTIVE_BY_CLASS, 0);
         for (var instance : INSTANCES) {
             for (var emitter : instance.emitters()) {
-                ACTIVE_BY_CLASS[emitter.particleCostClass().ordinal()] += emitter.liveParticleCount();
+                for (var dimension : VfxParticleCostClass.values()) {
+                    if ((emitter.particleCostMask() & dimension.bit()) != 0) {
+                        ACTIVE_BY_CLASS[dimension.ordinal()] += emitter.liveParticleCount();
+                    }
+                }
             }
         }
         GLOBAL_BUDGET.beginTick(getActiveParticleCount(), heavy,

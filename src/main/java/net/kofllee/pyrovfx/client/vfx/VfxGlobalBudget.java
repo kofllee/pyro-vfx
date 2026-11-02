@@ -64,17 +64,30 @@ public final class VfxGlobalBudget {
     }
 
     public int reserveSpawns(int requested, VfxParticleCostClass group) {
+        return reserveSpawns(requested, group.bit());
+    }
+
+    /** Charge all occupied resource dimensions, not one exclusive particle type. */
+    public int reserveSpawns(int requested, int costMask) {
         if (requested <= 0) return 0;
-        int index = group.ordinal();
-        int granted = Math.min(requested,
-                Math.min(remainingByClass[index], Math.min(remainingSpawns, remainingActive)));
+        int granted = Math.min(requested, Math.min(remainingSpawns, remainingActive));
+        for (var kind : COST_CLASSES) {
+            if ((costMask & kind.bit()) != 0) {
+                granted = Math.min(granted, remainingByClass[kind.ordinal()]);
+            }
+        }
         remainingActive -= granted;
         remainingSpawns -= granted;
-        remainingByClass[index] -= granted;
         admittedSpawns += granted;
         rejectedSpawns += (long) requested - granted;
-        admittedByClass[index] += granted;
-        rejectedByClass[index] += (long) requested - granted;
+        for (var kind : COST_CLASSES) {
+            if ((costMask & kind.bit()) != 0) {
+                int index = kind.ordinal();
+                remainingByClass[index] -= granted;
+                admittedByClass[index] += granted;
+                rejectedByClass[index] += (long) requested - granted;
+            }
+        }
         return granted;
     }
 

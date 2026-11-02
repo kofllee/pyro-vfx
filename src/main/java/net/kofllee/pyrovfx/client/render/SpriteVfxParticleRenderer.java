@@ -67,8 +67,7 @@ public final class SpriteVfxParticleRenderer {
         float halfHeight = height * 0.5F;
 
         int light = particle.emitterDefinition().render().environmentLighting()
-                && particle instanceof ClientVfxParticle legacy
-                ? VfxRenderLight.getParticleLight(legacy, partialTick)
+                ? VfxRenderLight.getParticleLight(particle, partialTick)
                 : LightTexture.FULL_BRIGHT;
 
         VfxSpriteUvRect uv = VfxSpriteUvSampler.sample(particle);

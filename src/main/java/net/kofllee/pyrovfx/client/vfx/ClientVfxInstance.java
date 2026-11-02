@@ -48,6 +48,11 @@ public final class ClientVfxInstance {
         public int reserveSpawns(int requested, VfxParticleCostClass kind) {
             return budget.reserveSpawns(requested, kind);
         }
+
+        @Override
+        public int reserveSpawns(int requested, int costMask) {
+            return budget.reserveSpawns(requested, costMask);
+        }
     };
 
     private final int delayTicks;

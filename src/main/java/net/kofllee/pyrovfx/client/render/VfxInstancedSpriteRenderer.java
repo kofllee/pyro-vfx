@@ -116,6 +116,9 @@ public final class VfxInstancedSpriteRenderer {
 
     public static boolean isSupported(VfxEmitterDefinition definition) {
         if (!compatibleEnvironment() || unavailable) return false;
+        // This GPU vertex layout has no per-particle rotation; preserve visual
+        // parity by rendering rotating dense sprites through Minecraft quads.
+        if (definition.rotation().mode() != net.kofllee.pyrovfx.vfx.type.VfxRotationMode.NONE) return false;
         if (definition.render().sprite() == null
                 || definition.render().sprite().blendMode() != VfxBlendMode.ADDITIVE
                 || definition.render().environmentLighting()) {

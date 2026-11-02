@@ -52,6 +52,10 @@ public final class VfxRuntimeBudget {
     }
 
     public int reserveSpawns(int requested, VfxParticleCostClass group) {
+        return reserveSpawns(requested, group.bit());
+    }
+
+    public int reserveSpawns(int requested, int costMask) {
         if (requested <= 0) {
             return 0;
         }
@@ -60,7 +64,7 @@ public final class VfxRuntimeBudget {
         int granted = Math.min(priorityAdjusted, Math.min(remainingSpawns, remainingActive));
         if (global != null) {
             global.rejectLocalSpawns(requested - granted);
-            granted = global.reserveSpawns(granted, group);
+            granted = global.reserveSpawns(granted, costMask);
         }
         remainingSpawns -= granted;
         remainingActive -= granted;

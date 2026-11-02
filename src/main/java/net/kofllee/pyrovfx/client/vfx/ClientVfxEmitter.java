@@ -47,6 +47,8 @@ public final class ClientVfxEmitter {
     private final VfxAnalyticPlan analyticPlan;
     private final VfxEventCommandQueue collisionEvents;
     private boolean updatingParticles;
+    private String lastRenderer = "not rendered yet";
+    private double simulationEmaMs;
 
     public ClientVfxEmitter(
             VfxEmitterDefinition definition,
@@ -98,6 +100,7 @@ public final class ClientVfxEmitter {
             VfxEventRuntime eventRuntime,
             RandomSource random
     ) {
+        long startedNs = System.nanoTime();
         VfxLifetimeState lifetimeState = VfxLifetimeRuntime.emitter(
                 definition.emitterLifetime().mode(),
                 age,
@@ -181,6 +184,8 @@ public final class ClientVfxEmitter {
         if (canSpawn) {
             age++;
         }
+        double elapsed = (System.nanoTime() - startedNs) / 1_000_000.0;
+        simulationEmaMs = simulationEmaMs == 0 ? elapsed : simulationEmaMs * 0.9 + elapsed * 0.1;
     }
 
     private void tickTriggers(
@@ -347,7 +352,7 @@ public final class ClientVfxEmitter {
             int count,
             VfxEventRuntime runtime
     ) {
-        count = runtime.reserveSpawns(count, particleCostClass());
+        count = runtime.reserveSpawns(count, particleCostMask());
         if (analyticPlan.useGpu()) {
             if (count == 0) return;
             VfxAnalyticSpritePool batch = analyticPool;
@@ -433,7 +438,7 @@ public final class ClientVfxEmitter {
                     .evaluate(initialRenderContext);
 
             if (densePool != null) {
-                densePool.add(particlePosition, velocity, lifeTime, particleRandom,
+                densePool.add(particlePosition, velocity, rotation, angularVelocity, lifeTime, particleRandom,
                         initialScale, initialColor, particleSpawnContext);
             } else {
                 ClientVfxParticle particle = new ClientVfxParticle(
@@ -511,14 +516,41 @@ public final class ClientVfxEmitter {
         return VfxParticleCostClass.CPU_BASIC;
     }
 
+    /** The model and collision dimensions stack with the CPU simulation cost. */
+    public int particleCostMask() {
+        if (analyticPlan.useGpu()) return VfxParticleCostClass.GPU_ANALYTIC.bit();
+        int mask = VfxParticleCostClass.CPU_BASIC.bit();
+        if (definition.motion().collision().collide()) mask |= VfxParticleCostClass.CPU_COLLISION.bit();
+        if (definition.render().type() == VfxRenderType.MODEL) mask |= VfxParticleCostClass.CPU_MODEL.bit();
+        return mask;
+    }
+
     public String selectedBackend() {
         return analyticPlan.useGpu() ? "gpu_analytic"
                 : densePool != null ? "cpu_dense"
                 : "cpu_legacy";
     }
     public String backendReason() {
-        return analyticPlan.reason();
+        if (analyticPlan.useGpu()) return "GPU-resident sprite births; " + analyticPlan.reason();
+        StringBuilder reason = new StringBuilder();
+        reason.append(densePool == null ? "Legacy required: " : "SoA enabled: ");
+        reason.append("motion=").append(definition.motion().mode().name().toLowerCase(java.util.Locale.ROOT));
+        reason.append(", rotation=").append(definition.rotation().mode().name().toLowerCase(java.util.Locale.ROOT));
+        if (definition.render().environmentLighting()) reason.append(", lighting=render-time");
+        if (definition.motion().collision().collide()) reason.append(", collision=world queries");
+        if (!definition.particleTriggers().isEmpty()) reason.append(", ordered particle events");
+        if (definition.render().type() == VfxRenderType.MODEL) {
+            reason.append(", model=").append(definition.render().model().source());
+            reason.append("/").append(definition.render().model().renderLayer());
+        } else if (definition.render().sprite() != null) {
+            reason.append(", sprite=").append(definition.render().sprite().blendMode());
+        }
+        reason.append("; GPU analytic unavailable: ").append(analyticPlan.reason());
+        return reason.toString();
     }
+    public String selectedRenderer() { return lastRenderer; }
+    public void recordRenderer(String renderer) { lastRenderer = renderer; }
+    public double simulationEmaMs() { return simulationEmaMs; }
     public void close() {
         for (VfxAnalyticSpritePool batch : analyticBatches) batch.close();
         analyticBatches.clear();

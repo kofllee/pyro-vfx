@@ -208,6 +208,127 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void modelWithCollisionConsumesBothResourceBudgets(GameTestHelper helper) {
+        var model = net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.CPU_MODEL;
+        var collision = net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.CPU_COLLISION;
+        var basic = net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.CPU_BASIC;
+        var global = new VfxGlobalBudget();
+        int[] active = new int[4];
+        active[model.ordinal()] = net.kofllee.pyrovfx.client.vfx.VfxBudgetConfig.classLimit(model) - 3;
+        active[collision.ordinal()] = net.kofllee.pyrovfx.client.vfx.VfxBudgetConfig.classLimit(collision) - 20;
+        global.beginTick(active[model.ordinal()] + 50, false, 500_000, 10_000, active);
+        int mask = model.bit() | collision.bit() | basic.bit();
+        if (global.reserveSpawns(10, mask) != 3
+                || global.remainingFor(model) != 0
+                || global.remainingFor(collision) != 17
+                || global.admittedFor(model) != 3
+                || global.admittedFor(collision) != 3
+                || global.admittedFor(basic) != 3) {
+            throw new AssertionError("Combined model/collision workload escaped its shared resource limits");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void parametricRotatingModelUsesDenseWithLegacyParity(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "dense_rotating_parametric"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","lifetime":{"active_ticks":12},"emitters":[{
+                  "id":"model","emitter_lifetime":{"active_ticks":1},
+                  "spawn_amount":{"mode":"instant","amount":1},
+                  "spawn_shape":{"type":"point"},
+                  "particle_lifetime":{"max_age_ticks":10},
+                  "motion":{"mode":"parametric","parametric":{"offset":["particle.age * 0.2",0,0]}},
+                  "rotation":{"mode":"dynamic","dynamic":{
+                    "start_rotation":[0,12,0],"angular_velocity":[0,90,0],
+                    "angular_acceleration":[0,20,0],"angular_drag":0.3}},
+                  "render":{"type":"model","model":{"source":"custom",
+                    "model":"pyro_vfx:vfx/smoke_cube","render_layer":"solid"},
+                    "color":["1.0 - particle.normalized_age",0.8,0.7,1],
+                    "scale":[1,1,1]}
+                }]}
+                """).getAsJsonObject());
+        ClientVfxInstance dense = new ClientVfxInstance(
+                definition, Vec3.ZERO, VfxPlayOptions.empty(), 19L);
+        String original = System.getProperty("pyrovfx.cpu.forceLegacy");
+        ClientVfxInstance legacy;
+        try {
+            System.setProperty("pyrovfx.cpu.forceLegacy", "true");
+            legacy = new ClientVfxInstance(definition, Vec3.ZERO, VfxPlayOptions.empty(), 19L);
+        } finally {
+            if (original == null) System.clearProperty("pyrovfx.cpu.forceLegacy");
+            else System.setProperty("pyrovfx.cpu.forceLegacy", original);
+        }
+        if (dense.emitters().getFirst().densePool() == null
+                || legacy.emitters().getFirst().densePool() != null)
+            throw new AssertionError("Rotating parametric model did not select expected CPU backend");
+        for (int tick = 0; tick < 5; tick++) {
+            dense.tick(null);
+            legacy.tick(null);
+            var a = dense.emitters().getFirst().densePool().snapshot(0);
+            var b = legacy.emitters().getFirst().legacyParticles().getFirst();
+            checkClose(b.position().x, a.position().x);
+            checkClose(b.rotation().y, a.rotation().y);
+            checkClose(b.interpolatedRotation(0.5f).y, a.interpolatedRotation(0.5f).y);
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void worldLitSpritesAndModelsKeepDenseSimulation(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "dense_lit"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[
+                  {"id":"lit_sprite","spawn_shape":{"type":"point"},
+                   "render":{"type":"sprite","environment_lighting":true,
+                     "sprite":{"texture":"minecraft:textures/particle/generic_0.png"}}},
+                  {"id":"lit_model","spawn_shape":{"type":"point"},
+                   "render":{"type":"model","environment_lighting":true,
+                     "model":{"source":"custom","model":"pyro_vfx:vfx/smoke_cube",
+                              "render_layer":"solid"}}}
+                ]}
+                """).getAsJsonObject());
+        for (var emitter : definition.emitters()) {
+            if (!VfxDenseSpritePool.supports(emitter)) {
+                throw new AssertionError("Light sampling should belong to renderer, not force Legacy simulation");
+            }
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void backendReportsExplainSimulationAndRenderingConstraints(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "routing_explanation"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[
+                  {"id":"lit_rotating","spawn_shape":{"type":"point"},
+                   "rotation":{"mode":"dynamic","dynamic":{"angular_velocity":[0,90,0]}},
+                   "render":{"type":"sprite","environment_lighting":true,
+                      "sprite":{"texture":"minecraft:textures/particle/generic_0.png"}}},
+                  {"id":"colliding_model","spawn_shape":{"type":"point"},
+                   "motion":{"mode":"dynamic","dynamic":{"speed":0.5},"collision":{"collide":true}},
+                   "render":{"type":"model","model":{"source":"custom",
+                     "model":"pyro_vfx:vfx/smoke_cube","render_layer":"solid"}}}
+                ]}
+                """).getAsJsonObject());
+        var instance = new ClientVfxInstance(definition, Vec3.ZERO, VfxPlayOptions.empty(), 1L);
+        var a = instance.emitters().get(0);
+        var b = instance.emitters().get(1);
+        if (!a.selectedBackend().equals("cpu_dense")
+                || !a.backendReason().contains("lighting")
+                || !a.backendReason().contains("rotation")
+                || !b.selectedBackend().equals("cpu_legacy")
+                || !b.backendReason().contains("collision")
+                || (b.particleCostMask() & net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.CPU_MODEL.bit()) == 0) {
+            throw new AssertionError("Emitter route lacks actionable backend and cost diagnostics");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void adaptiveSpawnsResetOnWorldExitAndDisable(GameTestHelper helper) {
         var adaptive = new VfxAdaptiveSpawnController();
         for (int tick = 0; tick < 30; tick++) {

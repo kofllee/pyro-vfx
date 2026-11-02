@@ -12,4 +12,8 @@ public interface VfxEventRuntime {
     default int reserveSpawns(int requested, VfxParticleCostClass group) {
         return reserveSpawns(requested);
     }
+
+    default int reserveSpawns(int requested, int costMask) {
+        return reserveSpawns(requested);
+    }
 }

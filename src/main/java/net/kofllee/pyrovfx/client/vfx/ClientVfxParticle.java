@@ -88,12 +88,16 @@ public final class ClientVfxParticle implements VfxSpriteParticleView {
     /** Snapshot for public/debug inspection; never allocated in the simulation/render hot paths. */
     static ClientVfxParticle denseSnapshot(
             VfxEmitterDefinition definition, Vec3 spawn, Vec3 position, Vec3 previous,
-            Vec3 velocity, Vec3 scale, Vec3 previousScale,
+            Vec3 velocity, Vec3 rotation, Vec3 previousRotation,
+            Vec3 scale, Vec3 previousScale,
             VfxColor color, VfxColor previousColor,
             double random, int lifetime, int age, ClientVfxSpriteUvState uv
     ) {
-        return new ClientVfxParticle(definition, spawn, position, previous, velocity,
+        ClientVfxParticle snapshot = new ClientVfxParticle(definition, spawn, position, previous, velocity,
                 scale, previousScale, color, previousColor, random, lifetime, age, uv);
+        snapshot.rotation = rotation;
+        snapshot.previousRotation = previousRotation;
+        return snapshot;
     }
 
     private ClientVfxParticle(VfxEmitterDefinition definition, Vec3 spawn, Vec3 position,

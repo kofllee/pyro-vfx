@@ -285,7 +285,7 @@ public final class PyroVfxClientCommands {
         for (var kind : net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.values()) {
             player.displayClientMessage(Component.literal(
                     "  " + kind + ": " + budget.remainingFor(kind)
-                            + " remaining class slots, admitted "
+                            + " remaining dimension slots, admitted "
                             + budget.admittedFor(kind) + ", rejected "
                             + budget.rejectedFor(kind)), false);
         }
@@ -307,9 +307,15 @@ public final class PyroVfxClientCommands {
                                 + ": " + emitter.selectedBackend()
                                 + " (" + emitter.liveParticleCount() + " active)"
                                 + ", priority " + instance.definition().metadata().priority()
-                                + ", CPU EMA " + String.format(java.util.Locale.ROOT,
-                                     "%.3f ms", instance.cpuTickEmaMs())
+                                + ", emitter simulation EMA " + String.format(java.util.Locale.ROOT,
+                                     "%.3f ms", emitter.simulationEmaMs())
                                 + " — " + emitter.backendReason()),false);
+                player.displayClientMessage(Component.literal(
+                        "    renderer (last frame): " + emitter.selectedRenderer()
+                                + "; budget dimensions: "
+                                + java.util.Arrays.stream(net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.values())
+                                    .filter(kind -> (emitter.particleCostMask() & kind.bit()) != 0)
+                                    .map(Enum::name).collect(java.util.stream.Collectors.joining(" + "))), false);
             }
         }
         player.displayClientMessage(Component.literal(

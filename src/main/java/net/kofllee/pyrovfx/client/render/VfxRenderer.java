@@ -13,6 +13,7 @@ public final class VfxRenderer {
     private VfxRenderer() {}
 
     public static void render(PoseStack poseStack, Camera camera, float partialTick){
+        VfxRenderLight.beginFrame();
         Minecraft minecraft = Minecraft.getInstance();
         // Do not start expensive GL driver timer queries in ordinary worlds
         // where Pyro has nothing to render.
@@ -36,8 +37,11 @@ public final class VfxRenderer {
                         bufferSource.endBatch();
                         queuedVanilla = false;
                         if (!VfxAnalyticSpriteRenderer.render(analytic, poseStack, camera, partialTick)) {
+                            emitter.recordRenderer("Minecraft sprite fallback (analytic GPU unavailable)");
                             analytic.renderFallback(poseStack, bufferSource, camera, partialTick);
                             queuedVanilla = true;
+                        } else {
+                            emitter.recordRenderer("GPU analytic sprite (resident birth data)");
                         }
                     }
                     var pool = emitter.densePool();
@@ -56,6 +60,7 @@ public final class VfxRenderer {
                             gpuFrame = true;
                         }
                         VfxInstancedSpriteRenderer.append(pool);
+                        emitter.recordRenderer("GPU instanced sprite (per-frame instance upload)");
                     } else {
                         if (gpuFrame) VfxInstancedSpriteRenderer.flush();
                         if (pool != null) {
@@ -65,9 +70,15 @@ public final class VfxRenderer {
                                 queuedVanilla = false;
                                 modelInstanced = VfxInstancedModelRenderer.renderDense(
                                         pool, poseStack, camera, partialTick);
+                                if (modelInstanced) {
+                                    emitter.recordRenderer("GPU instanced model (per-frame instance upload)");
+                                }
                             }
                             if (!modelInstanced) {
                                 pool.render(poseStack, bufferSource, camera, partialTick);
+                                emitter.recordRenderer(pool.model()
+                                        ? "Minecraft model RenderType (dense simulation)"
+                                        : "Minecraft sprite RenderType (dense simulation)");
                                 queuedVanilla |= pool.size() > 0;
                             }
                         }
@@ -85,7 +96,13 @@ public final class VfxRenderer {
                             modelInstanced = VfxInstancedModelRenderer.render(
                                     legacy, poseStack, camera, partialTick);
                         }
-                        if (modelInstanced) continue;
+                        if (modelInstanced) {
+                            emitter.recordRenderer("GPU instanced model (legacy CPU simulation)");
+                            continue;
+                        }
+                        emitter.recordRenderer(emitter.definition().render().type() == VfxRenderType.MODEL
+                                ? "Minecraft model RenderType (legacy CPU simulation)"
+                                : "Minecraft sprite RenderType (legacy CPU simulation)");
                         for (ClientVfxParticle particle : legacy) {
                             if(particle.emitterDefinition().render().type() == VfxRenderType.SPRITE){
                                 SpriteVfxParticleRenderer.render(
