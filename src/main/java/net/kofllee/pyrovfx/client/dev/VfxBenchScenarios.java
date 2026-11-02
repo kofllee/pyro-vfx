@@ -33,6 +33,7 @@ public final class VfxBenchScenarios {
         add(scenarios, "model_inheritance", "bench/static", 1);
         add(scenarios, "event_order", "bench/event_order", 1);
         add(scenarios, "model_1k", "bench/model", 1_000);
+        add(scenarios, "model_translucent_1k", "bench/model_translucent", 1_000);
         add(scenarios, "model_10k", "bench/model", 10_000);
         add(scenarios, "model_100k", "bench/model", 100_000);
         add(scenarios, "model_rotating_10k", "bench/model_rotating", 10_000);

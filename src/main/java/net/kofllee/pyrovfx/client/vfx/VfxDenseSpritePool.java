@@ -96,8 +96,7 @@ public final class VfxDenseSpritePool {
                 && definition.render().sprite() != null;
         boolean model = definition.render().type() == VfxRenderType.MODEL
                 && definition.render().model() != null
-                && definition.render().model().source() != VfxModelSourceType.ENTITY
-                && definition.render().model().renderLayer() != VfxModelRenderLayer.TRANSLUCENT;
+                && definition.render().model().source() != VfxModelSourceType.ENTITY;
         return !Boolean.getBoolean("pyrovfx.cpu.forceLegacy")
                 && (sprite || model)
                 && definition.particleTriggers().isEmpty()

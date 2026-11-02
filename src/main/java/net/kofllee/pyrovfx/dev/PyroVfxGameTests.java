@@ -370,6 +370,27 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void translucentModelsKeepDenseSimulationWithoutGpuInstancing(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "translucent_model_dense"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{
+                  "id":"alpha","spawn_shape":{"type":"point"},
+                  "motion":{"mode":"dynamic","dynamic":{"speed":0.5}},
+                  "render":{"type":"model","model":{"source":"custom",
+                    "model":"pyro_vfx:vfx/ember_cube","render_layer":"translucent"},
+                    "color":[1,1,1,0.5]}
+                }]}
+                """).getAsJsonObject());
+        var emitter = definition.emitters().getFirst();
+        if (!VfxDenseSpritePool.supports(emitter)
+                || VfxAnalyticPlan.analyse(emitter, true).supported()) {
+            throw new AssertionError("Translucent model must retain Dense simulation and Minecraft blend semantics");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void denseMemoryTelemetryTracksAllocatedCapacity(GameTestHelper helper) {
         var definition = VfxDefinitionParser.parse(
                 ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "memory_dense"),
