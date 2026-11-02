@@ -88,6 +88,21 @@ public final class PyroVfxGameTests {
                     throw new AssertionError("Empty museum effect: " + exhibit.id());
                 if (!definition.parameters().containsKey("count"))
                     throw new AssertionError("Museum playback requires count parameter: " + exhibit.id());
+                for (var emitter : definition.emitters()) {
+                    if (emitter.render().type() == net.kofllee.pyrovfx.vfx.type.VfxRenderType.MODEL
+                            && emitter.render().appearance().scale().isConstant()) {
+                        var size = emitter.render().appearance().scale().evaluate(null).toVec3();
+                        if (size.z < Math.min(size.x, size.y) * 0.65) {
+                            throw new AssertionError("Museum squashed model depth: " + exhibit.id()
+                                    + ", XYZ=" + size);
+                        }
+                    }
+                }
+                for (String line : net.kofllee.pyrovfx.museum.VfxMuseumWorld.expectedLines(
+                        exhibit.description())) {
+                    if (line.length() > 15)
+                        throw new AssertionError("Museum expected sign text overflow: " + exhibit.id());
+                }
             } catch (java.io.IOException ex) {
                 throw new AssertionError("Museum resource read failed: " + exhibit.id(), ex);
             }

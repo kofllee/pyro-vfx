@@ -43,7 +43,9 @@ public final class VfxMuseumClient {
     private static Mode mode = Mode.AUTO;
     private static String lastExhibit = "";
     private static boolean lastCompareWasCpu;
+    private static int pendingInspectionTicks;
     private static net.minecraft.client.multiplayer.ClientLevel observedLevel;
+    private static boolean museumAutoStarted;
 
     private VfxMuseumClient() {}
 
@@ -87,9 +89,28 @@ public final class VfxMuseumClient {
         if (level != observedLevel) {
             PREVIOUS_BUTTONS.clear();
             observedLevel = level;
+            museumAutoStarted = false;
             restoreFlags();
             lastExhibit = "";
         }
+        // Explicit runClientMuseum startup only. Never build/teleport when a
+        // normal Minecraft client joins a world or server.
+        if (!museumAutoStarted && Boolean.getBoolean("pyrovfx.museum.autoStart")
+                && mc.getSingleplayerServer() != null && mc.player != null) {
+            museumAutoStarted = true;
+            var server = mc.getSingleplayerServer();
+            var id = mc.player.getUUID();
+            server.execute(() -> {
+                var player = server.getPlayerList().getPlayer(id);
+                if (player == null) return;
+                net.kofllee.pyrovfx.museum.VfxMuseumWorld.build(player.serverLevel());
+                player.serverLevel().setDayTime(6000);
+                player.teleportTo(VfxMuseumCatalog.ORIGIN_X + 7.5,
+                        VfxMuseumCatalog.FLOOR_Y + 2.0,
+                        VfxMuseumCatalog.ORIGIN_Z + 13.5);
+            });
+        }
+        if (pendingInspectionTicks > 0 && --pendingInspectionTicks == 0) status();
         if (level == null || mc.player == null
                 || !VfxMuseumCatalog.inside(mc.player.getBlockX(),
                     mc.player.getBlockY(), mc.player.getBlockZ())) {
@@ -156,7 +177,8 @@ public final class VfxMuseumClient {
                 opts, seed);
         lastExhibit = id;
         say("Museum: " + e.title() + " [" + mode + "] x" + count + " seed=" + seed);
-        status();
+        say("EXPECTED: " + e.description());
+        pendingInspectionTicks = 4; // Read backend after the first simulation tick.
         return 1;
     }
     private static int compare(String id) {

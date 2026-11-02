@@ -121,10 +121,13 @@ public final class VfxMuseumWorld {
                     .setValue(BlockStateProperties.ATTACH_FACE, AttachFace.FLOOR));
             putSign(level, button.offset(0, -1, 2), action.name(), "", "", "");
         }
+        String[] expected = expectedLines(e.description());
+        putSign(level, base.offset(3, 1, 14),
+                "EXPECTED:", expected[0], expected[1], expected[2]);
         putSign(level, base.offset(7, 1, 14),
                 e.category(), e.title(), e.id(), e.count() + " particles");
         putSign(level, base.offset(11, 1, 14),
-                "PYRO VFX", "PLAY / STOP", "COMPARE A/B", "/pyrovfx museum");
+                "LOOK FOR:", expected[3], expected[4], expected[5]);
         // Per-stand light for maximum visibility without global material changes.
         place(level, base.offset(3, 1, 10), Blocks.SEA_LANTERN.defaultBlockState());
         place(level, base.offset(11, 1, 10), Blocks.SEA_LANTERN.defaultBlockState());
@@ -145,6 +148,30 @@ public final class VfxMuseumWorld {
             sign.setChanged();
             level.sendBlockUpdated(pos, sign.getBlockState(), sign.getBlockState(), 3);
         }
+    }
+
+    /** Word-wrap rather than silently cutting off the observable behavior. */
+    public static String[] expectedLines(String description) {
+        String[] lines = {"", "", "", "", "", ""};
+        int index = 0;
+        for (String word : description.split("\\s+")) {
+            if (word.isEmpty()) continue;
+            while (word.length() > 15) {
+                if (index >= lines.length) return lines;
+                lines[index++] = word.substring(0, 15);
+                word = word.substring(15);
+            }
+            if (index >= lines.length) break;
+            String candidate = lines[index].isEmpty() ? word : lines[index] + " " + word;
+            if (candidate.length() > 15) {
+                index++;
+                if (index >= lines.length) break;
+                lines[index] = word;
+            } else {
+                lines[index] = candidate;
+            }
+        }
+        return lines;
     }
 
     private static void place(ServerLevel level, BlockPos pos,

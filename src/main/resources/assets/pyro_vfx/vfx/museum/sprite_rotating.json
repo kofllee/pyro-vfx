@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Rotation / Spinning sprites: Angular velocity and billboards. Read on-stand controls to replay and compare."
+    "description": "Museum / Rotation / Spinning sprites: Flat billboard sprites rotate around their center while facing you. Read on-stand controls to replay and compare."
   },
   "parameters": {
     "count": 24

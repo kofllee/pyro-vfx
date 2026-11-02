@@ -2,10 +2,10 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Backends / Resident 3D model: Opaque instanced GPU angular motion. Read on-stand controls to replay and compare."
+    "description": "Museum / Backends / Resident 3D model: GPU-resident 3D cubes remain solid and rotating on every axis. Read on-stand controls to replay and compare."
   },
   "parameters": {
-    "count": 32
+    "count": 6
   },
   "lifetime": {
     "mode": "once",
@@ -75,7 +75,7 @@
         "scale": [
           0.9,
           0.9,
-          0.15
+          0.9
         ]
       }
     }

@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Motion / GPU motion: Closed-form GPU-resident movement. Read on-stand controls to replay and compare."
+    "description": "Museum / Motion / GPU motion: GPU-advanced particles follow the same trajectory as CPU. Read on-stand controls to replay and compare."
   },
   "parameters": {
     "count": 40

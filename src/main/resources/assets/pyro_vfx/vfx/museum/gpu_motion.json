@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Expressions / Motion formulas: Particle position and velocity formulas. Read on-stand controls to replay and compare."
+    "description": "Museum / Expressions / Motion formulas: Color and size react continuously to particle movement. Read on-stand controls to replay and compare."
   },
   "parameters": {
     "count": 42

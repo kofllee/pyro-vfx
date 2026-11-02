@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Motion / Dynamic velocity: Gravity and velocity integration. Read on-stand controls to replay and compare."
+    "description": "Museum / Motion / Dynamic velocity: The cloud moves according to velocity drag and gravity. Read on-stand controls to replay and compare."
   },
   "parameters": {
     "count": 40

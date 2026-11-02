@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Motion / Static field: Fixed positions across lifetime. Read on-stand controls to replay and compare."
+    "description": "Museum / Motion / Static field: A still cloud remains suspended without gravity or velocity. Read on-stand controls to replay and compare."
   },
   "parameters": {
     "count": 32

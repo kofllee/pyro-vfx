@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Backends / Legacy event path: Required event-capable fallback. Read on-stand controls to replay and compare."
+    "description": "Museum / Backends / Legacy event path: Event-driven particles use full legacy callbacks without missing triggers. Read on-stand controls to replay and compare."
   },
   "parameters": {
     "count": 24,

@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Transparency / Layered smoke: Depth-sorted alpha instancing. Read on-stand controls to replay and compare."
+    "description": "Museum / Transparency / Layered smoke: Wide semi-transparent smoke sheets overlap into soft gray volume. Read on-stand controls to replay and compare."
   },
   "parameters": {
     "count": 240

@@ -40,6 +40,16 @@ neoForge {
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
+        // Interactive museum: open the dedicated save and leave Minecraft
+        // running. Unlike clientBench this never auto-exits or records timed
+        // benchmarks. Auto-build is scoped to this explicit launch profile.
+        clientMuseum {
+            client()
+            programArguments.addAll '--quickPlaySingleplayer', 'Pyro VFX Museum'
+            systemProperty 'pyrovfx.museum.autoStart', 'true'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
         server {
             server()
             programArgument '--nogui'

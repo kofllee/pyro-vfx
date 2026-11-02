@@ -15,11 +15,11 @@ SOURCE = ROOT / "src/main/resources/assets/pyro_vfx/vfx/bench"
 OUTPUT = ROOT / "src/main/resources/assets/pyro_vfx/vfx/museum"
 
 
-def scale_value(value, multiplier):
+def scale_value(value, multiplier, model=False):
     if isinstance(value, (float, int)):
         return round(float(value) * multiplier, 5)
     if isinstance(value, list):
-        return [scale_value(x, multiplier) if index < 2 else x
+        return [scale_value(x, multiplier) if (model or index < 2) else x
                 for index, x in enumerate(value)]
     # Existing dynamic expressions keep the same language; scale at expression level.
     if isinstance(value, str):
@@ -54,7 +54,10 @@ def generate() -> int:
                 amount["amount"] = "param.count"
             render = emitter.get("render", {})
             if "scale" in render:
-                render["scale"] = scale_value(render["scale"], size)
+                # XYZ are physical dimensions of a model; a sprite's third
+                # element is not a depth scale. Never squash 3D demos.
+                render["scale"] = scale_value(render["scale"], size,
+                                               model=render.get("type") == "model")
             if exhibit_id.startswith("smoke_alpha") and isinstance(render.get("color"), list):
                 # A museum exhibit must still show smoke near the end of an
                 # automated 100-tick capture. This changes ONLY the demo.

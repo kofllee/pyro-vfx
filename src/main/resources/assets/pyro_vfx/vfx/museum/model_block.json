@@ -2,10 +2,10 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / 3D Models / Block geometry: Vanilla block mesh sampling. Read on-stand controls to replay and compare."
+    "description": "Museum / 3D Models / Block geometry: Five textured stone blocks show all six faces and actual thickness. Read on-stand controls to replay and compare."
   },
   "parameters": {
-    "count": 24
+    "count": 5
   },
   "lifetime": {
     "mode": "once",
@@ -55,7 +55,7 @@
         "scale": [
           0.65,
           0.65,
-          0.13
+          0.65
         ]
       }
     }

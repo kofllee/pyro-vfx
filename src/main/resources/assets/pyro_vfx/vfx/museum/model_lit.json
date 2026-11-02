@@ -2,10 +2,10 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Lighting / Lit rotating model: World lighting with 3D rotation. Read on-stand controls to replay and compare."
+    "description": "Museum / Lighting / Lit rotating model: Rotating thick cubes show different lighting on each side. Read on-stand controls to replay and compare."
   },
   "parameters": {
-    "count": 24
+    "count": 5
   },
   "lifetime": {
     "mode": "once",
@@ -75,7 +75,7 @@
         "scale": [
           0.9,
           0.9,
-          0.15
+          0.9
         ]
       }
     }

@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Sprites / Moving sparks: Outward travel and gravity. Read on-stand controls to replay and compare."
+    "description": "Museum / Sprites / Moving sparks: Bright sprites spread outward and curve downward under gravity. Read on-stand controls to replay and compare."
   },
   "parameters": {
     "count": 40

@@ -1,36 +1,36 @@
 # id|category|title|source|count|scale_multiplier|description
-sprite_static|Sprites|Static sparks|static|32|5|Unmoving luminous sprites, shape and facing
-sprite_dynamic|Sprites|Moving sparks|dynamic|40|5|Outward travel and gravity
-sprite_horizontal|Sprites|Horizontal billboards|sprite_horizontal|28|5|Vertical-facing sprites independent of pitch
-sprite_world|Sprites|World-plane sprites|sprite_world_z|28|5|Fixed Z-facing sprites
-sprite_additive|Sprites|Additive glow|analytic_age|48|5|Overlapping additive bursts
-model_custom|3D Models|Custom cubes|model|24|7|Baked custom model geometry
-model_block|3D Models|Block geometry|model_block|24|5|Vanilla block mesh sampling
-model_item|3D Models|Item geometry|model_item|30|7|Vanilla item baked quads
-model_entity|3D Models|Entity model|model_entity|16|5|Live Minecraft entity renderer and compatibility
-model_translucent|Transparency|Glass models|model_translucent|24|7|Transparent 3D model fallback
-smoke_alpha|Transparency|Layered smoke|sprite_alpha_smoke|240|3|Depth-sorted alpha instancing
-smoke_alpha_dense|Transparency|Dense smoke|sprite_alpha_smoke|1500|2|Alpha overdraw load and ordering
-sprite_lit|Lighting|World-lit sprites|sprite_lit_fallback|36|5|Minecraft light sample and compatible RenderType
-model_lit|Lighting|Lit rotating model|model_rotating|24|6|World lighting with 3D rotation
-sprite_rotating|Rotation|Spinning sprites|sprite_rotating|24|5|Angular velocity and billboards
-model_rotating|Rotation|Spinning models|model_rotating_unlit|24|6|GPU angular motion on opaque models
-sprite_uv|Animations|Animated UV sheet|sprite_uv_instanced|36|5|Sprite sheet frame animation and alpha
-gpu_age|Animations|Age gradients|analytic_age|40|5|Shared-age GPU analytic color and scale
-gpu_curves|Curves|Curved lifetimes|sprite_gpu_curves|36|6|Per-age Catmull and Bezier size and color
-cpu_curves|Curves|CPU curve evaluation|sprite_gpu_curves|36|6|Same effect with forced CPU evaluation
-gpu_expression|Expressions|Random colors|sprite_expressions|42|5|Birth random and age expressions
-gpu_motion|Expressions|Motion formulas|sprite_gpu_motion_expr|42|5|Particle position and velocity formulas
-static_motion|Motion|Static field|static|32|5|Fixed positions across lifetime
-dynamic_motion|Motion|Dynamic velocity|dynamic|40|5|Gravity and velocity integration
-analytic_motion|Motion|GPU motion|analytic_dynamic|40|5|Closed-form GPU-resident movement
-collision_plain|Collisions|Contact response|collision_no_events|48|6|Dense collision queries without particle callbacks
-collision_events|Collisions|Collision events|collision|48|6|Ordered event triggers on contact
-event_order|Events|Event sequence|event_order|28|6|Timed and nested deterministic triggers
-self_emit|Events|Emission chain|self_emit_collision|24|6|Collision event spawning child particles
-gpu_sprite|Backends|GPU analytic sprite|analytic_age|40|5|Zero per-particle CPU ticks
-cpu_sprite|Backends|CPU Dense sprite|sprite_rotating|40|5|SoA rotating sprites
-legacy_event|Backends|Legacy event path|event_order|24|5|Required event-capable fallback
-gpu_model|Backends|Resident 3D model|model_rotating_unlit|32|6|Opaque instanced GPU angular motion
-cpu_model|Backends|Dense lit model|model_rotating|24|6|Lit model CPU simulation and compatibility
-entity_legacy|Backends|Legacy entity|model_entity|16|5|Minecraft entity behavior path
+sprite_static|Sprites|Static sparks|static|32|5|Bright square sprites hover at fixed points without moving
+sprite_dynamic|Sprites|Moving sparks|dynamic|40|5|Bright sprites spread outward and curve downward under gravity
+sprite_horizontal|Sprites|Horizontal billboards|sprite_horizontal|28|5|Flat sprite faces stay upright as you change camera pitch
+sprite_world|Sprites|World-plane sprites|sprite_world_z|28|5|All sprite surfaces lie in one fixed world plane when viewed sideways
+sprite_additive|Sprites|Additive glow|analytic_age|48|5|Overlapping orange sparks become brighter where they intersect
+model_custom|3D Models|Custom cubes|model|5|7|Five large solid cubes show front side and depth as you walk around
+model_block|3D Models|Block geometry|model_block|5|5|Five textured stone blocks show all six faces and actual thickness
+model_item|3D Models|Item geometry|model_item|5|7|Five item-model meshes keep their proper thickness and textures
+model_entity|3D Models|Entity model|model_entity|2|5|Two Minecraft pig models retain full body parts and vanilla textures
+model_translucent|Transparency|Glass models|model_translucent|5|7|Transparent cubes reveal other surfaces behind them without flattening
+smoke_alpha|Transparency|Layered smoke|sprite_alpha_smoke|240|3|Wide semi-transparent smoke sheets overlap into soft gray volume
+smoke_alpha_dense|Transparency|Dense smoke|sprite_alpha_smoke|1500|2|Thick overlapping smoke stays visible with correct depth blending
+sprite_lit|Lighting|World-lit sprites|sprite_lit_fallback|36|5|World-lit sparks respond to Minecraft block and sky brightness
+model_lit|Lighting|Lit rotating model|model_rotating|5|6|Rotating thick cubes show different lighting on each side
+sprite_rotating|Rotation|Spinning sprites|sprite_rotating|24|5|Flat billboard sprites rotate around their center while facing you
+model_rotating|Rotation|Spinning models|model_rotating_unlit|5|6|Fully three-dimensional cubes rotate visibly without collapsing to planes
+sprite_uv|Animations|Animated UV sheet|sprite_uv_instanced|36|5|Sprite texture frames change over time without moving the billboard
+gpu_age|Animations|Age gradients|analytic_age|40|5|Glow and size change gradually as particles age
+gpu_curves|Curves|Curved lifetimes|sprite_gpu_curves|36|6|Size and color vary smoothly following age-dependent curves
+cpu_curves|Curves|CPU curve evaluation|sprite_gpu_curves|36|6|The same curves should look identical with CPU selected
+gpu_expression|Expressions|Random colors|sprite_expressions|42|5|Each particle gets its own color and size from birth random and age
+gpu_motion|Expressions|Motion formulas|sprite_gpu_motion_expr|42|5|Color and size react continuously to particle movement
+static_motion|Motion|Static field|static|32|5|A still cloud remains suspended without gravity or velocity
+dynamic_motion|Motion|Dynamic velocity|dynamic|40|5|The cloud moves according to velocity drag and gravity
+analytic_motion|Motion|GPU motion|analytic_dynamic|40|5|GPU-advanced particles follow the same trajectory as CPU
+collision_plain|Collisions|Contact response|collision_no_events|48|6|Particles meet the platform and visibly bounce or stop
+collision_events|Collisions|Collision events|collision|48|6|Each ground collision may trigger another reaction in sequence
+event_order|Events|Event sequence|event_order|28|6|A deterministic ordered sequence starts and advances in time
+self_emit|Events|Emission chain|self_emit_collision|24|6|Contact spawns visible child particles around the impact
+gpu_sprite|Backends|GPU analytic sprite|analytic_age|40|5|GPU birth-state sparks show no difference versus CPU replay
+cpu_sprite|Backends|CPU Dense sprite|sprite_rotating|40|5|CPU-simulated spinning sprites match their GPU-rendered appearance
+legacy_event|Backends|Legacy event path|event_order|24|5|Event-driven particles use full legacy callbacks without missing triggers
+gpu_model|Backends|Resident 3D model|model_rotating_unlit|6|6|GPU-resident 3D cubes remain solid and rotating on every axis
+cpu_model|Backends|Dense lit model|model_rotating|5|6|CPU-lit rotating cubes retain shadows and solid geometry
+entity_legacy|Backends|Legacy entity|model_entity|2|5|The vanilla entity mesh preserves pig shape and textures

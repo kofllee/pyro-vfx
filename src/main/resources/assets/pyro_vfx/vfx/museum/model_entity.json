@@ -2,10 +2,10 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / 3D Models / Entity model: Live Minecraft entity renderer and compatibility. Read on-stand controls to replay and compare."
+    "description": "Museum / 3D Models / Entity model: Two Minecraft pig models retain full body parts and vanilla textures. Read on-stand controls to replay and compare."
   },
   "parameters": {
-    "count": 16
+    "count": 2
   },
   "lifetime": {
     "mode": "once",
@@ -62,7 +62,7 @@
         "scale": [
           1.0,
           1.0,
-          0.2
+          1.0
         ]
       }
     }
