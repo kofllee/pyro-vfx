@@ -8,6 +8,13 @@ It provides a reusable effect format with programmable emitters, expressions, cu
 >
 > M0–M4 implement the CPU/GPU backends, and M5 adds shared runtime safety budgets. Targeted correctness and real-client scenarios pass, but this is not yet production ready: long soaks, driver/modpack combinations and multiplayer compatibility remain unverified.
 
+M6 is in progress: Pyro VFX no longer delegates particle lifetime to
+Minecraft ParticleEngine, analytic GPU sprites support constant-parameter UV
+sheet animation, and per-effect/client particle budgets are configurable in
+`pyro_vfx-client.toml`. Defaults preserve the M5 safety limits; raising them
+does not guarantee VRAM capacity, frame rate, or collision performance.
+See `docs/M6_PROGRESS.md` for verification and remaining work.
+
 ## Current scope
 
 Pyro VFX currently includes:

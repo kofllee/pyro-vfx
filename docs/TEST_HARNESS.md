@@ -10,7 +10,7 @@ python tools/test_compare_bench.py
 .\gradlew.bat clean build
 ```
 
-The 27 NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; and event trigger order. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
+The 29 NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; event trigger order; rejection of removed vanilla particle definitions; configurable high budgets; and shared-frame analytic UV animation. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
 
 ## GPU client
 
@@ -20,6 +20,23 @@ With a working graphical Windows session, the existing `run/saves/Test VFX` worl
 .\gradlew.bat runClientBench -PbenchScenario=sprite_1k
 .\gradlew.bat runClientBench '-PbenchScenario=sprite_1k,dynamic_1k,collision_1k,model_1k,sprite_10k'
 ```
+
+M6 adds explicit benchmark window sizes without changing historical defaults. For
+realistic resolutions and (temporarily) disabled VSync / raised 260 FPS limit:
+
+```powershell
+.\gradlew.bat runClientBench '-PbenchScenario=analytic_uv_1k' -PbenchWidth=1920 -PbenchHeight=1080 -PbenchUncapped=true -PbenchRequireGpuAnalytic=true
+.\gradlew.bat runClientBench '-PbenchScenario=analytic_uv_1k' -PbenchWidth=2560 -PbenchHeight=1440 -PbenchUncapped=true -PbenchRequireGpuAnalytic=true
+.\gradlew.bat runClientBench '-PbenchScenario=analytic_uv_1k' -PbenchWidth=3840 -PbenchHeight=2160 -PbenchUncapped=true -PbenchRequireGpuAnalytic=true
+```
+
+Always verify `environment.width`, `environment.height`, `environment.vsync`
+and real OpenGL GPU identity in each output. The operating system/display may
+restrict the actual resolution, and a frame cap or compositor can still apply.
+An explicit requested size that is clamped by the window manager now marks the
+new run invalid rather than silently reporting it as a matching resolution.
+The original VSync and FPS limit options are restored when each scenario ends.
+Do not compare `854x480 / VSync=true` against `1080p / uncapped` as an A/B backend test.
 
 Or run the regular Gradle `runClient` configuration, open an integrated-server world and enter:
 

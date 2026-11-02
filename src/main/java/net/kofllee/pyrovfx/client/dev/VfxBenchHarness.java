@@ -76,6 +76,22 @@ public final class VfxBenchHarness {
 
         ClientVfxManager.clear();
         Run run = new Run(scenario, definition);
+        int expectedWidth = Integer.getInteger("pyrovfx.bench.expectedWidth", -1);
+        int expectedHeight = Integer.getInteger("pyrovfx.bench.expectedHeight", -1);
+        if (expectedWidth > 0 && expectedHeight > 0
+                && (minecraft.getWindow().getWidth() != expectedWidth
+                    || minecraft.getWindow().getHeight() != expectedHeight)) {
+            run.windowMismatch = "Requested benchmark window " + expectedWidth + "x" + expectedHeight
+                    + " differs from actual window " + minecraft.getWindow().getWidth()
+                    + "x" + minecraft.getWindow().getHeight();
+        }
+        if (Boolean.getBoolean("pyrovfx.bench.uncapped")) {
+            run.originalVsync = minecraft.options.enableVsync().get();
+            run.originalFpsLimit = minecraft.options.framerateLimit().get();
+            minecraft.options.enableVsync().set(false);
+            minecraft.getWindow().updateVsync(false);
+            minecraft.options.framerateLimit().set(260);
+        }
         current = run;
         UUID playerId = minecraft.player.getUUID();
         var server = minecraft.getSingleplayerServer();
@@ -188,6 +204,9 @@ public final class VfxBenchHarness {
             }
             run.spawnNs = System.nanoTime() - start;
             run.spawned = true;
+            // Report an invalid client run only after spawning; otherwise the
+            // harness has no active render callback to finalize and auto-exit.
+            if (run.windowMismatch != null) run.error = run.windowMismatch;
             run.lastFrameNs = 0;
         }
         run.tickAllocStart = allocatedBytes();
@@ -426,6 +445,12 @@ public final class VfxBenchHarness {
             System.err.println("[Pyro VFX Bench] Failed to save results: " + error);
         } finally {
             ClientVfxManager.clear();
+            if (run.originalVsync != null) {
+                var minecraft = Minecraft.getInstance();
+                minecraft.options.enableVsync().set(run.originalVsync);
+                minecraft.getWindow().updateVsync(run.originalVsync);
+                minecraft.options.framerateLimit().set(run.originalFpsLimit);
+            }
             if (autoIndex == AUTO.length && Boolean.getBoolean("pyrovfx.bench.autoExit")) {
                 autoExitTicks = 40;
             }
@@ -508,6 +533,7 @@ public final class VfxBenchHarness {
         float observedPitch;
         String screenshotPath;
         String error;
+        String windowMismatch;
         VfxBenchGpuTimer gpuTimer;
         Double gpuMedianMs;
         Double gpuP95Ms;
@@ -526,6 +552,8 @@ public final class VfxBenchHarness {
         boolean collisionEventObserved;
         CompletableFuture<Void> reloadFuture;
         boolean reloadCompleted;
+        Boolean originalVsync;
+        Integer originalFpsLimit;
 
         Run(VfxBenchScenarios.Scenario scenario, VfxDefinition definition) {
             this.scenario = scenario;
