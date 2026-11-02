@@ -98,6 +98,15 @@ final class VfxBenchReport {
         root.addProperty("globalRejectedSpawns", globalBudget.rejectedSpawns());
         root.addProperty("globalRejectedEvents", globalBudget.rejectedEvents());
         root.addProperty("globalRejectedEffects", globalBudget.rejectedInstances());
+        JsonObject classBudgets = new JsonObject();
+        for (var kind : net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.values()) {
+            JsonObject counters = new JsonObject();
+            counters.addProperty("admittedSpawns", globalBudget.admittedFor(kind));
+            counters.addProperty("rejectedSpawns", globalBudget.rejectedFor(kind));
+            counters.addProperty("remainingSlots", globalBudget.remainingFor(kind));
+            classBudgets.add(kind.name().toLowerCase(java.util.Locale.ROOT), counters);
+        }
+        root.add("costClassBudgets", classBudgets);
         root.addProperty("adaptiveEnabledForBenchmark",
                 Boolean.getBoolean("pyrovfx.bench.adaptive"));
         root.addProperty("adaptiveCpuTargetOverrideMs",
@@ -124,6 +133,7 @@ final class VfxBenchReport {
         root.addProperty("collisionCacheDisabled", Boolean.getBoolean("pyrovfx.collision.disableCache"));
         root.addProperty("collisionEventObserved", run.collisionEventObserved);
         root.addProperty("reloadCompleted", run.reloadCompleted);
+        root.addProperty("reloadCyclesCompleted", run.reloadCyclesCompleted);
         root.addProperty("warmupTicks", run.scenario.warmupTicks());
         root.addProperty("measurementTicks", run.scenario.sampleTicks());
         root.addProperty("measurementFrameSamples", run.frameCount);
@@ -152,6 +162,13 @@ final class VfxBenchReport {
         root.addProperty("gpuTimeMs", run.gpuMedianMs);
         root.addProperty("gpuP95Ms", run.gpuP95Ms);
         root.addProperty("gpuSamples", run.gpuSamples);
+        root.addProperty("runtimeGpuTelemetryRequested", Boolean.getBoolean("pyrovfx.bench.gpuTelemetry"));
+        root.addProperty("runtimeGpuTelemetrySamples", run.runtimeGpuSamples);
+        root.addProperty("runtimeGpuTelemetryLastMs", run.runtimeGpuLastMs);
+        root.addProperty("runtimeFreeVramMiB",
+                net.kofllee.pyrovfx.client.render.VfxGpuTelemetry.freeVramMiB());
+        root.addProperty("runtimeTotalVramMiB",
+                net.kofllee.pyrovfx.client.render.VfxGpuTelemetry.totalVramMiB());
         root.addProperty("drawCalls", (Integer) null);
         root.addProperty("serverTps", (Double) null);
         root.addProperty("screenshot", run.screenshotPath);

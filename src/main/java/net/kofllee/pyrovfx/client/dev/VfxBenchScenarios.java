@@ -40,6 +40,10 @@ public final class VfxBenchScenarios {
         add(scenarios, "analytic_age_1k", "bench/analytic_age", 1_000);
         add(scenarios, "analytic_age_10k", "bench/analytic_age", 10_000);
         add(scenarios, "adaptive_steady", "bench/adaptive_steady", 0);
+        int soakTicks = Math.clamp(Integer.getInteger("pyrovfx.bench.soakTicks", 600), 300, 36_000);
+        scenarios.put("soak_mixed", new Scenario("soak_mixed",
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/soak_mixed"),
+                0, 0x50B0_2026L, 30, soakTicks));
         add(scenarios, "sprite_lit_fallback", "bench/sprite_lit_fallback", 1_000);
         add(scenarios, "sprite_world_z", "bench/sprite_world_z", 1_000);
         add(scenarios, "sprite_horizontal", "bench/sprite_horizontal", 1_000);

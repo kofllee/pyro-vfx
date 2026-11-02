@@ -107,7 +107,8 @@ public final class VfxBenchHarness {
             run.originalGameMode = player.gameMode.getGameModeForPlayer();
             run.originalDayTime = player.serverLevel().getDayTime();
             player.serverLevel().setDayTime(6000L);
-            if (scenario.name().contains("collision") || scenario.name().equals("adaptive_steady")) {
+            if (scenario.name().contains("collision") || scenario.name().equals("adaptive_steady")
+                    || scenario.name().equals("soak_mixed")) {
                 // Deterministic solid obstacle, independent of the test world's terrain.
                 for (int x = -4; x <= 4; x++) {
                     for (int z = -4; z <= 4; z++) {
@@ -225,8 +226,14 @@ public final class VfxBenchHarness {
         long elapsed = System.nanoTime() - startNs;
         long allocatedAfter = allocatedBytes();
         int index = run.elapsedTicks++;
-        if ((run.scenario.name().equals("reload_active")
-                || run.scenario.name().equals("model_reload_active")) && index == 10) {
+        boolean soak = run.scenario.name().equals("soak_mixed");
+        if (((run.scenario.name().equals("reload_active")
+                || run.scenario.name().equals("model_reload_active")) && index == 10)
+                || (soak && (index == 60 || index == 240 || index == 450))) {
+            if (run.reloadFuture != null) {
+                run.error = "Previous resource reload still in flight";
+            }
+            run.reloadCompleted = false;
             run.reloadFuture = Minecraft.getInstance().reloadResourcePacks();
         }
         if (run.reloadFuture != null && run.reloadFuture.isDone() && !run.reloadCompleted) {
@@ -239,6 +246,8 @@ public final class VfxBenchHarness {
                 run.error = "Active VFX instance did not survive client resource reload";
             } else {
                 run.reloadCompleted = true;
+                run.reloadCyclesCompleted++;
+                if (soak) run.reloadFuture = null;
             }
         }
         if (index >= run.scenario.warmupTicks()) {
@@ -285,6 +294,14 @@ public final class VfxBenchHarness {
             }
         }
         if (run.elapsedTicks >= run.scenario.warmupTicks() + run.scenario.sampleTicks()) {
+            if (run.scenario.name().equals("soak_mixed")
+                    && (run.reloadCyclesCompleted != 3 || run.peakParticles < 50)) {
+                run.error = "Mixed workload did not complete all 3 reloads or produce enough particles: "
+                        + run.reloadCyclesCompleted + " / " + run.peakParticles;
+            }
+            if (Boolean.getBoolean("pyrovfx.bench.gpuTelemetry") && run.runtimeGpuSamples == 0) {
+                run.error = "Async runtime GPU query did not produce a real completed sample";
+            }
             if (Boolean.getBoolean("pyrovfx.bench.requireGpuAnalytic")) {
                 if (run.maxAnalyticInstances != run.scenario.particles()
                         || run.analyticDatasetUploads == 0
@@ -371,7 +388,8 @@ public final class VfxBenchHarness {
             return 0;
         }
         run.renderAllocStart = allocatedBytes();
-        if (!run.finishedTick && run.elapsedTicks >= run.scenario.warmupTicks()) {
+        if (!Boolean.getBoolean("pyrovfx.bench.gpuTelemetry")
+                && !run.finishedTick && run.elapsedTicks >= run.scenario.warmupTicks()) {
             if (run.gpuTimer == null) {
                 run.gpuTimer = new VfxBenchGpuTimer();
             }
@@ -394,6 +412,10 @@ public final class VfxBenchHarness {
         run.analyticDatasetUploads += VfxAnalyticSpriteRenderer.uploadedDatasets();
         run.analyticDrawCalls += VfxAnalyticSpriteRenderer.drawCalls();
         run.maxAnalyticInstances = Math.max(run.maxAnalyticInstances, VfxAnalyticSpriteRenderer.instances());
+        if (Boolean.getBoolean("pyrovfx.bench.gpuTelemetry")) {
+            run.runtimeGpuSamples = net.kofllee.pyrovfx.client.render.VfxGpuTelemetry.sampleCount();
+            run.runtimeGpuLastMs = net.kofllee.pyrovfx.client.render.VfxGpuTelemetry.latestSampleNs() / 1_000_000.0;
+        }
         if (run.gpuRenderer == null) {
             run.gpuRenderer = safeGlString(GL11.GL_RENDERER);
             run.gpuVendor = safeGlString(GL11.GL_VENDOR);
@@ -516,9 +538,9 @@ public final class VfxBenchHarness {
     static final class Run {
         final VfxBenchScenarios.Scenario scenario;
         final VfxDefinition definition;
-        final long[] simulationNs = new long[1000];
-        final long[] renderNs = new long[4000];
-        final long[] framesNs = new long[4000];
+        final long[] simulationNs;
+        final long[] renderNs;
+        final long[] framesNs;
         final long startGcCollections = VfxBenchReport.gcCollections();
         final long startGcTimeMs = VfxBenchReport.gcTimeMs();
 
@@ -552,6 +574,8 @@ public final class VfxBenchHarness {
         int gpuSamples;
         long analyticUploadBytes;
         long analyticDrawCalls;
+        long runtimeGpuSamples;
+        double runtimeGpuLastMs;
         int analyticDatasetUploads;
         int maxAnalyticInstances;
         Vec3 originalPosition;
@@ -569,12 +593,16 @@ public final class VfxBenchHarness {
         boolean collisionEventObserved;
         CompletableFuture<Void> reloadFuture;
         boolean reloadCompleted;
+        int reloadCyclesCompleted;
         Boolean originalVsync;
         Integer originalFpsLimit;
 
         Run(VfxBenchScenarios.Scenario scenario, VfxDefinition definition) {
             this.scenario = scenario;
             this.definition = definition;
+            simulationNs = new long[Math.max(1000, scenario.sampleTicks())];
+            renderNs = new long[Math.max(4000, scenario.sampleTicks() * 8)];
+            framesNs = new long[Math.max(4000, scenario.sampleTicks() * 8)];
         }
     }
 }

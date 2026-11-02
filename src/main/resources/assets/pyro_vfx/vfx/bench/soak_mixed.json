@@ -1,0 +1,47 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {"author":"Pyro VFX","description":"Repeated reload mixed GPU/CPU/alpha/collision soak"},
+  "lifetime": {"mode":"once","active_ticks":37000},
+  "emitters": [
+    {
+      "id":"analytic_sparks",
+      "emitter_lifetime":{"mode":"once","active_ticks":1},
+      "spawn_amount":{"mode":"instant","amount":600},
+      "spawn_shape":{"type":"sphere","radius":2},
+      "particle_lifetime":{"max_age_ticks":90},
+      "motion":{"mode":"static"},
+      "render":{"type":"sprite","environment_lighting":false,
+        "sprite":{"texture":"minecraft:textures/particle/generic_0.png","blend_mode":"additive"},
+        "color":[1,0.7,0.2,"1-particle.normalized_age*0.8"],"scale":[0.2,0.2,1]}
+    },
+    {
+      "id":"translucent_steam",
+      "emitter_lifetime":{"mode":"once","active_ticks":37000},
+      "spawn_amount":{"mode":"steady","rate":240,"max_particles":1100},
+      "spawn_shape":{"type":"sphere","radius":1.5},
+      "particle_lifetime":{"max_age_ticks":70},
+      "motion":{"mode":"dynamic","dynamic":{"direction":"up","speed":0.4,
+        "acceleration":[0,0.2,0],"linear_drag":0.3}},
+      "render":{"type":"sprite","sprite":{
+        "texture":"minecraft:textures/particle/generic_0.png","blend_mode":"alpha"},
+        "color":[0.85,0.9,1.0,"0.5*(1-particle.normalized_age)"],
+        "scale":[0.3,0.3,1]}
+    },
+    {
+      "id":"falling_collision",
+      "emitter_lifetime":{"mode":"once","active_ticks":37000},
+      "spawn_amount":{"mode":"steady","rate":300,"max_particles":1400},
+      "spawn_shape":{"type":"sphere","radius":0.7},
+      "offset":[0,4,0],
+      "particle_lifetime":{"max_age_ticks":65},
+      "motion":{"mode":"dynamic","dynamic":{"direction":"down","speed":0.9,
+        "acceleration":[0,-7.0,0],"linear_drag":0},
+        "collision":{"collide":true,"collision_type":"sphere",
+          "collision_size":[0.05,0.05,0.05],"collision_drag":1,
+          "bounciness":0.15,"expire_on_contact":false}},
+      "render":{"type":"sprite","environment_lighting":false,
+        "sprite":{"texture":"minecraft:textures/particle/generic_0.png","blend_mode":"additive"},
+        "color":"#FFA744FF","scale":[0.09,0.09,1]}
+    }
+  ]
+}

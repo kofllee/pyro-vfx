@@ -28,6 +28,16 @@ jobs:
       - name: Build
         run: ./gradlew build --stacktrace
 
+      - name: Run headless Minecraft GameTests
+        run: ./gradlew runGameTestServer --no-daemon --console=plain
+
+      - name: Verify archived benchmark integrity
+        run: |
+          python3 tools/test_compare_bench.py
+          python3 tools/verify_m6_collision.py --folder docs/benchmarks/m6-2026-11-02 --after 20261102-024000
+          python3 tools/verify_adaptive_bench.py docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132543.json docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132645.json
+          python3 tools/verify_soak_bench.py docs/benchmarks/m6-2026-11-02/soak_mixed-20261102-134026.json docs/benchmarks/m6-2026-11-02/soak_mixed-20261102-134356.json docs/benchmarks/m6-2026-11-02/soak_mixed-20261102-135159.json
+
       - name: Upload JARs
         uses: actions/upload-artifact@v4
         with:
