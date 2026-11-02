@@ -10,7 +10,7 @@ python tools/test_compare_bench.py
 .\gradlew.bat clean build
 ```
 
-The 29 NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; event trigger order; rejection of removed vanilla particle definitions; configurable high budgets; and shared-frame analytic UV animation. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
+The 30 NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; event trigger order; rejection of removed vanilla particle definitions; configurable high budgets; shared-frame analytic UV animation; and collision AABB math equivalence. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
 
 ## GPU client
 
@@ -37,6 +37,22 @@ An explicit requested size that is clamped by the window manager now marks the
 new run invalid rather than silently reporting it as a matching resolution.
 The original VSync and FPS limit options are restored when each scenario ends.
 Do not compare `854x480 / VSync=true` against `1080p / uncapped` as an A/B backend test.
+
+The M6 per-client-tick collision shape cache uses the same collision
+semantics and event dispatch as the previous CPU path. It is on by default.
+For a real-world A/B using exactly matching JSON, seed and client settings:
+
+```powershell
+.\gradlew.bat runClientBench '-PbenchScenario=collision_no_events,collision_no_events_10k,collision_1k' -PbenchWidth=1920 -PbenchHeight=1080 -PbenchUncapped=true -PbenchDisableCollisionCache=true
+.\gradlew.bat runClientBench '-PbenchScenario=collision_no_events,collision_no_events_10k,collision_1k' -PbenchWidth=1920 -PbenchHeight=1080 -PbenchUncapped=true -PbenchDisableCollisionCache=false
+python tools/verify_m6_collision.py --folder docs/benchmarks/m6-2026-11-02 --after 20261102-024000
+```
+
+The verifier checks the raw real-client recordings for identical
+effect hashes, settings, contacts and event behavior. Cache hit/miss counts
+are recorded in each JSON and last-tick values are printed by
+`/pyrovfx backend`. Repeated same-world cache reuse is intentionally bounded
+to a single client tick, not persisted across block or dimension changes.
 
 Or run the regular Gradle `runClient` configuration, open an integrated-server world and enter:
 

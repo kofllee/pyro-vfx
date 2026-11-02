@@ -12,7 +12,9 @@ M6 is in progress: Pyro VFX no longer delegates particle lifetime to
 Minecraft ParticleEngine, analytic GPU sprites support constant-parameter UV
 sheet animation, and per-effect/client particle budgets are configurable in
 `pyro_vfx-client.toml`. Defaults preserve the M5 safety limits; raising them
-does not guarantee VRAM capacity, frame rate, or collision performance.
+does not guarantee VRAM capacity or frame rate. A per-tick cache reduces
+repeat CPU block-shape queries for colliding particles (measured A/B results
+and reproduction steps are in `docs/M6_PROGRESS.md`).
 See `docs/M6_PROGRESS.md` for verification and remaining work.
 
 ## Current scope

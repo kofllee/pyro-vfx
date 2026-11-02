@@ -46,11 +46,24 @@ into this work.
    settings after the scenario. New runs with an explicit requested size
    will be marked invalid when the real window size differs.
 
+5. **Collision query cache.** The existing CPU collision resolution still uses
+   the same discrete motion, axis order, shape bounds and event semantics.
+   A direct-mapped 8192-entry per-client-tick cache reuses the local collision
+   AABB for a queried block position. The cache resets every VFX client tick
+   and on manager clear/world exit; it owns no worker threads and no data
+   survives a tick. The unchanged world-query path can be forced with
+   `-PbenchDisableCollisionCache=true`. The benchmark report records cache
+   hits/misses and the debug command `/pyrovfx backend` exposes last-tick
+   counters. One new GameTest compares the new bounds-intersection predicate
+   with the original AABB.move/intersects rule over 1024 deterministic cases.
+   **This optimizes repeated block queries, not broadphase or swept collision.**
+
 ## Test evidence
 
 - `.\gradlew.bat build runGameTestServer --no-daemon --console=plain`
-  succeeded: **29/29 required NeoForge GameTests**, including ownership
-  rejection, scalable admission and deterministic analytic UV frame selection.
+  succeeded: **30/30 required NeoForge GameTests**, including ownership
+  rejection, scalable admission, deterministic analytic UV frame selection
+  and collision AABB math equivalence.
 - Actual integrated-server Minecraft client benchmark (OpenGL 4.6 NVIDIA
   RTX 4090 Laptop, Windows 11, Minecraft 1.21.1, Java 21.0.5).
 - The CSV and JSON metrics below describe **real measured client runs**
@@ -91,14 +104,58 @@ invalid) and two CPU/GPU screenshot examples
 are in [benchmarks/m6-2026-11-02](benchmarks/m6-2026-11-02/).
 No historical M5 benchmark output was overwritten.
 
+### Collision A/B (real client)
+
+GPU: RTX 4090 Laptop, Windows 11, fixed 1920x1080 actual window, VSync off,
+identical JSON SHA and seed, original collision fixture and camera.
+Three separate Minecraft client starts per cache route were collected for
+`collision_no_events_10k`. The 1k variants each have one real client launch
+per route. Every run completed after fixing the harness classification of
+the intentional no-event 10k fixture.
+
+| Scenario | Cache off → on (median simulation CPU) | Speed ratio | Cache off → on (frame P95) | Independent runs per route |
+|---|---:|---:|---:|---:|
+| Collision without events, 1k | 0.4364 → 0.2633 ms | 1.66× | 1.805 → 1.902 ms | 1/1 |
+| Collision without events, 10k | 4.1362 → 1.9705 ms | 2.10× | 9.896 → 7.792 ms | **3/3** |
+| Collision with event, 1k | 0.3905 → 0.2374 ms | 1.65× | 1.368 → 1.479 ms | 1/1 |
+
+Across all six 10k runs the harness recorded **1,019,870 identical collision
+contacts** per run. Without cache, the sample window performed 4,385,637
+world block queries; with cache, only 1,800 world queries and 4,383,837
+cache hits per run. At 1k, event and no-event semantics and contact counts
+also matched. The 10k CPU simulation improvement is repeatable on the
+measured hardware; the 1k frame P95 did **not** improve.
+
+The 10 raw collision JSON files and two representative client screenshots
+are preserved in [benchmarks/m6-2026-11-02](benchmarks/m6-2026-11-02/).
+Reproduce the checks with:
+
+```powershell
+python tools/verify_m6_collision.py --folder docs/benchmarks/m6-2026-11-02 --after 20261102-024000
+```
+
+The *full-frame* screenshot comparator reported RGB RMS **0.161587**
+(threshold 0.03, failed), primarily because the two captures visibly differ
+in scene brightness/vignette outside the effect. This is **not** evidence of
+full-image visual equivalence. A cropped 160x100 particle-region comparison
+at source image coordinates `x=900, y=515` yielded RMS **0.002998**,
+with zero pixels beyond the comparator threshold (passed). Both original
+screenshots and these cropped regions are archived; this localized test does
+not verify all scene pixels or every possible particle state.
+
+These results do not establish correctness during in-tick block mutations,
+moving block collision geometries, shader-mod interactions or extremely
+large/unloaded world regions. World collision still runs on the client thread.
+
 ## Not yet implemented or verified
 
 - General appearance/expression/curve compilation to GPU, independent
   particle age/rotation, alpha transparency ordering, continuous and
   event-driven analytic simulation, and stateful GPU compute evaluation.
 - GPU-model instancing expansion for all block/item/entity variants.
-- Measured improvement to collision broadphase, swept collision and
-  per-cell shape caching; correctness remains on the existing CPU route.
+- New collision broadphase and swept collision (the repeated per-block shape
+  lookup is now cached and measured); broader edge-case correctness and
+  compatibility for stateful/moving block shapes.
 - Automatic adaptive quality based on CPU/GPU timings, VRAM, spawn
   throughput, memory and effect priorities; configurable caps alone are
   insufficient for safe 4M-particle behavior.
@@ -120,9 +177,13 @@ readiness or completion of M6 from the successful builds or partial results.
 .\gradlew.bat runClientBench '-PbenchScenario=analytic_uv_1k' -PbenchRequireGpuAnalytic=true -PbenchRenderStateAudit=true
 .\gradlew.bat runClientBench '-PbenchScenario=analytic_uv_1k' -PbenchLegacyAnalytic=true -PbenchRenderStateAudit=true
 .\gradlew.bat runClientBench '-PbenchScenario=analytic_uv_1k,analytic_uv_10k' -PbenchWidth=2560 -PbenchHeight=1440 -PbenchUncapped=true -PbenchRequireGpuAnalytic=true -PbenchRenderStateAudit=true
+.\gradlew.bat runClientBench '-PbenchScenario=collision_no_events,collision_no_events_10k,collision_1k' -PbenchWidth=1920 -PbenchHeight=1080 -PbenchUncapped=true -PbenchDisableCollisionCache=true
+.\gradlew.bat runClientBench '-PbenchScenario=collision_no_events,collision_no_events_10k,collision_1k' -PbenchWidth=1920 -PbenchHeight=1080 -PbenchUncapped=true -PbenchDisableCollisionCache=false
+python tools/verify_m6_collision.py --folder docs/benchmarks/m6-2026-11-02 --after 20261102-024000
 ```
 
 Next priority: implement and profile GPU-compiled common age-based
-appearance expressions and safe alpha behavior; separately optimize
-and A/B-test CPU collision world lookups; add client-side cost-aware
-admission and verify GPU/driver compatibility on actual modded clients.
+appearance expressions and safe alpha behavior; profile collision under
+state changes, non-full collision shapes and dense/rare world geometry;
+add client-side cost-aware admission and verify GPU/driver compatibility
+on actual modded clients.
