@@ -41,4 +41,9 @@ public class VfxColorExpression implements VfxExpression<VfxColor>{
     public boolean isConstant() {
         return r.isConstant() && g.isConstant() && b.isConstant() && a.isConstant();
     }
+
+    public boolean isSharedParticleAgeOnly() {
+        return r.isSharedParticleAgeOnly() && g.isSharedParticleAgeOnly()
+                && b.isSharedParticleAgeOnly() && a.isSharedParticleAgeOnly();
+    }
 }

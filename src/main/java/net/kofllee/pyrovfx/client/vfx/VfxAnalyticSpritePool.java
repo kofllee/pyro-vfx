@@ -24,9 +24,11 @@ public final class VfxAnalyticSpritePool {
     public static final int STRIDE = 24;
     private final VfxEmitterDefinition definition;
     private final VfxAnalyticPlan plan;
-    private final Vec3 scale;
-    private final VfxColor color;
+    private Vec3 scale;
+    private VfxColor color;
     private final ClientVfxSpriteUvState uvState;
+    private final VfxExpressionContext sharedAgeContext = VfxExpressionContext.root();
+    private final boolean animatedAppearance;
     private ByteBuffer states;
     private int count, age, gpuBuffer;
     private int gpuGeneration = -1;
@@ -35,8 +37,14 @@ public final class VfxAnalyticSpritePool {
     public VfxAnalyticSpritePool(VfxEmitterDefinition d, VfxAnalyticPlan p) {
         definition = d;
         plan = p;
-        scale = d.render().appearance().scale().evaluate(null).toVec3();
-        color = d.render().appearance().color().evaluate(null);
+        animatedAppearance = !d.render().appearance().scale().isConstant()
+                || !d.render().appearance().color().isConstant();
+        if (animatedAppearance) {
+            evaluateSharedAge(0);
+        } else {
+            scale = d.render().appearance().scale().evaluate(null).toVec3();
+            color = d.render().appearance().color().evaluate(null);
+        }
         uvState = ClientVfxSpriteUvResolver.resolve(d.render().sprite().uv(), null, 0.0);
     }
 
@@ -80,6 +88,42 @@ public final class VfxAnalyticSpritePool {
     public VfxEmitterDefinition definition() { return definition; }
     public Vec3 scale() { return scale; }
     public VfxColor color() { return color; }
+    /**
+     * Evaluate at most two shared ages per *emitter draw*, never per particle.
+     * CPU particles begin with appearance(age=0), then tick evaluations use
+     * pre-increment age: after tick 1 they still have age=0 appearance.
+     * Match their previous/current interpolation after subsequent ticks.
+     */
+    public void updateAppearance(float partial) {
+        if (!animatedAppearance) return;
+        int currentAge = Math.max(0, age - 1);
+        int previousAge = Math.max(0, age - 2);
+        float factor = Math.max(0.0f, Math.min(1.0f, partial));
+        evaluateSharedAge(previousAge);
+        Vec3 previousScale = scale;
+        VfxColor previousColor = color;
+        evaluateSharedAge(currentAge);
+        Vec3 currentScale = scale;
+        VfxColor currentColor = color;
+        scale = new Vec3(
+                Math.fma(currentScale.x - previousScale.x, factor, previousScale.x),
+                Math.fma(currentScale.y - previousScale.y, factor, previousScale.y),
+                Math.fma(currentScale.z - previousScale.z, factor, previousScale.z));
+        color = new VfxColor(
+                Math.fma(currentColor.r() - previousColor.r(), factor, previousColor.r()),
+                Math.fma(currentColor.g() - previousColor.g(), factor, previousColor.g()),
+                Math.fma(currentColor.b() - previousColor.b(), factor, previousColor.b()),
+                Math.fma(currentColor.a() - previousColor.a(), factor, previousColor.a()));
+    }
+
+    private void evaluateSharedAge(int sampledAge) {
+        sharedAgeContext.setNumber("particle.age", sampledAge);
+        sharedAgeContext.setNumber("particle.lifetime", plan.lifetime());
+        sharedAgeContext.setNumber("particle.normalized_age",
+                Math.min(1.0, sampledAge / (double) plan.lifetime()));
+        scale = definition.render().appearance().scale().evaluate(sharedAgeContext).toVec3();
+        color = definition.render().appearance().color().evaluate(sharedAgeContext);
+    }
     /** One UV rectangle for this entire burst. The original frame scheduler is reused. */
     public VfxSpriteUvRect uvRect() {
         return VfxSpriteUvSampler.sample(new FallbackCursor(0, 0));
@@ -114,6 +158,7 @@ public final class VfxAnalyticSpritePool {
     public void renderFallback(PoseStack pose, MultiBufferSource buffer,
                                Camera camera, float partial) {
         if (states == null || count == 0) return;
+        updateAppearance(partial);
         double[] c = plan.coefficients(age, partial);
         FallbackCursor cursor = new FallbackCursor(c[0], c[1]);
         for (int i = 0; i < count; i++) {

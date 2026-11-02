@@ -289,6 +289,55 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void analyticSharedAgeAppearanceMatchesCpuTickInterpolation(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "analytic_age");
+        JsonObject json = JsonParser.parseString("""
+            {"format":"pyro_vfx:1","emitters":[{
+              "id":"burst","emitter_lifetime":{"mode":"once","active_ticks":1},
+              "spawn_shape":{"type":"point"},
+              "particle_lifetime":{"max_age_ticks":40},"motion":{"mode":"static"},
+              "render":{"type":"sprite","sprite":{
+                  "texture":"minecraft:textures/particle/generic_0.png","blend_mode":"additive"},
+                "color":[1,0.5,0.25,"0.8 - particle.normalized_age * 0.5"],
+                "scale":["0.5 + particle.age * 0.1",0.2,1]}
+            }]}
+            """).getAsJsonObject();
+        var definition = VfxDefinitionParser.parse(id, json);
+        var plan = VfxAnalyticPlan.analyse(definition.emitters().getFirst(), true);
+        if (!plan.supported()) throw new AssertionError(plan.reason());
+        var pool = new VfxAnalyticSpritePool(definition.emitters().getFirst(), plan);
+        var scope = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of(), definition.curves(), RandomSource.create(21),
+                definition.program().variables());
+        pool.spawn(1, Vec3.ZERO, scope, RandomSource.create(22));
+        pool.updateAppearance(0.5f);
+        checkClose(0.5, pool.scale().x);
+        checkClose(0.8, pool.color().a());
+        pool.tick(); // first tick evaluates expression at age=0
+        pool.updateAppearance(0.5f);
+        checkClose(0.5, pool.scale().x);
+        pool.tick(); // second tick evaluates age=1; interpolate previous/current
+        pool.updateAppearance(0.5f);
+        checkClose(0.55, pool.scale().x);
+        checkClose(0.8 - 0.25 / 40, pool.color().a());
+        pool.close();
+
+        var render = json.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                .getAsJsonObject("render");
+        render.add("color", JsonParser.parseString("[1,0.5,0.25,\"particle.random\"]"));
+        if (VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
+                .emitters().getFirst(), true).supported()) {
+            throw new AssertionError("Particle random cannot be a shared GPU uniform");
+        }
+        render.add("color", JsonParser.parseString("[1,0.5,0.25,\"particle.pos.x\"]"));
+        if (VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
+                .emitters().getFirst(), true).supported()) {
+            throw new AssertionError("Particle position cannot be a shared GPU uniform");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void conservativeRenderFrustumAndSubpixelLod(GameTestHelper helper) {
         Matrix4f identity = new Matrix4f();
         if (!VfxRenderVisibility.visible(identity, 0, 0, 0, 0.25)

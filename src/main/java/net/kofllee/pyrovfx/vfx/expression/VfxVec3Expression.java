@@ -45,4 +45,9 @@ public class VfxVec3Expression implements VfxExpression<VfxVec3> {
     public boolean isConstant() {
         return x.isConstant() && y.isConstant() && z.isConstant();
     }
+
+    public boolean isSharedParticleAgeOnly() {
+        return x.isSharedParticleAgeOnly() && y.isSharedParticleAgeOnly()
+                && z.isSharedParticleAgeOnly();
+    }
 }

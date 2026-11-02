@@ -20,23 +20,29 @@ public final class VfxExpressionCompiler {
         return session;
     }
 
+    public record CompiledNumber(VfxExpressionNode node, VfxProgram.ExpressionInfo info) {}
+
     public static VfxExpressionNode compileNumber(String source) {
+        return compileNumberWithInfo(source).node();
+    }
+
+    public static CompiledNumber compileNumberWithInfo(String source) {
         Session session = CURRENT.get();
         VfxExpressionParser parser = session == null
                 ? new VfxExpressionParser(source)
                 : new VfxExpressionParser(source, session.layout, session.curves);
         VfxExpressionNode node = parser.parse();
+        VfxProgram.ExpressionInfo info = parser.expressionInfo();
         if (session != null) {
-            VfxProgram.ExpressionInfo info = parser.expressionInfo();
             session.expressions.add(info);
             if (info.constant()) {
                 // Pure math expressions have no variables, mutable params, curves or RNG.
                 // Keep the actual numeric result, not a fresh evaluation every particle tick.
                 double constant = node.evaluate(VfxExpressionContext.root());
-                return new ConstantNode(constant);
+                return new CompiledNumber(new ConstantNode(constant), info);
             }
         }
-        return node;
+        return new CompiledNumber(node, info);
     }
 
     public record ConstantNode(double value) implements VfxExpressionNode {

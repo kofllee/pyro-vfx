@@ -46,9 +46,9 @@ public record VfxAnalyticPlan(boolean supported, String reason,
                     || !uv.frameCount().isConstant()
                     || !uv.fps().isConstant()))
             return reject("UV animation requires identical constant sheet parameters and no random start frame");
-        if (!d.render().appearance().color().isConstant()
-                || !d.render().appearance().scale().isConstant())
-            return reject("appearance expression depends on particle age, parameters, random or curves");
+        if (!d.render().appearance().color().isSharedParticleAgeOnly()
+                || !d.render().appearance().scale().isSharedParticleAgeOnly())
+            return reject("appearance requires random, mutable state, curve or per-particle data");
         if (!d.particleLifetime().maxAgeTicks().isConstant())
             return reject("particle lifetime is not constant");
         if (!d.spawnShape().radius().isConstant() || !d.spawnShape().innerRadius().isConstant()
@@ -78,7 +78,7 @@ public record VfxAnalyticPlan(boolean supported, String reason,
                 || !Double.isFinite(ay) || !Double.isFinite(az))
             return reject("nonfinite motion coefficients");
         int life = Math.max(1, (int)Math.round(d.particleLifetime().maxAgeTicks().evaluateDouble(null)));
-        return new VfxAnalyticPlan(true,"constant appearance and closed-form discrete motion",
+        return new VfxAnalyticPlan(true,"shared-age appearance uniforms and closed-form discrete motion",
                 ax, ay, az, q, life);
     }
 

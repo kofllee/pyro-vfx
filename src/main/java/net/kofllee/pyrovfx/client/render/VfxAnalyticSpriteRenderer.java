@@ -126,6 +126,7 @@ public final class VfxAnalyticSpriteRenderer {
             VfxInstancedSpriteRenderer.GlState state = new VfxInstancedSpriteRenderer.GlState();
             state.capture();
             try {
+                pool.updateAppearance(partial);
                 GL20.glUseProgram(program);
                 GL30.glBindVertexArray(vao);
                 GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, pool.gpuBuffer());
