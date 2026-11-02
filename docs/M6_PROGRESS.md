@@ -82,13 +82,35 @@ into this work.
    focus switch shorter than the watchdog polling interval cannot be
    categorically ruled out.**
 
+8. **Measured CPU-time-driven adaptive spawn admission.** Added
+   `VfxAdaptiveSpawnController` with CPU VFX tick-time EMA, hysteresis,
+   4-tick sustained overload detection (requiring both current and smoothed
+   CPU time to exceed target), 30-tick recovery intervals and bounded
+   multiplicative backoff. It adjusts both global spawn capacity and the
+   admitted fraction of each spawn request (so steady emitters below the
+   original global cap also respond). The default is enabled in normal
+   client gameplay at 3.0 ms target with a 25% minimum throughput.
+   `pyro_vfx-client.toml` contains
+   `adaptive_spawns.enabled`, `cpu_tick_target_ms` and
+   `minimum_spawn_percent`. The user-set hard caps on active particles,
+   event delivery and maximum spawn rate remain in force; *existing
+   particles are never deleted*. Adaptation is reset on world transition,
+   clearing effects and disabling the feature. Automatic client benchmarks
+   keep the policy disabled unless `-PbenchAdaptive=true` is supplied.
+   The developer-only `-PbenchAdaptiveTargetMs` lets a test deliberately
+   exercise a tighter CPU budget without changing user configuration.
+   **This is CPU-only adaptive spawn admission, not GPU/VRAM timing, automatic
+   texture quality or a full cross-backend cost model.**
+
 ## Test evidence
 
 - `.\gradlew.bat build runGameTestServer --no-daemon --console=plain`
-  succeeded: **31/31 required NeoForge GameTests**, including ownership
+  succeeded: **34/34 required NeoForge GameTests**, including ownership
   rejection, scalable admission, deterministic analytic UV frame selection
   and collision AABB math equivalence, plus age-only appearance interpolation
-  and random/position-dependent fallback rejection.
+  and random/position-dependent fallback rejection, and bounded adaptive
+  backoff/recovery, single-stall immunity and separate event and
+  existing-particle safety checks.
 - Actual integrated-server Minecraft client benchmark (OpenGL 4.6 NVIDIA
   RTX 4090 Laptop, Windows 11, Minecraft 1.21.1, Java 21.0.5).
 - The CSV and JSON metrics below describe **real measured client runs**
@@ -202,6 +224,42 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secon
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -Scenario analytic_age_1k -Width 1280 -Height 720 -ForceCpuAnalytic -RenderStateAudit
 ```
 
+### Adaptive steady-emission A/B
+
+Two *actual Minecraft client runs* with the same steady colliding sprite
+definition SHA, seed, CPU fallback, 1280×720 secondary display, uncapped
+frame rate and VSync disabled were recorded on RTX 4090 Laptop.
+The benchmark intentionally used a **developer-only 0.5 ms CPU target** in
+its adaptive run, substantially lower than the normal client default of
+3.0 ms. This exercises the controller and is **not** a claim that a normal
+client will throttle the same scene or achieve the same performance.
+
+| Metric | Adaptation off | Adaptation on (test target 0.5 ms) |
+|---|---:|---:|
+| Peak active particles | 10,000 | 9,946 |
+| CPU simulation median | 1.39735 ms | 0.84575 ms |
+| Full-frame P95 | 6.90592 ms | 4.98017 ms |
+| Minimum admitted spawn fraction | 100% | 25% |
+| Adaptive-constrained measurement ticks | 0 | 100 |
+| Total admitted spawns | 36,000 | 24,769 |
+| Total rejected spawn requests | 0 | 53,231 |
+
+This is a single A/B pair, and lowering emitted particle quantity changes
+the visual workload: **it is not a rendering speedup at equal particle
+counts**. No visual equality claim is made. The `adaptive_steady` JSON
+fixture, two raw measured reports and screenshots are archived in
+`docs/benchmarks/m6-2026-11-02/`. The file matching, environment, measured
+samples, controller activation and safe budget checks are reproducible:
+
+```powershell
+python tools/verify_adaptive_bench.py docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132543.json docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132645.json
+```
+
+The new CPU target protects server/client responsiveness from sustained
+VFX simulation cost, but does not measure async GPU pressure or texture VRAM.
+It does not promise any global FPS threshold, equality between effect
+instances under saturation, or immunity to short bursts.
+
 ## Not yet implemented or verified
 
 - General appearance/curve compilation to GPU beyond shared-age uniform
@@ -212,9 +270,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secon
 - New collision broadphase and swept collision (the repeated per-block shape
   lookup is now cached and measured); broader edge-case correctness and
   compatibility for stateful/moving block shapes.
-- Automatic adaptive quality based on CPU/GPU timings, VRAM, spawn
-  throughput, memory and effect priorities; configurable caps alone are
-  insufficient for safe 4M-particle behavior.
+- Remaining adaptive-quality work: GPU time, VRAM, visibility and
+  per-backend/priority cost attribution; the initial CPU-timed spawn
+  controller is deliberately narrower. CPU admission alone is insufficient
+  to guarantee safe 4M-particle effects.
 - Dedicated mixed-workload tests with alpha overdraw at 1080p/1440p,
   **true** 3840x2160 results, cold-start/frame-stall distributions,
   long-running soak/GL resource leak checks, and repeated reload/world
@@ -236,10 +295,12 @@ readiness or completion of M6 from the successful builds or partial results.
 .\gradlew.bat runClientBench '-PbenchScenario=collision_no_events,collision_no_events_10k,collision_1k' -PbenchWidth=1920 -PbenchHeight=1080 -PbenchUncapped=true -PbenchDisableCollisionCache=true
 .\gradlew.bat runClientBench '-PbenchScenario=collision_no_events,collision_no_events_10k,collision_1k' -PbenchWidth=1920 -PbenchHeight=1080 -PbenchUncapped=true -PbenchDisableCollisionCache=false
 python tools/verify_m6_collision.py --folder docs/benchmarks/m6-2026-11-02 --after 20261102-024000
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -Scenario adaptive_steady -Width 1280 -Height 720 -Uncapped
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -Scenario adaptive_steady -Width 1280 -Height 720 -Uncapped -AdaptiveSpawns -AdaptiveCpuTargetMs 0.5
+python tools/verify_adaptive_bench.py docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132543.json docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132645.json
 ```
 
-Next priority: implement and profile GPU-compiled common age-based
-appearance expressions and safe alpha behavior; profile collision under
-state changes, non-full collision shapes and dense/rare world geometry;
-add client-side cost-aware admission and verify GPU/driver compatibility
-on actual modded clients.
+Next priority: add measured GPU-time and visibility signals, cost attribution
+for expensive CPU collision vs. cheap analytic bursts, and sensible effect
+priorities under overload. Expand compatibility tests for changing collision
+geometry, alpha overdraw, mixed effects and shader-mod fallback.

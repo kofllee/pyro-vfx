@@ -15,6 +15,10 @@ sheet animation and shared-age color/scale animation, and per-effect/client part
 does not guarantee VRAM capacity or frame rate. A per-tick cache reduces
 repeat CPU block-shape queries for colliding particles (measured A/B results
 and reproduction steps are in `docs/M6_PROGRESS.md`).
+Optional CPU-time-aware spawn admission now scales the rate of **new**
+particles under sustained expensive Pyro simulation without removing live
+particles or changing event delivery. The adaptive client configuration is
+documented in `docs/M6_PROGRESS.md`; this is not yet GPU/VRAM-aware.
 Windows benchmarks can be launched unobtrusively on a second monitor through
 `tools/run-client-bench-secondary.ps1`, without mouse grab; see
 `docs/TEST_HARNESS.md` for the remaining OS focus limitations.

@@ -10,7 +10,7 @@ python tools/test_compare_bench.py
 .\gradlew.bat clean build
 ```
 
-The 31 NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; event trigger order; rejection of removed vanilla particle definitions; configurable high budgets; shared-frame analytic UV animation and age-dependent appearance; and collision AABB math equivalence. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
+The 34 NeoForge tests cover expression language, curves, compiled dependency classification and constant folding; parser and parameter validation; once/looping/manual lifetimes; all eight spawn shapes; registry snapshots and invalid-resource reload fallback; inherited and live particle parameter updates; shared event/spawn budgets; world identity transitions; exact per-tick motion/rotation/UV/lifetime goldens; event fan-out; event trigger order; rejection of removed vanilla particle definitions; configurable high budgets; shared-frame analytic UV animation and age-dependent appearance; collision AABB math equivalence; and CPU-budget adaptive spawn backoff/recovery/disable and isolated CPU spike safety. They do **not** yet establish full runtime equivalence for every effect/event/motion/reload behavior.
 
 ## GPU client
 
@@ -21,6 +21,23 @@ below instead of starting `runClientBench` directly:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -Scenario analytic_age_1k -Width 1280 -Height 720 -RequireGpuAnalytic -RenderStateAudit
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -Scenario analytic_age_1k -Width 1280 -Height 720 -ForceCpuAnalytic -RenderStateAudit
 ```
+
+To measure adaptive spawn admission using the same continuous colliding
+sprite workload, first run with adaptation disabled, then an opt-in
+developer-only CPU target (the normal client default remains 3 ms):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -Scenario adaptive_steady -Width 1280 -Height 720 -Uncapped
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -Scenario adaptive_steady -Width 1280 -Height 720 -Uncapped -AdaptiveSpawns -AdaptiveCpuTargetMs 0.5
+python tools/verify_adaptive_bench.py docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132543.json docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132645.json
+```
+
+The adaptive runtime samples only CPU time spent in Pyro's tick, reducing
+new spawn requests after sustained expensive simulation. It neither
+measures asynchronous GPU rendering nor changes event budgets, physics of
+already live particles or client-configured hard limits. Old benchmark
+fixtures are unaffected: automated client benchmarks disable adaptation
+unless `-PbenchAdaptive=true` is explicitly selected.
 
 The launcher checks that a secondary monitor exists, creates no separate
 console, moves the window there, sets mouse passthrough, releases the
