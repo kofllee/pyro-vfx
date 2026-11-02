@@ -37,7 +37,7 @@ import java.nio.FloatBuffer;
  * groups: only additive sprites can safely merge across particles/materials.
  */
 public final class VfxInstancedSpriteRenderer {
-    private static final int INSTANCE_FLOATS = 13;
+    private static final int INSTANCE_FLOATS = 16;
     private static final int STRIDE = INSTANCE_FLOATS * Float.BYTES;
     private static final int MAX_BATCH = 16_384;
     private static final int QUAD_STRIDE = 4 * Float.BYTES;
@@ -50,14 +50,27 @@ public final class VfxInstancedSpriteRenderer {
             layout (location=3) in vec2 iSize;
             layout (location=4) in vec4 iColor;
             layout (location=5) in vec4 iUvRect;
+            layout (location=6) in vec3 iRotation;
             uniform mat4 uMvp;
             uniform vec3 uRight;
             uniform vec3 uUp;
+            uniform int uHasRotation;
             out vec2 vUv;
             out vec4 vColor;
             void main() {
-                vec3 position = iPosition + uRight * (aCorner.x * iSize.x)
-                                         + uUp * (aCorner.y * iSize.y);
+                vec3 corner = vec3(aCorner * iSize, 0.0);
+                if (uHasRotation != 0) {
+                    vec3 rad = radians(iRotation);
+                    vec3 s = sin(rad), c = cos(rad);
+                    corner = vec3(c.z * corner.x - s.z * corner.y,
+                                  s.z * corner.x + c.z * corner.y, corner.z);
+                    corner = vec3(c.y * corner.x + s.y * corner.z,
+                                  corner.y, -s.y * corner.x + c.y * corner.z);
+                    corner = vec3(corner.x, c.x * corner.y - s.x * corner.z,
+                                  s.x * corner.y + c.x * corner.z);
+                }
+                vec3 position = iPosition + uRight * corner.x + uUp * corner.y
+                                          + cross(uRight, uUp) * corner.z;
                 gl_Position = uMvp * vec4(position, 1.0);
                 vUv = vec2(mix(iUvRect.x, iUvRect.z, aUv.x),
                            mix(iUvRect.w, iUvRect.y, aUv.y));
@@ -93,12 +106,14 @@ public final class VfxInstancedSpriteRenderer {
     private static int upUniform;
     private static int textureUniform;
     private static int debugUniform;
+    private static int hasRotationUniform;
 
     private static final FloatBuffer MVP_DATA = ByteBuffer.allocateDirect(16 * Float.BYTES)
             .order(ByteOrder.nativeOrder()).asFloatBuffer();
 
     private static ResourceLocation batchTexture;
     private static VfxFacingMode batchFacing;
+    private static boolean batchRotating;
     private static int count;
     private static Matrix4f mvp;
     private static Camera camera;
@@ -115,10 +130,11 @@ public final class VfxInstancedSpriteRenderer {
     private VfxInstancedSpriteRenderer() {}
 
     public static boolean isSupported(VfxEmitterDefinition definition) {
-        if (!compatibleEnvironment() || unavailable) return false;
-        // This GPU vertex layout has no per-particle rotation; preserve visual
-        // parity by rendering rotating dense sprites through Minecraft quads.
-        if (definition.rotation().mode() != net.kofllee.pyrovfx.vfx.type.VfxRotationMode.NONE) return false;
+        return compatibleEnvironment() && !unavailable && supportsGeometry(definition);
+    }
+
+    /** Pure capability check; usable by server GameTests without an OpenGL context. */
+    public static boolean supportsGeometry(VfxEmitterDefinition definition) {
         if (definition.render().sprite() == null
                 || definition.render().sprite().blendMode() != VfxBlendMode.ADDITIVE
                 || definition.render().environmentLighting()) {
@@ -189,6 +205,7 @@ public final class VfxInstancedSpriteRenderer {
         count = 0;
         batchTexture = null;
         batchFacing = null;
+        batchRotating = false;
         drawCalls = submitted = culled = subpixelCulled = 0;
     }
 
@@ -206,17 +223,21 @@ public final class VfxInstancedSpriteRenderer {
         VfxEmitterDefinition definition = pool.definition();
         ResourceLocation texture = definition.render().sprite().texture();
         VfxFacingMode facing = definition.render().facing();
-        if (batchTexture != null && (!batchTexture.equals(texture) || batchFacing != facing)) {
+        boolean rotating = definition.rotation().mode() != net.kofllee.pyrovfx.vfx.type.VfxRotationMode.NONE;
+        if (batchTexture != null && (!batchTexture.equals(texture) || batchFacing != facing
+                || batchRotating != rotating)) {
             flush();
         }
         batchTexture = texture;
         batchFacing = facing;
+        batchRotating = rotating;
         pool.writeInstances(VfxInstancedSpriteRenderer::put, camera, partialTick);
     }
 
     private static void put(double x, double y, double z, float sizeX, float sizeY,
                             float red, float green, float blue, float alpha,
-                            float u0, float v0, float u1, float v1) {
+                            float u0, float v0, float u1, float v1,
+                            float rotationX, float rotationY, float rotationZ) {
         if ((sizeX == 0 && sizeY == 0) || alpha <= 0) {
             culled++;
             return;
@@ -241,6 +262,7 @@ public final class VfxInstancedSpriteRenderer {
         staging.putFloat(sizeX).putFloat(sizeY);
         staging.putFloat(red).putFloat(green).putFloat(blue).putFloat(alpha);
         staging.putFloat(u0).putFloat(v0).putFloat(u1).putFloat(v1);
+        staging.putFloat(rotationX).putFloat(rotationY).putFloat(rotationZ);
         count++;
         submitted++;
     }
@@ -285,6 +307,7 @@ public final class VfxInstancedSpriteRenderer {
             GL20.glUniform1i(textureUniform, 0);
             GL20.glUniform1i(debugUniform,
                     Boolean.getBoolean("pyrovfx.render.debugSolid") ? 1 : 0);
+            GL20.glUniform1i(hasRotationUniform, batchRotating ? 1 : 0);
             MVP_DATA.clear();
             mvp.get(MVP_DATA);
             MVP_DATA.position(0);
@@ -322,6 +345,7 @@ public final class VfxInstancedSpriteRenderer {
     public static void finish() {
         flush();
         batchTexture = null;
+        batchRotating = false;
         camera = null;
         mvp = null;
     }
@@ -361,6 +385,7 @@ public final class VfxInstancedSpriteRenderer {
         upUniform = GL20.glGetUniformLocation(program, "uUp");
         textureUniform = GL20.glGetUniformLocation(program, "uTexture");
         debugUniform = GL20.glGetUniformLocation(program, "uDebug");
+        hasRotationUniform = GL20.glGetUniformLocation(program, "uHasRotation");
 
         int oldVao = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
         int oldArray = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
@@ -383,6 +408,7 @@ public final class VfxInstancedSpriteRenderer {
             attr(3,2,STRIDE,3*Float.BYTES,1);
             attr(4,4,STRIDE,5*Float.BYTES,1);
             attr(5,4,STRIDE,9*Float.BYTES,1);
+            attr(6,3,STRIDE,13*Float.BYTES,1);
         } finally {
             GL30.glBindVertexArray(oldVao);
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, oldArray);

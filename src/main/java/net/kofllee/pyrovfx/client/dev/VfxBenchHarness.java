@@ -325,7 +325,8 @@ public final class VfxBenchHarness {
                 String name = run.scenario.name();
                 if ((name.equals("sprite_1k") || name.equals("sprite_10k")
                         || name.equals("sprite_uv_instanced") || name.equals("sprite_world_z")
-                        || name.equals("sprite_horizontal"))
+                        || name.equals("sprite_horizontal")
+                        || name.equals("sprite_rotating_1k") || name.equals("sprite_rotating_10k"))
                         && net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.drawCalls() == 0
                         && net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer.drawCalls() == 0) {
                     run.error = "Expected actual sprite GPU instancing, got no draws: " + name;

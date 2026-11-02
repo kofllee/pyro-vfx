@@ -90,7 +90,7 @@ public final class VfxDenseSpritePool {
         boolean model = definition.render().type() == VfxRenderType.MODEL
                 && definition.render().model() != null
                 && definition.render().model().source() != VfxModelSourceType.ENTITY
-                && definition.render().model().renderLayer() == VfxModelRenderLayer.SOLID;
+                && definition.render().model().renderLayer() != VfxModelRenderLayer.TRANSLUCENT;
         return !Boolean.getBoolean("pyrovfx.cpu.forceLegacy")
                 && (sprite || model)
                 && definition.particleTriggers().isEmpty()
@@ -107,7 +107,8 @@ public final class VfxDenseSpritePool {
     public interface InstanceConsumer {
         void append(double x, double y, double z, float sizeX, float sizeY,
                     float r, float g, float b, float a,
-                    float u0, float v0, float u1, float v1);
+                    float u0, float v0, float u1, float v1,
+                    float rotationX, float rotationY, float rotationZ);
     }
 
     @FunctionalInterface
@@ -160,7 +161,10 @@ public final class VfxDenseSpritePool {
             cursor.index = i;
             VfxSpriteUvRect rect = VfxSpriteUvSampler.sample(cursor);
             writer.append(x, y, z, sx, sy, cr, cg, cb, ca,
-                    rect.u0(), rect.v0(), rect.u1(), rect.v1());
+                    rect.u0(), rect.v0(), rect.u1(), rect.v1(),
+                    rotating ? (float) (prevRx[i] + (rx[i] - prevRx[i]) * partialTick) : 0,
+                    rotating ? (float) (prevRy[i] + (ry[i] - prevRy[i]) * partialTick) : 0,
+                    rotating ? (float) (prevRz[i] + (rz[i] - prevRz[i]) * partialTick) : 0);
         }
     }
 

@@ -329,6 +329,47 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void rotatedAdditiveSpritesAreEligibleForInstancing(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "sprite_rotation_gpu"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{
+                  "id":"rotating","spawn_shape":{"type":"point"},
+                  "rotation":{"mode":"dynamic","dynamic":{"angular_velocity":[23,45,67]}},
+                  "render":{"type":"sprite","facing":"camera",
+                    "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                              "blend_mode":"additive"}}}
+                ]}
+                """).getAsJsonObject());
+        var emitter = definition.emitters().getFirst();
+        if (!VfxDenseSpritePool.supports(emitter)
+                || !net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.supportsGeometry(emitter))
+            throw new AssertionError("Rotated additive sprite unnecessarily requires CPU quad rendering");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void additiveAndCutoutModelsKeepDenseSimulation(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "dense_model_layers"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[
+                  {"id":"additive","spawn_shape":{"type":"point"},
+                    "render":{"type":"model","model":{"source":"custom",
+                      "model":"pyro_vfx:vfx/ember_cube","render_layer":"additive"}}},
+                  {"id":"cutout","spawn_shape":{"type":"point"},
+                    "render":{"type":"model","model":{"source":"custom",
+                      "model":"pyro_vfx:vfx/ember_cube","render_layer":"cutout"}}}
+                ]}
+                """).getAsJsonObject());
+        for (var emitter : definition.emitters()) {
+            if (!VfxDenseSpritePool.supports(emitter))
+                throw new AssertionError("Non-translucent model render layer should not force Legacy simulation");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void adaptiveSpawnsResetOnWorldExitAndDisable(GameTestHelper helper) {
         var adaptive = new VfxAdaptiveSpawnController();
         for (int tick = 0; tick < 30; tick++) {
