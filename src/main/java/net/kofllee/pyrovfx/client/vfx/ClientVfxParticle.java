@@ -308,8 +308,7 @@ public final class ClientVfxParticle implements VfxSpriteParticleView {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
                     mutablePos.set(x, y, z);
-                    AABB localBounds = VfxCollisionQueryCache.bounds(level, mutablePos);
-                    if (VfxCollisionQueryCache.intersects(localBounds, x, y, z, box)) {
+                    if (VfxCollisionQueryCache.intersectsWorld(level, mutablePos, box)) {
                         return true;
                     }
                 }

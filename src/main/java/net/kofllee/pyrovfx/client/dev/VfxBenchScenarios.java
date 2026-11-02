@@ -33,12 +33,20 @@ public final class VfxBenchScenarios {
         add(scenarios, "model_inheritance", "bench/static", 1);
         add(scenarios, "event_order", "bench/event_order", 1);
         add(scenarios, "model_1k", "bench/model", 1_000);
+        add(scenarios, "model_10k", "bench/model", 10_000);
+        add(scenarios, "model_100k", "bench/model", 100_000);
+        add(scenarios, "model_rotating_10k", "bench/model_rotating", 10_000);
+        add(scenarios, "model_rotating_1k", "bench/model_rotating", 1_000);
+        add(scenarios, "model_block_10k", "bench/model_block", 10_000);
+        add(scenarios, "model_item_1k", "bench/model_item", 1_000);
+        add(scenarios, "model_item_10k", "bench/model_item", 10_000);
         add(scenarios, "model_reload_active", "bench/model", 1);
         add(scenarios, "sprite_uv_instanced", "bench/sprite_uv_instanced", 1_000);
         add(scenarios, "analytic_uv_1k", "bench/analytic_uv", 1_000);
         add(scenarios, "analytic_uv_10k", "bench/analytic_uv", 10_000);
         add(scenarios, "analytic_age_1k", "bench/analytic_age", 1_000);
         add(scenarios, "analytic_age_10k", "bench/analytic_age", 10_000);
+        add(scenarios, "analytic_steady", "bench/analytic_steady", 0);
         add(scenarios, "adaptive_steady", "bench/adaptive_steady", 0);
         int soakTicks = Math.clamp(Integer.getInteger("pyrovfx.bench.soakTicks", 600), 300, 36_000);
         scenarios.put("soak_mixed", new Scenario("soak_mixed",

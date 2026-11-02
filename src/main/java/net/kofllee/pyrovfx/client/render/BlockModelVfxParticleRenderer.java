@@ -176,7 +176,7 @@ public final class BlockModelVfxParticleRenderer {
         }
     }
 
-    private static BlockState resolveBlockState(VfxModelRenderDefinition modelDefinition) {
+    static BlockState resolveBlockState(VfxModelRenderDefinition modelDefinition) {
         if (modelDefinition.blockState() == null || modelDefinition.blockState().isBlank()) {
             Block block = BuiltInRegistries.BLOCK.get(modelDefinition.model());
             return block.defaultBlockState();

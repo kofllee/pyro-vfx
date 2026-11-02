@@ -25,8 +25,9 @@ public record VfxAnalyticPlan(boolean supported, String reason,
                     && d.render().facing() != VfxFacingMode.WORLD_Z))
             return reject("additive full-bright camera-facing sprite required");
         if (d.emitterLifetime().mode() != VfxEmitterLifetimeMode.ONCE
-                || d.spawnAmount().mode() != VfxSpawnAmountMode.INSTANT)
-            return reject("analytic backend currently requires one instant burst");
+                || (d.spawnAmount().mode() != VfxSpawnAmountMode.INSTANT
+                    && d.spawnAmount().mode() != VfxSpawnAmountMode.STEADY))
+            return reject("analytic backend supports once-lived instant or steady emitters");
         if (!d.triggers().isEmpty() || !d.particleTriggers().isEmpty())
             return reject("emitter/particle triggers require ordered CPU events");
         if (d.rotation().mode() != VfxRotationMode.NONE)
@@ -78,7 +79,7 @@ public record VfxAnalyticPlan(boolean supported, String reason,
                 || !Double.isFinite(ay) || !Double.isFinite(az))
             return reject("nonfinite motion coefficients");
         int life = Math.max(1, (int)Math.round(d.particleLifetime().maxAgeTicks().evaluateDouble(null)));
-        return new VfxAnalyticPlan(true,"shared-age appearance uniforms and closed-form discrete motion",
+        return new VfxAnalyticPlan(true,"per-birth-tick shared-age uniforms and closed-form discrete motion",
                 ax, ay, az, q, life);
     }
 

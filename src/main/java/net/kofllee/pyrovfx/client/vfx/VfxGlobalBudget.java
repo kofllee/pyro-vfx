@@ -9,8 +9,8 @@ package net.kofllee.pyrovfx.client.vfx;
 public final class VfxGlobalBudget {
     private static final VfxParticleCostClass[] COST_CLASSES = VfxParticleCostClass.values();
     public static final int MAX_INSTANCES = 256;
-    public static final int MAX_ACTIVE_PARTICLES = 80_000;
-    public static final int MAX_SPAWNS_PER_TICK = 30_000;
+    public static final int MAX_ACTIVE_PARTICLES = 240_000;
+    public static final int MAX_SPAWNS_PER_TICK = 100_000;
     public static final int MAX_EVENTS_PER_TICK = 8_192;
 
     private int remainingActive;

@@ -1,0 +1,17 @@
+{
+  "format":"pyro_vfx:1",
+  "metadata":{"author":"Pyro VFX","description":"Data-oriented item baked-quad instancing"},
+  "parameters":{"count":10000},
+  "lifetime":{"mode":"once","active_ticks":160},
+  "emitters":[{
+    "id":"main",
+    "emitter_lifetime":{"mode":"once","active_ticks":1},
+    "spawn_amount":{"mode":"instant","amount":"param.count"},
+    "spawn_shape":{"type":"sphere","radius":3},
+    "particle_lifetime":{"max_age_ticks":140},
+    "motion":{"mode":"dynamic","dynamic":{"direction":"outward","speed":0.25,"acceleration":[0,-0.1,0],"linear_drag":0.1}},
+    "render":{"type":"model","environment_lighting":false,
+      "model":{"source":"item","model":"minecraft:iron_ingot","render_layer":"solid"},
+      "color":"#FFFFFFFF","scale":[0.13,0.13,0.13]}
+  }]
+}

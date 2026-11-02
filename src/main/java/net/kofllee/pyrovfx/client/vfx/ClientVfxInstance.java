@@ -176,7 +176,10 @@ public final class ClientVfxInstance {
                 && Boolean.getBoolean("pyrovfx.bench.allowHeavy");
         budget.beginTick(liveParticles, heavy, global);
         if (global != null) {
-            budget.qualityScale(definition.metadata().priority().scale(global.adaptiveSpawnScale()));
+            budget.qualityScale(VfxCostAdmissionPolicy.scale(
+                    global.adaptiveSpawnScale(), cpuTickEmaMs,
+                    VfxBudgetConfig.cpuTickTargetMs(),
+                    ClientVfxManager.getActiveInstanceCount(), definition.metadata().priority()));
         } else {
             budget.qualityScale(1.0);
         }

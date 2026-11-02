@@ -45,13 +45,14 @@ public final class VfxBudgetConfig {
         ACTIVE_EFFECTS = builder.comment("Maximum concurrently running VFX instances.")
                 .defineInRange("active_effects", VfxGlobalBudget.MAX_INSTANCES, 1, 4_096);
         GPU_ANALYTIC_LIMIT = builder.comment("Separate live-particle ceiling for GPU analytic bursts. Global cap still applies.")
-                .defineInRange("gpu_analytic_particles", 80_000, 100, 4_000_000);
+                .defineInRange("gpu_analytic_particles", 240_000, 100, 4_000_000);
         CPU_BASIC_LIMIT = builder.comment("Separate live ceiling for regular CPU sprite particles.")
-                .defineInRange("cpu_basic_particles", 80_000, 100, 4_000_000);
+                .defineInRange("cpu_basic_particles", 120_000, 100, 4_000_000);
         CPU_COLLISION_LIMIT = builder.comment("Live collision particles are expensive; protect main-thread block queries.")
                 .defineInRange("cpu_collision_particles", 20_000, 100, 1_000_000);
-        CPU_MODEL_LIMIT = builder.comment("Limit legacy/model particles independently of sprite particles.")
-                .defineInRange("cpu_model_particles", 10_000, 100, 1_000_000);
+        CPU_MODEL_LIMIT = builder.comment("Adaptive admission safety ceiling for dense-instanced and complex models.",
+                        "Real CPU/GPU cost throttles new spawns before the ceiling; this is not a 10k model limit.")
+                .defineInRange("cpu_model_particles", 120_000, 100, 4_000_000);
         builder.pop();
         builder.comment("Optional dynamic throttling of NEW particle spawns when Pyro CPU simulation is expensive.",
                         "Never removes existing particles or throttles redstone/event triggers.")
@@ -93,10 +94,10 @@ public final class VfxBudgetConfig {
     public static int activeEffects() { return value(ACTIVE_EFFECTS, VfxGlobalBudget.MAX_INSTANCES); }
     public static int classLimit(VfxParticleCostClass group) {
         return switch (group) {
-            case GPU_ANALYTIC -> value(GPU_ANALYTIC_LIMIT, 80_000);
-            case CPU_BASIC -> value(CPU_BASIC_LIMIT, 80_000);
+            case GPU_ANALYTIC -> value(GPU_ANALYTIC_LIMIT, 240_000);
+            case CPU_BASIC -> value(CPU_BASIC_LIMIT, 120_000);
             case CPU_COLLISION -> value(CPU_COLLISION_LIMIT, 20_000);
-            case CPU_MODEL -> value(CPU_MODEL_LIMIT, 10_000);
+            case CPU_MODEL -> value(CPU_MODEL_LIMIT, 120_000);
         };
     }
     public static boolean adaptiveSpawns() {

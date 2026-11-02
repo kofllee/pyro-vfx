@@ -30,8 +30,8 @@ public final class VfxRenderer {
         try {
             for(ClientVfxInstance instance: ClientVfxManager.instances()){
                 for(var emitter : instance.emitters()) {
-                    var analytic = emitter.analyticPool();
-                    if (analytic != null && analytic.liveCount() > 0) {
+                    for (var analytic : emitter.analyticPools()) {
+                        if (analytic.liveCount() == 0) continue;
                         if (gpuFrame) VfxInstancedSpriteRenderer.flush();
                         bufferSource.endBatch();
                         queuedVanilla = false;
@@ -59,8 +59,17 @@ public final class VfxRenderer {
                     } else {
                         if (gpuFrame) VfxInstancedSpriteRenderer.flush();
                         if (pool != null) {
-                            pool.render(poseStack, bufferSource, camera, partialTick);
-                            queuedVanilla |= pool.size() > 0;
+                            boolean modelInstanced = false;
+                            if (pool.model() && VfxInstancedModelRenderer.accepts(pool.definition())) {
+                                bufferSource.endBatch();
+                                queuedVanilla = false;
+                                modelInstanced = VfxInstancedModelRenderer.renderDense(
+                                        pool, poseStack, camera, partialTick);
+                            }
+                            if (!modelInstanced) {
+                                pool.render(poseStack, bufferSource, camera, partialTick);
+                                queuedVanilla |= pool.size() > 0;
+                            }
                         }
                     }
 

@@ -141,6 +141,28 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void measuredPerEffectCpuCostReducesOnlyOverloadedEffects(GameTestHelper helper) {
+        var policy = net.kofllee.pyrovfx.client.vfx.VfxCostAdmissionPolicy.class;
+        var normal = net.kofllee.pyrovfx.vfx.type.VfxQualityPriority.NORMAL;
+        var important = net.kofllee.pyrovfx.vfx.type.VfxQualityPriority.IMPORTANT;
+        var critical = net.kofllee.pyrovfx.vfx.type.VfxQualityPriority.CRITICAL;
+        double healthy = net.kofllee.pyrovfx.client.vfx.VfxCostAdmissionPolicy.scale(
+                1.0, 100.0, 3.0, 3, normal);
+        double heavy = net.kofllee.pyrovfx.client.vfx.VfxCostAdmissionPolicy.scale(
+                0.5, 8.0, 3.0, 3, normal);
+        double cheap = net.kofllee.pyrovfx.client.vfx.VfxCostAdmissionPolicy.scale(
+                0.5, 0.2, 3.0, 3, normal);
+        if (healthy != 1.0 || !(heavy < cheap && cheap <= 0.5)
+                || net.kofllee.pyrovfx.client.vfx.VfxCostAdmissionPolicy.scale(
+                    0.5, 8, 3, 3, important) <= heavy
+                || net.kofllee.pyrovfx.client.vfx.VfxCostAdmissionPolicy.scale(
+                    0.5, 8, 3, 3, critical) != 1.0) {
+            throw new AssertionError("Measured per-effect CPU quality policy violated priority or recovery");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void unknownGpuMemoryNeverLooksLikeOutOfMemory(GameTestHelper helper) {
         if (net.kofllee.pyrovfx.client.vfx.VfxGpuMemoryPolicy.spawnScale(-1, -1) != 1.0
                 || net.kofllee.pyrovfx.client.vfx.VfxGpuMemoryPolicy.spawnScale(2048, 1024) != 1.0
@@ -162,8 +184,10 @@ public final class PyroVfxGameTests {
         var global = new VfxGlobalBudget();
         int[] active = new int[4];
         active[collision.ordinal()] = 19_900;
-        active[model.ordinal()] = 9_990;
-        global.beginTick(29_890, false, 80_000, 30_000, active);
+        int modelLimit = net.kofllee.pyrovfx.client.vfx.VfxBudgetConfig.classLimit(model);
+        active[model.ordinal()] = modelLimit - 10;
+        global.beginTick(19_900 + modelLimit - 10, false,
+                19_900 + modelLimit + 50_000, 30_000, active);
         if (global.reserveSpawns(300, collision) != 100
                 || global.reserveSpawns(100, model) != 10
                 || global.reserveSpawns(300, cpu) != 300
@@ -246,6 +270,26 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void multipartCollisionRejectsEmptyGaps(GameTestHelper helper) {
+        var bounds = new AABB(0, 0, 0, 1, 1, 1);
+        var parts = new AABB[] {
+                new AABB(0, 0, 0, 0.2, 1, 1),
+                new AABB(0.8, 0, 0, 1, 1, 1)
+        };
+        var middle = new AABB(12.4, 5.1, 3.2, 12.6, 5.9, 3.8);
+        var left = new AABB(12.01, 5.1, 3.2, 12.15, 5.9, 3.8);
+        if (net.kofllee.pyrovfx.client.vfx.VfxCollisionQueryCache.intersectsShape(
+                    bounds, parts, 12, 5, 3, middle)
+                || !net.kofllee.pyrovfx.client.vfx.VfxCollisionQueryCache.intersectsShape(
+                    bounds, parts, 12, 5, 3, left)
+                || net.kofllee.pyrovfx.client.vfx.VfxCollisionQueryCache.intersectsShape(
+                    bounds, parts, 12, 5, 3, new AABB(15, 5, 3, 16, 6, 4))) {
+            throw new AssertionError("Multipart collision broadphase gave a false positive or miss");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void renderDefinitionsAlwaysUsePyroOwnedParticles(GameTestHelper helper) {
         ResourceLocation id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "render_ownership");
         JsonObject source = JsonParser.parseString("""
@@ -274,7 +318,9 @@ public final class PyroVfxGameTests {
     @GameTest(template = "empty")
     public static void globalBudgetIsSharedAcrossIndependentEffects(GameTestHelper helper) {
         var global = new VfxGlobalBudget();
-        global.beginTick(0, false);
+        // Explicit historical thresholds validate *sharing* independently
+        // of the now much higher configurable production ceilings.
+        global.beginTick(0, false, 80_000, 30_000);
         var first = new VfxRuntimeBudget();
         var second = new VfxRuntimeBudget();
         first.beginTick(0, false, global);
@@ -285,7 +331,7 @@ public final class PyroVfxGameTests {
                 || global.rejectedSpawns() != 10_000) {
             throw new AssertionError("Shared per-tick spawn admission failed");
         }
-        global.beginTick(79_900, false);
+        global.beginTick(79_900, false, 80_000, 30_000);
         first.beginTick(0, false, global);
         second.beginTick(0, false, global);
         if (first.reserveSpawns(80) != 80
@@ -492,6 +538,46 @@ public final class PyroVfxGameTests {
         if (VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
                 .emitters().getFirst(), true).supported()) {
             throw new AssertionError("Particle position cannot be a shared GPU uniform");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticSharedAgeCurvesUseUniformWithoutRandomFallback(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "analytic_curve");
+        var base = JsonParser.parseString("""
+                {"format":"pyro_vfx:1",
+                 "curves":{"fade":{"type":"linear","points":[[0,1],[1,0]]}},
+                 "emitters":[{"id":"curve","emitter_lifetime":{"mode":"once","active_ticks":1},
+                   "spawn_shape":{"type":"point"},
+                   "particle_lifetime":{"max_age_ticks":40},
+                   "motion":{"mode":"static"},
+                   "render":{"type":"sprite","sprite":{
+                     "texture":"minecraft:textures/particle/generic_0.png","blend_mode":"additive"},
+                     "color":[1,1,1,"curve.fade(particle.normalized_age)"],
+                     "scale":[0.1,0.1,1]}}]}
+                """).getAsJsonObject();
+        var definition = VfxDefinitionParser.parse(id, base);
+        var plan = VfxAnalyticPlan.analyse(definition.emitters().getFirst(), true);
+        if (!plan.supported()) throw new AssertionError(plan.reason());
+        var pool = new VfxAnalyticSpritePool(definition.emitters().getFirst(), plan);
+        var scope = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of(), definition.curves(), RandomSource.create(31),
+                definition.program().variables());
+        pool.spawn(1, Vec3.ZERO, scope, RandomSource.create(32));
+        pool.tick();
+        pool.updateAppearance(0.5f);
+        checkClose(1.0, pool.color().a());
+        pool.tick();
+        pool.updateAppearance(0.5f);
+        checkClose(1.0 - 0.5 / 40, pool.color().a());
+
+        base.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                .getAsJsonObject("render")
+                .add("color", JsonParser.parseString("[1,1,1,\"curve.fade(particle.random)\"]"));
+        if (VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, base)
+                .emitters().getFirst(), true).supported()) {
+            throw new AssertionError("Random-dependent curve was admitted to shared GPU uniforms");
         }
         helper.succeed();
     }

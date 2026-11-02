@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.kofllee.pyrovfx.client.render.ClientVfxSpriteUvResolver;
 import net.kofllee.pyrovfx.client.render.ClientVfxSpriteUvState;
 import net.kofllee.pyrovfx.client.render.SpriteVfxParticleRenderer;
+import net.kofllee.pyrovfx.client.render.ModelVfxParticleRenderer;
 import net.kofllee.pyrovfx.client.render.VfxSpriteUvSampler;
 import net.kofllee.pyrovfx.client.render.VfxSpriteUvRect;
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
@@ -11,6 +12,8 @@ import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.expression.VfxVariableLayout;
 import net.kofllee.pyrovfx.vfx.type.VfxMotionMode;
 import net.kofllee.pyrovfx.vfx.type.VfxRenderType;
+import net.kofllee.pyrovfx.vfx.type.VfxModelRenderLayer;
+import net.kofllee.pyrovfx.vfx.type.VfxModelSourceType;
 import net.kofllee.pyrovfx.vfx.type.VfxRotationMode;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.kofllee.pyrovfx.vfx.value.VfxVec3;
@@ -75,9 +78,14 @@ public final class VfxDenseSpritePool {
     }
 
     public static boolean supports(VfxEmitterDefinition definition) {
+        boolean sprite = definition.render().type() == VfxRenderType.SPRITE
+                && definition.render().sprite() != null;
+        boolean model = definition.render().type() == VfxRenderType.MODEL
+                && definition.render().model() != null
+                && definition.render().model().source() != VfxModelSourceType.ENTITY
+                && definition.render().model().renderLayer() == VfxModelRenderLayer.SOLID;
         return !Boolean.getBoolean("pyrovfx.cpu.forceLegacy")
-                && definition.render().type() == VfxRenderType.SPRITE
-                && definition.render().sprite() != null
+                && (sprite || model)
                 && !definition.render().environmentLighting()
                 && definition.particleTriggers().isEmpty()
                 && definition.rotation().mode() == VfxRotationMode.NONE
@@ -87,6 +95,7 @@ public final class VfxDenseSpritePool {
     }
 
     public boolean dynamic() { return dynamic; }
+    public boolean model() { return definition.render().type() == VfxRenderType.MODEL; }
     public VfxEmitterDefinition definition() { return definition; }
     public int size() { return size; }
     public int capacity() { return age.length; }
@@ -96,6 +105,37 @@ public final class VfxDenseSpritePool {
         void append(double x, double y, double z, float sizeX, float sizeY,
                     float r, float g, float b, float a,
                     float u0, float v0, float u1, float v1);
+    }
+
+    @FunctionalInterface
+    public interface ModelInstanceConsumer {
+        void append(double x, double y, double z, float sx, float sy, float sz,
+                    float r, float g, float b, float a);
+    }
+
+    /** Dense model stream: primitive arrays directly to packed instancing, no snapshots. */
+    public void writeModelInstances(ModelInstanceConsumer writer, float partialTick) {
+        for (int i = 0; i < size; i++) {
+            double x = dynamic ? prevX[i] + (px[i] - prevX[i]) * partialTick : px[i];
+            double y = dynamic ? prevY[i] + (py[i] - prevY[i]) * partialTick : py[i];
+            double z = dynamic ? prevZ[i] + (pz[i] - prevZ[i]) * partialTick : pz[i];
+            writer.append(x, y, z,
+                    (float) (prevScaleX[i] + (scaleX[i] - prevScaleX[i]) * partialTick),
+                    (float) (prevScaleY[i] + (scaleY[i] - prevScaleY[i]) * partialTick),
+                    (float) (prevScaleZ[i] + (scaleZ[i] - prevScaleZ[i]) * partialTick),
+                    (float) (prevR[i] + (r[i] - prevR[i]) * partialTick),
+                    (float) (prevG[i] + (g[i] - prevG[i]) * partialTick),
+                    (float) (prevB[i] + (b[i] - prevB[i]) * partialTick),
+                    (float) (prevA[i] + (a[i] - prevA[i]) * partialTick));
+        }
+    }
+
+    public boolean fullyOpaque(float partialTick) {
+        for (int i = 0; i < size; i++) {
+            double alpha = prevA[i] + (a[i] - prevA[i]) * partialTick;
+            if (Math.abs(alpha - 1.0) > 1.e-6) return false;
+        }
+        return true;
     }
 
     /** No particle objects or snapshots; converts dense simulation data to packed GPU instances. */
@@ -137,7 +177,8 @@ public final class VfxDenseSpritePool {
         particleRandom[i] = random;
         age[i] = 0;
         lifetime[i] = Math.max(1, life);
-        uv[i] = ClientVfxSpriteUvResolver.resolve(definition.render().sprite().uv(), spawnContext, random);
+        uv[i] = model() ? null : ClientVfxSpriteUvResolver.resolve(
+                definition.render().sprite().uv(), spawnContext, random);
     }
 
     private void ensureCapacity(int required) {
@@ -278,7 +319,11 @@ public final class VfxDenseSpritePool {
     public void render(PoseStack stack, MultiBufferSource buffer, Camera camera, float partialTick) {
         for (int i = 0; i < size; i++) {
             cursor.index = i;
-            SpriteVfxParticleRenderer.render(cursor, stack, buffer, camera, partialTick);
+            if (model()) {
+                ModelVfxParticleRenderer.render(snapshot(i), stack, buffer, camera, partialTick);
+            } else {
+                SpriteVfxParticleRenderer.render(cursor, stack, buffer, camera, partialTick);
+            }
         }
     }
 

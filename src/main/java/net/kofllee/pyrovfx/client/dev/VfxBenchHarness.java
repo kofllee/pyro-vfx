@@ -6,6 +6,7 @@ import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxModelSpawnShapeSampler;
 import net.kofllee.pyrovfx.client.vfx.VfxPlayOptions;
 import net.kofllee.pyrovfx.client.vfx.VfxRuntimeBudget;
+import net.kofllee.pyrovfx.client.vfx.VfxGlobalBudget;
 import net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer;
 import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.kofllee.pyrovfx.vfx.resource.VfxRegistry;
@@ -200,7 +201,8 @@ public final class VfxBenchHarness {
                     : VfxPlayOptions.empty();
             if (run.scenario.name().equals("global_budget_spike")) {
                 // Heavy override remains DISABLED: exercise production global admission.
-                var request = VfxPlayOptions.builder().param("count", 20_000).build();
+                var request = VfxPlayOptions.builder().param("count",
+                        VfxGlobalBudget.MAX_SPAWNS_PER_TICK / 2).build();
                 for (int i = 0; i < 3; i++) {
                     ClientVfxManager.playSeeded(run.definition, ORIGIN, request, run.scenario.seed() + i);
                 }
@@ -303,7 +305,11 @@ public final class VfxBenchHarness {
                 run.error = "Async runtime GPU query did not produce a real completed sample";
             }
             if (Boolean.getBoolean("pyrovfx.bench.requireGpuAnalytic")) {
-                if (run.maxAnalyticInstances != run.scenario.particles()
+                boolean steady = run.scenario.name().equals("analytic_steady");
+                if ((steady ? run.maxAnalyticInstances <= 0
+                        || run.analyticDatasetUploads < 10
+                        || run.analyticDrawCalls < run.scenario.sampleTicks()
+                        : run.maxAnalyticInstances != run.scenario.particles())
                         || run.analyticDatasetUploads == 0
                         || run.analyticDrawCalls == 0) {
                     run.error = "GPU analytic backend failed to render expected particle count: "
@@ -350,8 +356,8 @@ public final class VfxBenchHarness {
             if (run.scenario.name().equals("global_budget_spike")) {
                 var global = ClientVfxManager.globalBudget();
                 if (run.peakParticles != net.kofllee.pyrovfx.client.vfx.VfxGlobalBudget.MAX_SPAWNS_PER_TICK
-                        || global.admittedSpawns() != 30_000
-                        || global.rejectedSpawns() != 30_000
+                        || global.admittedSpawns() != VfxGlobalBudget.MAX_SPAWNS_PER_TICK
+                        || global.rejectedSpawns() != VfxGlobalBudget.MAX_SPAWNS_PER_TICK / 2
                         || ClientVfxManager.getActiveInstanceCount() != 3) {
                     run.error = "Global stress admission mismatch: peak=" + run.peakParticles
                             + " admitted=" + global.admittedSpawns()

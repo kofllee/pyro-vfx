@@ -6,8 +6,8 @@ package net.kofllee.pyrovfx.client.vfx;
  */
 public final class VfxRuntimeBudget {
     public static final int MAX_EVENTS_PER_TICK = 4_096;
-    public static final int MAX_SPAWNS_PER_TICK = 20_000;
-    public static final int MAX_ACTIVE_PARTICLES = 20_000;
+    public static final int MAX_SPAWNS_PER_TICK = 100_000;
+    public static final int MAX_ACTIVE_PARTICLES = 120_000;
     public static final int HEAVY_PARTICLES = 1_000_000;
 
     private int remainingEvents;

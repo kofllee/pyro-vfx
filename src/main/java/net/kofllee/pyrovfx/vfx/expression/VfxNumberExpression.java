@@ -28,12 +28,14 @@ public class VfxNumberExpression implements VfxExpression<Double> {
 
     /**
      * Every particle in a single analytic burst has the same age and lifetime.
-     * Never admit parameters, RNG, curves, position or emitter/effect state:
-     * those could differ between particles or change during runtime.
+     * Immutable curves with shared-age inputs are safe: they are sampled
+     * once per emitter draw and uploaded as a uniform. They do not imply
+     * general curve evaluation inside GLSL. Mutable params, RNG, position
+     * and other per-particle data are never admitted here.
      */
     public boolean isSharedParticleAgeOnly() {
         return isConstant || (info != null && !info.randomCall()
-                && !info.curveCall() && !info.parameterDependent()
+                && !info.parameterDependent()
                 && info.variables().stream().allMatch(v ->
                         v.equals("particle.age") || v.equals("particle.normalized_age")
                                 || v.equals("particle.lifetime")));
