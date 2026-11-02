@@ -336,7 +336,9 @@ public final class VfxDefinitionParser {
     private static VfxMetadataDefinition parseMetadata(JsonObject json) {
         return new VfxMetadataDefinition(
                 getString(json, "author", ""),
-                getString(json, "description", "")
+                getString(json, "description", ""),
+                parseEnum(VfxQualityPriority.class,
+                        getString(json, "priority", "normal"), "effect quality priority")
         );
     }
 

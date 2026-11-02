@@ -18,6 +18,9 @@ public final class VfxGlobalBudget {
     private int activeLimit;
     private int spawnLimit;
     private double adaptiveSpawnScale = 1.0;
+    private final int[] remainingByClass = new int[VfxParticleCostClass.values().length];
+    private final long[] rejectedByClass = new long[VfxParticleCostClass.values().length];
+    private final long[] admittedByClass = new long[VfxParticleCostClass.values().length];
     private long rejectedSpawns;
     private long rejectedEvents;
     private long rejectedInstances;
@@ -31,6 +34,11 @@ public final class VfxGlobalBudget {
 
     /** Explicit limits make high-capacity admission testable without changing global config. */
     public void beginTick(int currentParticles, boolean heavy, int requestedActiveLimit, int requestedSpawnLimit) {
+        beginTick(currentParticles, heavy, requestedActiveLimit, requestedSpawnLimit, null);
+    }
+
+    public void beginTick(int currentParticles, boolean heavy, int requestedActiveLimit,
+                          int requestedSpawnLimit, int[] activeByClass) {
         activeLimit = heavy ? Math.max(VfxRuntimeBudget.HEAVY_PARTICLES, requestedActiveLimit)
                 : Math.max(0, requestedActiveLimit);
         spawnLimit = heavy ? Math.max(VfxRuntimeBudget.HEAVY_PARTICLES, requestedSpawnLimit)
@@ -39,20 +47,33 @@ public final class VfxGlobalBudget {
         remainingSpawns = spawnLimit;
         remainingEvents = MAX_EVENTS_PER_TICK;
         peakObservedParticles = Math.max(peakObservedParticles, currentParticles);
+        for (var kind : VfxParticleCostClass.values()) {
+            // Standalone admission tests use the original global-budget API;
+            // no category snapshot means no category-specific policy.
+            int categoryMax = activeByClass == null ? activeLimit
+                    : heavy ? Math.max(VfxRuntimeBudget.HEAVY_PARTICLES,
+                        VfxBudgetConfig.classLimit(kind)) : VfxBudgetConfig.classLimit(kind);
+            int active = activeByClass == null ? 0 : activeByClass[kind.ordinal()];
+            remainingByClass[kind.ordinal()] = Math.max(0, categoryMax - Math.max(0, active));
+        }
     }
 
     public int reserveSpawns(int requested) {
+        return reserveSpawns(requested, VfxParticleCostClass.CPU_BASIC);
+    }
+
+    public int reserveSpawns(int requested, VfxParticleCostClass group) {
         if (requested <= 0) return 0;
-        // A changing global ceiling alone would not affect regular, small
-        // steady emitters. Reduce each request too, without changing its
-        // physics/event schedule or deleting already living particles.
-        int scaled = Math.min(requested, Math.max(1,
-                (int) Math.floor(requested * adaptiveSpawnScale)));
-        int granted = Math.min(scaled, Math.min(remainingSpawns, remainingActive));
+        int index = group.ordinal();
+        int granted = Math.min(requested,
+                Math.min(remainingByClass[index], Math.min(remainingSpawns, remainingActive)));
         remainingActive -= granted;
         remainingSpawns -= granted;
+        remainingByClass[index] -= granted;
         admittedSpawns += granted;
         rejectedSpawns += (long) requested - granted;
+        admittedByClass[index] += granted;
+        rejectedByClass[index] += (long) requested - granted;
         return granted;
     }
 
@@ -94,6 +115,9 @@ public final class VfxGlobalBudget {
     public int remainingSpawns() { return remainingSpawns; }
     public int remainingActive() { return remainingActive; }
     public int activeLimit() { return activeLimit; }
+    public int remainingFor(VfxParticleCostClass group) { return remainingByClass[group.ordinal()]; }
+    public long rejectedFor(VfxParticleCostClass group) { return rejectedByClass[group.ordinal()]; }
+    public long admittedFor(VfxParticleCostClass group) { return admittedByClass[group.ordinal()]; }
     public int spawnLimit() { return spawnLimit; }
     public double adaptiveSpawnScale() { return adaptiveSpawnScale; }
     public void setAdaptiveSpawnScale(double scale) {
@@ -106,5 +130,8 @@ public final class VfxGlobalBudget {
         admittedSpawns = admittedEvents = 0;
         peakObservedParticles = 0;
         adaptiveSpawnScale = 1.0;
+        java.util.Arrays.fill(remainingByClass, 0);
+        java.util.Arrays.fill(admittedByClass, 0L);
+        java.util.Arrays.fill(rejectedByClass, 0L);
     }
 }

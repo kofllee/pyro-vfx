@@ -8,4 +8,8 @@ public interface VfxEventRuntime {
     boolean hasEventBudget();
 
     int reserveSpawns(int requested);
+
+    default int reserveSpawns(int requested, VfxParticleCostClass group) {
+        return reserveSpawns(requested);
+    }
 }

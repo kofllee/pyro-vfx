@@ -336,7 +336,7 @@ public final class ClientVfxEmitter {
             int count,
             VfxEventRuntime runtime
     ) {
-        count = runtime.reserveSpawns(count);
+        count = runtime.reserveSpawns(count, particleCostClass());
         if (analyticPool != null) {
             analyticPool.spawn(count, emitterPosition, emitterContext, random);
             emittedParticles += count;
@@ -482,6 +482,13 @@ public final class ClientVfxEmitter {
     }
 
     public VfxAnalyticSpritePool analyticPool() { return analyticPool; }
+
+    public VfxParticleCostClass particleCostClass() {
+        if (analyticPool != null) return VfxParticleCostClass.GPU_ANALYTIC;
+        if (definition.motion().collision().collide()) return VfxParticleCostClass.CPU_COLLISION;
+        if (definition.render().type() == VfxRenderType.MODEL) return VfxParticleCostClass.CPU_MODEL;
+        return VfxParticleCostClass.CPU_BASIC;
+    }
 
     public String selectedBackend() {
         return analyticPool != null ? "gpu_analytic"

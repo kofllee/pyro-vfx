@@ -5,6 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.phys.Vec3;
+import net.kofllee.pyrovfx.client.render.VfxGpuTelemetry;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -17,6 +18,9 @@ public final class ClientVfxManager {
     private static final VfxWorldIdentity WORLD_IDENTITY = new VfxWorldIdentity();
     private static final VfxGlobalBudget GLOBAL_BUDGET = new VfxGlobalBudget();
     private static final VfxAdaptiveSpawnController ADAPTIVE_SPAWNS = new VfxAdaptiveSpawnController();
+    private static final VfxAdaptiveSpawnController ADAPTIVE_GPU = new VfxAdaptiveSpawnController();
+    private static final int[] ACTIVE_BY_CLASS = new int[VfxParticleCostClass.values().length];
+    private static long lastGpuSample;
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
@@ -51,6 +55,8 @@ public final class ClientVfxManager {
             INSTANCES.clear();
             GLOBAL_BUDGET.reset();
             ADAPTIVE_SPAWNS.reset();
+            ADAPTIVE_GPU.reset();
+            lastGpuSample = 0;
             VfxCollisionQueryCache.clear();
             return;
         }
@@ -63,20 +69,43 @@ public final class ClientVfxManager {
         boolean automaticBenchmark = !System.getProperty("pyrovfx.bench.auto", "").isBlank();
         boolean adaptive = !heavy && VfxBudgetConfig.adaptiveSpawns()
                 && (!automaticBenchmark || Boolean.getBoolean("pyrovfx.bench.adaptive"));
+        // The GPU signal is asynchronous. Consume only a newly completed GL
+        // timer sample; never wait for GPU fences on the client tick thread.
+        int activeBeforeTick = getActiveParticleCount();
+        boolean gpuAdaptive = adaptive && VfxBudgetConfig.gpuTimingEnabled()
+                && VfxGpuTelemetry.supported();
+        if (gpuAdaptive && VfxGpuTelemetry.sampleCount() > 0
+                && VfxGpuTelemetry.sampleCount() != lastGpuSample) {
+            lastGpuSample = VfxGpuTelemetry.sampleCount();
+            ADAPTIVE_GPU.observe(VfxGpuTelemetry.latestSampleNs(), activeBeforeTick,
+                    true, VfxBudgetConfig.gpuRenderTargetMs(),
+                    VfxBudgetConfig.minimumAdaptiveSpawnPercent());
+        } else if (!gpuAdaptive || activeBeforeTick == 0) {
+            ADAPTIVE_GPU.reset();
+        }
         int configuredSpawns = VfxBudgetConfig.globalSpawns();
-        int effectiveSpawns = adaptive
-                ? ADAPTIVE_SPAWNS.effectiveSpawnLimit(configuredSpawns)
-                : configuredSpawns;
+        java.util.Arrays.fill(ACTIVE_BY_CLASS, 0);
+        for (var instance : INSTANCES) {
+            for (var emitter : instance.emitters()) {
+                ACTIVE_BY_CLASS[emitter.particleCostClass().ordinal()] += emitter.liveParticleCount();
+            }
+        }
         GLOBAL_BUDGET.beginTick(getActiveParticleCount(), heavy,
-                VfxBudgetConfig.globalParticles(), effectiveSpawns);
-        GLOBAL_BUDGET.setAdaptiveSpawnScale(adaptive ? ADAPTIVE_SPAWNS.spawnScale() : 1.0);
+                VfxBudgetConfig.globalParticles(), configuredSpawns, ACTIVE_BY_CLASS);
+        double scale = adaptive ? Math.min(
+                Math.min(ADAPTIVE_SPAWNS.spawnScale(), ADAPTIVE_GPU.spawnScale()),
+                VfxGpuMemoryPolicy.spawnScale(VfxGpuTelemetry.freeVramMiB(),
+                        VfxGpuTelemetry.totalVramMiB())) : 1.0;
+        GLOBAL_BUDGET.setAdaptiveSpawnScale(scale);
         long startedNs = System.nanoTime();
         Iterator<ClientVfxInstance> iterator = INSTANCES.iterator();
         while(iterator.hasNext()){
             ClientVfxInstance instance = iterator.next();
 
             try {
+                long effectStarted = System.nanoTime();
                 instance.tick(level, GLOBAL_BUDGET);
+                instance.recordCpuTime(System.nanoTime() - effectStarted);
             } catch (Exception e) {
                 LOGGER.error("Failed to tick Pyro VFX instance: {}", instance.definition().id(), e);
                 instance.close();
@@ -107,6 +136,9 @@ public final class ClientVfxManager {
             INSTANCES.clear();
             GLOBAL_BUDGET.reset();
             ADAPTIVE_SPAWNS.reset();
+            ADAPTIVE_GPU.reset();
+            VfxGpuTelemetry.requestReset();
+            lastGpuSample = 0;
         }
         return level;
     }
@@ -116,11 +148,15 @@ public final class ClientVfxManager {
         INSTANCES.clear();
         GLOBAL_BUDGET.reset();
         ADAPTIVE_SPAWNS.reset();
+        ADAPTIVE_GPU.reset();
+        VfxGpuTelemetry.requestReset();
+        lastGpuSample = 0;
         VfxCollisionQueryCache.clear();
     }
 
     public static VfxGlobalBudget globalBudget() { return GLOBAL_BUDGET; }
     public static VfxAdaptiveSpawnController adaptiveSpawns() { return ADAPTIVE_SPAWNS; }
+    public static VfxAdaptiveSpawnController adaptiveGpu() { return ADAPTIVE_GPU; }
 
     public static int getActiveInstanceCount(){
         return INSTANCES.size();

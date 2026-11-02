@@ -3,6 +3,7 @@ package net.kofllee.pyrovfx.client;
 import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.dev.VfxBenchHarness;
 import net.kofllee.pyrovfx.client.render.VfxRenderer;
+import net.kofllee.pyrovfx.client.render.VfxGpuTelemetry;
 import net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer;
 import net.kofllee.pyrovfx.client.render.VfxInstancedModelRenderer;
 import net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer;
@@ -34,6 +35,7 @@ public final class PyroVfxClient {
             VfxInstancedSpriteRenderer.invalidateAfterReload();
             VfxInstancedModelRenderer.invalidateAfterReload();
             VfxAnalyticSpriteRenderer.invalidateAfterReload();
+            VfxGpuTelemetry.requestReset();
         }));
     }
 

@@ -43,6 +43,11 @@ public final class ClientVfxInstance {
         public int reserveSpawns(int requested) {
             return budget.reserveSpawns(requested);
         }
+
+        @Override
+        public int reserveSpawns(int requested, VfxParticleCostClass kind) {
+            return budget.reserveSpawns(requested, kind);
+        }
     };
 
     private final int delayTicks;
@@ -52,6 +57,8 @@ public final class ClientVfxInstance {
     private final double effectRandom;
 
     private int age;
+    private double lastCpuTickMs;
+    private double cpuTickEmaMs;
     private boolean creationTriggersFired = false;
     private boolean expirationTriggersFired = false;
 
@@ -168,6 +175,11 @@ public final class ClientVfxInstance {
         boolean heavy = !net.neoforged.fml.loading.FMLEnvironment.production
                 && Boolean.getBoolean("pyrovfx.bench.allowHeavy");
         budget.beginTick(liveParticles, heavy, global);
+        if (global != null) {
+            budget.qualityScale(definition.metadata().priority().scale(global.adaptiveSpawnScale()));
+        } else {
+            budget.qualityScale(1.0);
+        }
         VfxLifetimeState lifetimeState = lifetimeState();
 
         VfxExpressionContext effectContext = ClientVfxExpressionContexts.effectTick(
@@ -263,6 +275,14 @@ public final class ClientVfxInstance {
     public VfxDefinition definition() {
         return definition;
     }
+
+    /** Cost sampled in the manager; never attributes other mod or GPU work. */
+    void recordCpuTime(long elapsedNs) {
+        lastCpuTickMs = Math.max(0.0, elapsedNs / 1_000_000.0);
+        cpuTickEmaMs += 0.1 * (lastCpuTickMs - cpuTickEmaMs);
+    }
+    public double cpuTickEmaMs() { return cpuTickEmaMs; }
+    public double lastCpuTickMs() { return lastCpuTickMs; }
 
     private boolean hasNoParticles() {
         for (ClientVfxEmitter emitter : emitters) {

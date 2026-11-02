@@ -262,6 +262,17 @@ public final class PyroVfxClientCommands {
                         + ", Pyro CPU EMA: " + String.format(java.util.Locale.ROOT, "%.3f", adaptive.cpuEmaMs()) + " ms"
                         + ", constrained ticks: " + adaptive.constrainedTicks()
                         + ", observations: " + adaptive.samples()), false);
+        var gpuAdaptive = ClientVfxManager.adaptiveGpu();
+        player.displayClientMessage(Component.literal(
+                "Async GPU VFX: " + (net.kofllee.pyrovfx.client.render.VfxGpuTelemetry.supported()
+                         ? String.format(java.util.Locale.ROOT, "%.3f ms",
+                           net.kofllee.pyrovfx.client.render.VfxGpuTelemetry.latestSampleNs() / 1_000_000.0)
+                         : "unsupported/disabled")
+                        + ", samples " + net.kofllee.pyrovfx.client.render.VfxGpuTelemetry.sampleCount()
+                        + ", skipped queries " + net.kofllee.pyrovfx.client.render.VfxGpuTelemetry.skippedQueries()
+                        + ", GPU budget scale " + Math.round(gpuAdaptive.spawnScale() * 100) + "%"
+                        + ", free VRAM " + net.kofllee.pyrovfx.client.render.VfxGpuTelemetry.freeVramMiB()
+                        + " / " + net.kofllee.pyrovfx.client.render.VfxGpuTelemetry.totalVramMiB() + " MiB"), false);
         player.displayClientMessage(Component.literal(
                 "Global budget: live ceiling " + budget.activeLimit()
                         + ", spawn/tick ceiling " + budget.spawnLimit()
@@ -271,6 +282,13 @@ public final class PyroVfxClientCommands {
                         + "; rejected spawns/events/effects "
                         + budget.rejectedSpawns() + "/" + budget.rejectedEvents()
                         + "/" + budget.rejectedInstances()), false);
+        for (var kind : net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.values()) {
+            player.displayClientMessage(Component.literal(
+                    "  " + kind + ": " + budget.remainingFor(kind)
+                            + " remaining class slots, admitted "
+                            + budget.admittedFor(kind) + ", rejected "
+                            + budget.rejectedFor(kind)), false);
+        }
         player.displayClientMessage(Component.literal(
                 "Collision block-shape cache (last client tick): "
                         + net.kofllee.pyrovfx.client.vfx.VfxCollisionQueryCache.hits()
@@ -288,6 +306,9 @@ public final class PyroVfxClientCommands {
                         instance.definition().id() + "/" + emitter.definition().id()
                                 + ": " + emitter.selectedBackend()
                                 + " (" + emitter.liveParticleCount() + " active)"
+                                + ", priority " + instance.definition().metadata().priority()
+                                + ", CPU EMA " + String.format(java.util.Locale.ROOT,
+                                     "%.3f ms", instance.cpuTickEmaMs())
                                 + " — " + emitter.backendReason()),false);
             }
         }

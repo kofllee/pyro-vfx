@@ -14,6 +14,7 @@ public final class VfxRuntimeBudget {
     private int remainingSpawns;
     private int remainingActive;
     private VfxGlobalBudget global;
+    private double priorityScale = 1.0;
 
     public void beginTick(int activeParticles, boolean heavyBenchmark) {
         beginTick(activeParticles, heavyBenchmark, null);
@@ -47,16 +48,30 @@ public final class VfxRuntimeBudget {
     }
 
     public int reserveSpawns(int requested) {
+        return reserveSpawns(requested, VfxParticleCostClass.CPU_BASIC);
+    }
+
+    public int reserveSpawns(int requested, VfxParticleCostClass group) {
         if (requested <= 0) {
             return 0;
         }
-        int granted = Math.min(requested, Math.min(remainingSpawns, remainingActive));
+        int priorityAdjusted = Math.min(requested, Math.max(1,
+                (int) Math.floor(requested * priorityScale)));
+        int granted = Math.min(priorityAdjusted, Math.min(remainingSpawns, remainingActive));
         if (global != null) {
             global.rejectLocalSpawns(requested - granted);
-            granted = global.reserveSpawns(granted);
+            granted = global.reserveSpawns(granted, group);
         }
         remainingSpawns -= granted;
         remainingActive -= granted;
         return granted;
+    }
+
+    /**
+     * The global pressure is applied once at the per-effect budget. Global
+     * admission retains only the hard cap to avoid throttling twice.
+     */
+    public void qualityScale(double scale) {
+        priorityScale = Double.isFinite(scale) ? Math.clamp(scale, 0.01, 1.0) : 1.0;
     }
 }

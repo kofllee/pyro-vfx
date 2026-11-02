@@ -83,7 +83,11 @@ public final class PyroVfxGameTests {
         }
         global.beginTick(4_000, false, 80_000, adaptive.effectiveSpawnLimit(30_000));
         global.setAdaptiveSpawnScale(adaptive.spawnScale());
-        int smallRequestGranted = global.reserveSpawns(300);
+        var perEffect = new VfxRuntimeBudget();
+        perEffect.beginTick(0, false, global);
+        perEffect.qualityScale(net.kofllee.pyrovfx.vfx.type.VfxQualityPriority.NORMAL
+                .scale(global.adaptiveSpawnScale()));
+        int smallRequestGranted = perEffect.reserveSpawns(300);
         if (smallRequestGranted <= 0 || smallRequestGranted >= 300) {
             throw new AssertionError("Adaptive spawn policy did not throttle smaller steady requests");
         }
@@ -93,6 +97,88 @@ public final class PyroVfxGameTests {
         if (adaptive.effectiveSpawnLimit(30_000) != 30_000
                 || Math.abs(adaptive.spawnScale() - 1.0) > 0.00001) {
             throw new AssertionError("Adaptation did not restore full spawn capacity after recovery");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void qualityPrioritiesConserveEventsAndHardCaps(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "priority");
+        var definition = VfxDefinitionParser.parse(id, JsonParser.parseString("""
+                {"format":"pyro_vfx:1","metadata":{"priority":"important"},
+                 "emitters":[{"id":"e","spawn_shape":{"type":"point"},
+                   "render":{"type":"sprite","sprite":{"texture":"minecraft:textures/particle/generic_0.png"}}}]}
+                """).getAsJsonObject());
+        if (definition.metadata().priority()
+                != net.kofllee.pyrovfx.vfx.type.VfxQualityPriority.IMPORTANT) {
+            throw new AssertionError("Quality priority definition lost");
+        }
+        try {
+            VfxDefinitionParser.parse(id, JsonParser.parseString("""
+                {"format":"pyro_vfx:1","metadata":{"priority":"invented"},
+                 "emitters":[{"id":"e","spawn_shape":{"type":"point"},
+                   "render":{"type":"sprite","sprite":{"texture":"minecraft:textures/particle/generic_0.png"}}}]}
+                """).getAsJsonObject());
+            throw new AssertionError("Invalid priority parsed silently");
+        } catch (IllegalArgumentException expected) { /* must reject */ }
+
+        var global = new VfxGlobalBudget();
+        for (var priority : net.kofllee.pyrovfx.vfx.type.VfxQualityPriority.values()) {
+            global.beginTick(0, false, 4000, 1000);
+            global.setAdaptiveSpawnScale(0.25);
+            var effect = new VfxRuntimeBudget();
+            effect.beginTick(0, false, global);
+            effect.qualityScale(priority.scale(global.adaptiveSpawnScale()));
+            int admitted = effect.reserveSpawns(800);
+            int expected = Math.min(800,
+                    (int) Math.floor(800 * priority.scale(0.25)));
+            if (admitted != expected || !effect.enterEvent()
+                    || global.remainingActive() != 4000 - expected) {
+                throw new AssertionError("Incorrect priority weight/event integrity for " + priority);
+            }
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void unknownGpuMemoryNeverLooksLikeOutOfMemory(GameTestHelper helper) {
+        if (net.kofllee.pyrovfx.client.vfx.VfxGpuMemoryPolicy.spawnScale(-1, -1) != 1.0
+                || net.kofllee.pyrovfx.client.vfx.VfxGpuMemoryPolicy.spawnScale(2048, 1024) != 1.0
+                || net.kofllee.pyrovfx.client.vfx.VfxGpuMemoryPolicy.spawnScale(100, 8192) != 0.25
+                || net.kofllee.pyrovfx.client.vfx.VfxGpuMemoryPolicy.spawnScale(240, 8192) != 0.5
+                || net.kofllee.pyrovfx.client.vfx.VfxGpuMemoryPolicy.spawnScale(370, 8192) != 0.8
+                || net.kofllee.pyrovfx.client.vfx.VfxGpuMemoryPolicy.spawnScale(4000, 8192) != 1.0) {
+            throw new AssertionError("VRAM fallback or bounded pressure classification failed");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void independentCostClassBudgetsCannotBeBypassed(GameTestHelper helper) {
+        var gpu = net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.GPU_ANALYTIC;
+        var cpu = net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.CPU_BASIC;
+        var collision = net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.CPU_COLLISION;
+        var model = net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.CPU_MODEL;
+        var global = new VfxGlobalBudget();
+        int[] active = new int[4];
+        active[collision.ordinal()] = 19_900;
+        active[model.ordinal()] = 9_990;
+        global.beginTick(29_890, false, 80_000, 30_000, active);
+        if (global.reserveSpawns(300, collision) != 100
+                || global.reserveSpawns(100, model) != 10
+                || global.reserveSpawns(300, cpu) != 300
+                || global.reserveSpawns(1_000, gpu) != 1_000
+                || global.remainingFor(collision) != 0
+                || global.remainingFor(model) != 0
+                || global.admittedFor(gpu) != 1_000
+                || global.rejectedFor(collision) != 200
+                || !global.enterEvent()) {
+            throw new AssertionError("Global per-cost-class admission or event safety was bypassed");
+        }
+        global.beginTick(79_999, false, 80_000, 30_000, new int[4]);
+        if (global.reserveSpawns(100, gpu) != 1
+                || global.reserveSpawns(100, cpu) != 0) {
+            throw new AssertionError("Cost-class capacity bypassed global absolute ceiling");
         }
         helper.succeed();
     }
