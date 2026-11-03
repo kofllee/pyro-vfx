@@ -34,3 +34,26 @@ legacy_event|Backends|Legacy event path|event_order|24|5|Event-driven particles 
 gpu_model|Backends|Resident 3D model|model_rotating_unlit|6|6|GPU-resident 3D cubes remain solid and rotating on every axis
 cpu_model|Backends|Dense lit model|model_rotating|5|6|CPU-lit rotating cubes retain shadows and solid geometry
 entity_legacy|Backends|Legacy entity|model_entity|2|5|The vanilla entity mesh preserves pig shape and textures
+spawn_point|Spawn Shapes|Single origin|static|64|6|All particles emerge from the same fixed central point
+spawn_sphere|Spawn Shapes|Sphere volume|static|80|6|Stationary particles fill a spherical volume around the marker
+spawn_sphere_shell|Spawn Shapes|Sphere shell|static|80|6|Particles fill only the outside spherical shell
+spawn_box|Spawn Shapes|Box volume|static|80|6|Stationary particles fill a clearly rectangular volume
+spawn_box_shell|Spawn Shapes|Box surface|static|80|6|Particles appear mostly near the six faces of a box
+spawn_line|Spawn Shapes|Straight line|static|80|6|Particles are evenly scattered along a vertical line
+spawn_disc|Spawn Shapes|Flat disc|static|80|6|Particles form a horizontal filled disc with no vertical spread
+spawn_ring|Spawn Shapes|Hollow ring|static|80|6|Particles form a clearly hollow horizontal annulus
+spawn_cone|Spawn Shapes|Cone volume|static|90|6|Particles fill a cone narrowing to a visible tip
+spawn_model|Spawn Shapes|Cuboid model shape|static|90|6|Particles sample the model cuboid volume instead of a sphere
+rotation_parametric|Rotation|Parametric rotation|sprite_rotating|35|6|Sprite spin is controlled directly by age instead of angular velocity
+motion_parametric|Motion|Parametric orbit|static|40|5|Particles follow an age-driven analytic orbit around their spawn point
+curve_step|Curves|Stepped scale|sprite_gpu_curves|40|6|Particle size jumps between distinct plateaus without smooth interpolation
+curve_linear|Curves|Linear scale|sprite_gpu_curves|40|6|Particle size transitions through straight-line keyframe segments
+curve_bezier|Curves|Bezier scale|sprite_gpu_curves|40|6|Particle size follows smoothly curved Bezier interpolation
+collision_box|Collisions|Box collider|collision_no_events|48|6|Cuboid contact area resolves on the museum platform
+collision_expire|Collisions|Expire on impact|collision_no_events|48|6|Particles disappear instantly upon touching the floor
+spawn_steady|Animations|Continuous emission|analytic_steady|55|5|New particles spawn continuously as older ones expire
+model_additive|3D Models|Additive 3D cubes|model|5|7|Overlapping 3D cube faces become brighter instead of alpha-blended
+model_cutout|3D Models|Cutout item faces|model_item|5|7|Visible item silhouette has no opaque black corners
+sprite_world_x|Sprites|World X plane|sprite_world_z|30|5|Fixed world X sprite plane seen edge-on from front and broadside from left
+sprite_world_y|Sprites|World Y plane|sprite_world_z|30|5|Horizontal world Y sprite plane seen broadside from above
+sprite_velocity|Sprites|Velocity aligned|dynamic|35|5|Moving sprite planes align along travel direction instead of camera

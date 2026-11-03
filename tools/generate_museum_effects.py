@@ -27,6 +27,97 @@ def scale_value(value, multiplier, model=False):
     raise ValueError(f"Unsupported scale: {value!r}")
 
 
+def neutral_model_color(color):
+    """Remove demo RGB tint, never change authored model opacity."""
+    if isinstance(color, list) and len(color) == 4:
+        return [1, 1, 1, color[3]]
+    if isinstance(color, str) and color.startswith("#"):
+        if len(color) == 9:  # #RRGGBBAA
+            return "#FFFFFF" + color[-2:]
+        if len(color) == 7:  # #RRGGBB (implicitly fully opaque)
+            return "#FFFFFF"
+    # Unsupported expression formats keep their authored appearance rather
+    # than silently losing alpha. Do not create an opaque fallback.
+    return color
+
+
+# Make the visual coverage explicit instead of silently using the sphere
+# fixture for displays named after different features.
+SHAPES = {
+    "spawn_point": {"type": "point"},
+    "spawn_sphere": {"type": "sphere", "radius": 2.0},
+    "spawn_sphere_shell": {"type": "sphere", "radius": 2.0, "edge_thickness": 0.06},
+    "spawn_box": {"type": "box", "half_extents": [2.0, 1.4, 1.4]},
+    "spawn_box_shell": {"type": "box", "half_extents": [2.0, 1.4, 1.4], "edge_thickness": 0.05},
+    "spawn_line": {"type": "line", "axis": [0, 1, 0], "length": 4.0},
+    # Face the visitor rather than showing an edge-on two-pixel line.
+    "spawn_disc": {"type": "disc", "radius": 2.0, "axis": [0, 0, 1]},
+    "spawn_ring": {"type": "ring", "radius": 2.0, "inner_radius": 1.45, "axis": [0, 0, 1]},
+    "spawn_cone": {"type": "cone", "radius": 2.0, "height": 3.2, "axis": [0, 1, 0]},
+    "spawn_model": {"type": "model", "model": "pyro_vfx:vfx/ember_cube",
+                    "scale": [3.5, 3.5, 3.5]},
+}
+
+
+def customize_variant(exhibit_id, data):
+    emitter = data["emitters"][0]
+    if exhibit_id in SHAPES:
+        emitter["spawn_shape"] = SHAPES[exhibit_id]
+        emitter["motion"] = {"mode": "static"}
+        emitter["offset"] = [0, 0, 0]
+        # High contrast against the blue sky and concrete: readable from the
+        # visitor's platform without additive overexposure.
+        emitter["render"]["color"] = "#D72D82FF"
+        emitter["render"]["scale"] = [0.40, 0.40, 1]
+        emitter["render"]["sprite"]["blend_mode"] = "alpha"
+    if exhibit_id in ("sprite_world_x", "sprite_world_y", "sprite_velocity"):
+        emitter["render"]["facing"] = {
+            "sprite_world_x": "world_x", "sprite_world_y": "world_y",
+            "sprite_velocity": "velocity"
+        }[exhibit_id]
+    if exhibit_id == "rotation_parametric":
+        emitter["rotation"] = {"mode": "parametric", "parametric":
+            {"rotation": [0, 0, "particle.normalized_age * 720"]}}
+    if exhibit_id == "cpu_curves":
+        # Dynamic angular integration is deliberately not GPU analytic.
+        # This stand shows exactly the same curve evaluation on CPU Dense.
+        emitter["rotation"] = {"mode": "dynamic", "dynamic": {
+            "start_rotation": [0, 0, 0],
+            "angular_velocity": [0, 0, 45], "angular_drag": 0}}
+    if exhibit_id == "legacy_event":
+        # An actual per-particle callback (not an effect-level ON_CREATION)
+        # is necessary for the selected path to be CPU Legacy.
+        emitter["particle_triggers"] = [
+            {"type": "on_expiration", "event": "increment"}]
+    if exhibit_id == "motion_parametric":
+        emitter["spawn_shape"] = {"type": "ring", "radius": 1.2, "inner_radius": 1.1}
+        emitter["motion"] = {"mode": "parametric", "parametric": {
+            "offset": ["math.cos(particle.age * 0.12) * 1.2",
+                       "math.sin(particle.age * 0.16) * 0.7",
+                       "math.sin(particle.age * 0.12) * 1.2"],
+            "direction": [0, 1, 0]}}
+    if exhibit_id.startswith("curve_"):
+        kind = exhibit_id.removeprefix("curve_")
+        data.setdefault("curves", {})["museum_scale"] = {
+            "type": kind,
+            "points": [[0, 0.12], [0.25, 0.45], [0.6, 0.20], [1, 0.55]]}
+        emitter["render"]["scale"] = [
+            "curve.museum_scale(particle.normalized_age) * 6",
+            "curve.museum_scale(particle.normalized_age) * 6", 1]
+    if exhibit_id == "collision_box":
+        emitter["motion"]["collision"]["collision_type"] = "box"
+        emitter["motion"]["collision"]["collision_size"] = [0.3, 0.3, 0.3]
+    if exhibit_id == "collision_expire":
+        emitter["motion"]["collision"]["expire_on_contact"] = True
+    if exhibit_id == "spawn_steady":
+        emitter["spawn_amount"]["rate"] = 18
+        emitter["spawn_amount"]["max_particles"] = 60
+    if exhibit_id == "model_additive":
+        emitter["render"]["model"]["render_layer"] = "additive"
+    if exhibit_id == "model_cutout":
+        emitter["render"]["model"]["render_layer"] = "cutout"
+
+
 def generate() -> int:
     OUTPUT.mkdir(parents=True, exist_ok=True)
     seen = set()
@@ -54,10 +145,16 @@ def generate() -> int:
                 amount["amount"] = "param.count"
             render = emitter.get("render", {})
             if render.get("type") == "model":
-                # In historical bench fixtures several cubes were deliberately
-                # tinted warm (1,.85,.75). Museum material/lighting controls
-                # must be neutral so shading defects are visible.
-                render["color"] = "#FFFFFFFF"
+                # Neutralize only RGB. The original translucent cube has
+                # alpha=0x80; overwriting it with #FFFFFFFF made it opaque.
+                render["color"] = neutral_model_color(render.get("color", "#FFFFFFFF"))
+                if exhibit_id == "model_translucent":
+                    # Six cube faces layer alpha in the Minecraft translucent
+                    # renderer. The original benchmark's 50% alpha becomes
+                    # visually near-opaque after 2-3 overlapping faces.
+                    # Keep the original benchmark intact and use a lower
+                    # per-face opacity for the readability-focused museum.
+                    render["color"] = "#FFFFFF33"
                 if render.get("model", {}).get("source") == "item":
                     # Texture alpha is real geometry information for items.
                     render["model"]["render_layer"] = "cutout"
@@ -113,6 +210,7 @@ def generate() -> int:
                                "blend_mode": "additive"},
                     "color": "#66CCFFFF", "scale": [0.65, 0.65, 1]}
             })
+        customize_variant(exhibit_id, data)
         output = OUTPUT / f"{exhibit_id}.json"
         output.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     for stale in OUTPUT.glob("*.json"):

@@ -1,0 +1,75 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "Museum / Sprites / Velocity aligned: Moving sprite planes align along travel direction instead of camera. Read on-stand controls to replay and compare."
+  },
+  "parameters": {
+    "count": 35
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 160
+  },
+  "emitters": [
+    {
+      "id": "main",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 1.55
+      },
+      "offset": [
+        0,
+        0,
+        0
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": "1+particle.random*2",
+          "acceleration": [
+            0,
+            -0.1,
+            0
+          ],
+          "linear_drag": 0.4
+        }
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "velocity",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": [
+          1,
+          0.6,
+          0.2,
+          "1.0-particle.normalized_age"
+        ],
+        "scale": [
+          "(0.1+particle.normalized_age*0.3) * 5",
+          "(0.1+particle.normalized_age*0.3) * 5",
+          1
+        ]
+      }
+    }
+  ]
+}

@@ -102,6 +102,13 @@ public final class VfxBenchScenarios {
             scenarios.put(name, new Scenario(name, smoke.effect(), smoke.count(),
                     0x50B0_2026L ^ smoke.id().hashCode(), 10, 60));
         }
+        var glass = net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("model_translucent");
+        for (String alpha : new String[]{"zero", "full"}) {
+            String name = "museum_translucency_" + alpha;
+            scenarios.put(name, new Scenario(name,
+                    ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/" + name),
+                    glass.count(), 0x50B0_2026L ^ glass.id().hashCode(), 10, 60));
+        }
         return Map.copyOf(scenarios);
     }
 

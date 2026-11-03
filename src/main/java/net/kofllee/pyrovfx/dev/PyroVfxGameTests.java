@@ -81,9 +81,21 @@ public final class PyroVfxGameTests {
     @GameTest(template = "empty")
     public static void museumCatalogHasCompleteValidEffectsAndPhysicalControls(GameTestHelper helper) {
         var entries = net.kofllee.pyrovfx.museum.VfxMuseumCatalog.exhibits();
-        if (entries.size() < 30
-                || entries.stream().map(e -> e.category()).distinct().count() < 10)
-            throw new AssertionError("Museum must cover all core categories with 30+ standalone exhibits");
+        if (entries.size() < 58
+                || entries.stream().map(e -> e.category()).distinct().count() < 13)
+            throw new AssertionError("Museum must cover all core categories with 58+ standalone exhibits");
+        for (var shape : net.kofllee.pyrovfx.vfx.type.VfxSpawnShapeType.values()) {
+            var name = "spawn_" + shape.name().toLowerCase(java.util.Locale.ROOT);
+            if (entries.stream().noneMatch(e -> e.id().equals(name)))
+                throw new AssertionError("Missing physical exhibit for spawn shape " + shape);
+        }
+        for (var kind : net.kofllee.pyrovfx.vfx.type.VfxCurveType.values()) {
+            var name = "curve_" + kind.name().toLowerCase(java.util.Locale.ROOT);
+            if (entries.stream().noneMatch(e -> e.id().equals(name)
+                    || kind == net.kofllee.pyrovfx.vfx.type.VfxCurveType.CATMULL
+                    && e.id().equals("gpu_curves")))
+                throw new AssertionError("Missing curve exhibit " + kind);
+        }
         var buttons = new java.util.HashSet<net.minecraft.core.BlockPos>();
         for (var exhibit : entries) {
             if (exhibit.count() < 1 || exhibit.visualScale() < 1
@@ -106,6 +118,16 @@ public final class PyroVfxGameTests {
                     throw new AssertionError("Empty museum effect: " + exhibit.id());
                 if (!definition.parameters().containsKey("count"))
                     throw new AssertionError("Museum playback requires count parameter: " + exhibit.id());
+                if (exhibit.id().startsWith("spawn_")
+                        && !exhibit.id().equals("spawn_steady")) {
+                    String shape = exhibit.id().substring(6);
+                    if (shape.endsWith("_shell")) shape = shape.substring(0, shape.length()-6);
+                    String actual = json.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                            .getAsJsonObject("spawn_shape").get("type").getAsString();
+                    if (!shape.equals(actual))
+                        throw new AssertionError("Museum shape mislabeled: " + exhibit.id()
+                                + " has actual " + actual);
+                }
                 if (exhibit.id().equals("self_emit")) {
                     var emit = json.getAsJsonObject("events").getAsJsonObject("emit_again");
                     if (!"child".equals(emit.get("emitter").getAsString())
@@ -132,6 +154,12 @@ public final class PyroVfxGameTests {
                                 || Math.abs(color.g() - 1.0) > 0.0001
                                 || Math.abs(color.b() - 1.0) > 0.0001)
                             throw new AssertionError("Museum 3D model has warm tint: " + exhibit.id());
+                        if (exhibit.id().equals("model_translucent")
+                                && (emitter.render().model().renderLayer()
+                                    != net.kofllee.pyrovfx.vfx.type.VfxModelRenderLayer.TRANSLUCENT
+                                    || Math.abs(color.a() - 51.0 / 255.0) > 0.001)) {
+                            throw new AssertionError("Museum translucent cube must retain the 20% demo alpha");
+                        }
                     }
                 }
                 for (String line : net.kofllee.pyrovfx.museum.VfxMuseumWorld.expectedLines(

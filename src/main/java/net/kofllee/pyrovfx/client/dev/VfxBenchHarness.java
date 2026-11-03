@@ -47,6 +47,8 @@ public final class VfxBenchHarness {
     private VfxBenchHarness() {}
 
     private static net.kofllee.pyrovfx.museum.VfxMuseumCatalog.Exhibit museumExhibit(String scenario) {
+        if (scenario.startsWith("museum_translucency_"))
+            return net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("model_translucent");
         if (scenario.equals("museum_camera_front") || scenario.equals("museum_camera_turn_90"))
             return net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("model_custom");
         if (scenario.equals("museum_smoke_camera_front") || scenario.equals("museum_smoke_camera_turn_90"))

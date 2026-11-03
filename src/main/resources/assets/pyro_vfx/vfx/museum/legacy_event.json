@@ -71,7 +71,13 @@
           0.5,
           1
         ]
-      }
+      },
+      "particle_triggers": [
+        {
+          "type": "on_expiration",
+          "event": "increment"
+        }
+      ]
     }
   ]
 }
