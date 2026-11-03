@@ -431,7 +431,7 @@ The parser accepts:
 
 These triggers now execute on real source/emitter travel measured at game
 ticks (not render frames). `travel_distance` fires once and
-`travel_distance_looping` repeats. See [M7 transforms](M7_TRANSFORMS.md)
+`travel_distance_looping` repeats. See [architecture and transform semantics](ARCHITECTURE.md)
 for teleportation semantics, position ordering and budgets.
 
 ### Collision trigger scope
@@ -1255,22 +1255,8 @@ The runtime evaluates fields at different stages.
 
 Only fields required by the selected modes need to be present.
 
-## 28. Parsed-only and experimental summary
+## 28. Implemented but experimental features
 
-Parsed but not executed:
+Both `travel_distance` and `travel_distance_looping` execute on game-tick source or emitter travel; see [Architecture](ARCHITECTURE.md) for thresholds, teleport handling and event budgets. They are **not parsed-only**.
 
-```text
-travel_distance
-travel_distance_looping
-```
-
-Current but experimental:
-
-```text
-entity model source
-translucent model particles
-additive model particles
-model spawn shape
-collision bounce behavior
-large particle counts
-```
+The following features are implemented but need care in production effects: entity model source, translucent/additive models, model-surface spawn, collision bounce/repeated particle collision events and large particle counts. Their performance and compatibility depend on the selected backend; see [Status](STATUS.md) and [Performance](PERFORMANCE.md).

@@ -1,314 +1,58 @@
 # Pyro VFX
 
-Pyro VFX is an experimental JSON-driven visual effects runtime for Minecraft NeoForge.
+**JSON-driven visual effects runtime for Minecraft 1.21.1 / NeoForge 21.1.229 / Java 21.** Pyro VFX creates sprites and Minecraft-style 3D model particles from resource-pack definitions, with expressions, curves, events, collisions, emitter shapes, transform attachments and networking. It is an **experimental engine**, not a production-certified release. The next development phase is a visual editor; no editor is implemented yet.
 
-It provides a reusable effect format with programmable emitters, expressions, curves, sprite particles, model particles, collision, events, triggers and resource reload support.
+## Start here
 
-> **Project status: actively developed experimental engine**
->
-> M0–M4 implement the CPU/GPU backends, and M5 adds shared runtime safety budgets. Targeted correctness, integrated-client scenarios and an independent two-client localhost dedicated-server acceptance test pass, but this is not yet production ready: long soaks, driver/modpack combinations and real-network/high-player-count compatibility remain unverified.
+| Need | Read |
+|---|---|
+| Capabilities, verified scope, limitations | [Status](docs/STATUS.md) |
+| Runtime, CPU/GPU rendering, transforms, architecture decisions | [Architecture](docs/ARCHITECTURE.md) |
+| JSON fields and expressions | [JSON format](docs/JSON_FORMAT.md), [expressions and curves](docs/EXPRESSIONS.md) |
+| Trigger an effect from another mod | [Public API](docs/PUBLIC_API.md) |
+| Server/client synchronization | [Networking](docs/NETWORKING.md) |
+| Examples and in-game preview | [Examples](docs/EXAMPLES.md), [Test Harness](docs/TEST_HARNESS.md) |
+| Measured performance and retained evidence | [Performance](docs/PERFORMANCE.md) |
+| Tested graphics configurations | [Compatibility](docs/COMPATIBILITY_MATRIX.md) |
+| Next stage: visual editor | [Roadmap](docs/ROADMAP.md) |
 
-M6 is in progress: Pyro VFX no longer delegates particle lifetime to
-Minecraft ParticleEngine, analytic GPU sprites support constant-parameter UV
-sheet animation and shared-age color/scale animation, and per-effect/client particle budgets are configurable in
-`pyro_vfx-client.toml`. Defaults preserve the M5 safety limits; raising them
-does not guarantee VRAM capacity or frame rate. A per-tick cache reduces
-repeat CPU block-shape queries for colliding particles (measured A/B results
-and reproduction steps are in `docs/M6_PROGRESS.md`).
-Short measured 3D model (10k–100k) and continuous GPU analytic comparisons,
-including screenshot parity checks and their limitations, are archived under
-`docs/benchmarks/m6-2026-11-02/universal-short/`.
-Optional CPU-time-aware spawn admission now scales the rate of **new**
-particles under sustained expensive Pyro simulation without removing live
-particles or changing event delivery. The adaptive client configuration is
-documented in `docs/M6_PROGRESS.md`; it also consumes nonblocking
-Pyro-only GPU timing, with optional NVIDIA free-memory telemetry.
-The final hardening pass adds per-effect adaptive priority classes, asynchronous
-GPU timing, an optional NVIDIA free-VRAM probe, mixed-workload reload tests,
-and CI GameTests. GPU timers measure only Pyro VFX rendering, not whole-frame
-GPU time; VRAM probes are off by default. See
-[`docs/COMPATIBILITY_MATRIX.md`](docs/COMPATIBILITY_MATRIX.md) for what was
-actually verified versus hardware/mod configurations still untested.
-Windows benchmarks can be launched unobtrusively on a second monitor through
-`tools/run-client-bench-secondary.ps1`, without mouse grab; see
-`docs/TEST_HARNESS.md` for the remaining OS focus limitations.
-See `docs/M6_PROGRESS.md` for verification and remaining work.
+## How it works
 
-The current runtime separates simulation from rendering: `VfxDenseParticlePool`
-and `VfxAnalyticParticlePool` handle SoA and resident birth-state particle
-data for sprites **and** baked models. GPU instancing also supports fullbright
-depth-sorted alpha smoke without constructing one render object per particle.
-The model renderer uses a separate cache for deterministic baked GL meshes.
-See [current status](docs/STATUS.md) and
-[alpha smoke A/B benchmarks](docs/benchmarks/alpha-smoke-instancing-2026-11-02/README.md).
-Eligible GPU Analytic sprites now compile supported appearance expressions
-and immutable curves from the existing CPU parser, including per-birth random,
-age, closed-form position and velocity dependencies. See
-[GPU expressions A/B](docs/benchmarks/gpu-expressions-2026-11-02/README.md).
-World-lit alpha, translucent model sorting, dynamic entity models and
-stateful expressions retain conservative fallbacks; existing client TOML
-values are preserved.
+Definitions live at `assets/<namespace>/vfx/<path>.json`; their resource location becomes the effect ID (for example `example_mod:smoke/burst`). `format` must be `pyro_vfx:1`. See the [working examples](src/main/resources/assets/pyro_vfx/vfx/examples/) and the full [format reference](docs/JSON_FORMAT.md).
 
-## Current scope
-
-Pyro VFX currently includes:
-
-- JSON effect definitions loaded from resource packs and mods;
-- runtime parameters and command-line parameter overrides;
-- numeric, vector and color expressions;
-- named curves;
-- effect and emitter lifetimes;
-- effect, emitter and particle triggers;
-- event-driven manual emission;
-- point, sphere, box, line, disc, ring, cone and model spawn shapes;
-- static, dynamic and parametric motion;
-- block collision and collision-triggered events;
-- dynamic and parametric rotation;
-- Pyro-owned particle lifecycle (no delegation to Minecraft ParticleEngine);
-- custom sprite particles;
-- custom, block, item and entity model particles;
-- sprite UV regions and sprite-sheet animation;
-- alpha and additive blending;
-- development commands for playing and inspecting registered effects.
-- unified `Vfx.play(effect, entity)` / `Vfx.play(effect, level, position)` API
-  with one `VfxHandle` on client and logical server; parameters, events and
-  runtime attachment changes work through the same interface.
-- NeoForge clientbound effect synchronization with Entity/Block sources,
-  networked `Vfx.at(...).socket(...).offset(...).rotate(...)` chains, bounded
-  audiences/leases, and automatic or explicit streaming for custom Java transforms.
-
-Normal integration does not require packet or networking code:
+Code in a consuming mod uses the public side-aware API:
 
 ```java
+import net.kofllee.pyrovfx.api.Vfx;
+import net.kofllee.pyrovfx.api.VfxHandle;
+
 VfxHandle trail = Vfx.play(ROCKET_TRAIL,
-        Vfx.at(rocket).socket("head").offset(0, 0, -0.5).rotate(0, 90, 0));
+        Vfx.at(rocket).offset(0, 0, -0.5));
 Vfx.play(IMPACT, level, impactPosition);
 trail.setParameter("density", 1.5);
-trail.stop();
-```
-
-Entity/BlockEntity calls find their own world. On the logical server they
-broadcast; on the client they remain local. A bare position needs a Level.
-Built-in transform chains synchronize by vanilla source identity. Arbitrary
-server Java callbacks can be automatically streamed with `Vfx.play(id, level,
-callback)`. For options, game-thread rules and avoiding duplicate calls on
-both sides, see [docs/PUBLIC_API.md](docs/PUBLIC_API.md).
-Vanilla ModelParts and chest lids can be addressed by `socket("head")` or
-`socket("lid")`. Named custom sockets use client-only
-`VfxSockets.registerEntity/registerBlockEntity` resolvers; the server only
-sends their identifiers. Late network viewers start at the current timeline
-phase, not at effect age zero, but previously emitted particles are not
-reconstructed.
-For the underlying protocol and exact limitations, see
-[docs/NETWORKING.md](docs/NETWORKING.md). Independent two-client localhost
-testing passes; real Internet conditions and large player populations remain
-unverified.
-
-A detailed feature status is available in [docs/STATUS.md](docs/STATUS.md).
-
-## Compatibility
-
-- Minecraft: `1.21.1`
-- Mod loader: NeoForge
-- Java: `21`
-- VFX definition format: `pyro_vfx:1`
-
-The project currently targets the versions configured in `gradle.properties`.
-
-## Resource location
-
-VFX definitions are loaded from:
-
-```text
-assets/<namespace>/vfx/<effect_path>.json
-```
-
-Example:
-
-```text
-assets/example_mod/vfx/smoke/burst.json
-```
-
-The resulting effect id is:
-
-```text
-example_mod:smoke/burst
-```
-
-## Minimal effect
-
-```json
-{
-  "format": "pyro_vfx:1",
-  "metadata": {
-    "author": "example",
-    "description": "A minimal sprite burst."
-  },
-  "lifetime": {
-    "mode": "once",
-    "delay_ticks": 0,
-    "active_ticks": 20
-  },
-  "emitters": [
-    {
-      "id": "main",
-      "emitter_lifetime": {
-        "mode": "once",
-        "delay_ticks": 0,
-        "active_ticks": 1
-      },
-      "spawn_amount": {
-        "mode": "instant",
-        "amount": 16
-      },
-      "spawn_shape": {
-        "type": "sphere",
-        "radius": 0.25,
-        "edge_thickness": 0.0
-      },
-      "particle_lifetime": {
-        "max_age_ticks": 30
-      },
-      "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": 0.8,
-          "acceleration": [0, 0.1, 0],
-          "linear_drag": 1.5
-        }
-      },
-      "rotation": {
-        "mode": "none"
-      },
-      "render": {
-        "type": "sprite",
-        "facing": "camera",
-        "environment_lighting": false,
-        "sprite": {
-          "texture": "minecraft:textures/particle/generic_0.png",
-          "blend_mode": "alpha"
-        },
-        "color": [0.7, 0.7, 0.7, "1.0 - particle.normalized_age"],
-        "scale": [
-          "0.1 + particle.normalized_age * 0.3",
-          "0.1 + particle.normalized_age * 0.3",
-          1.0
-        ]
-      }
-    }
-  ]
-}
-```
-
-## Development commands
-
-```text
-/pyrovfx list
-/pyrovfx play <effect>
-/pyrovfx play <effect> <parameters>
-/pyrovfx play_at <effect> <position>
-/pyrovfx play_at <effect> <position> <parameters>
-/pyrovfx stop_all
-/pyrovfx sockets
-```
-
-Examples:
-
-```text
-/pyrovfx list
-/pyrovfx play pyro_vfx:examples/basic_sprite
-/pyrovfx play pyro_vfx:examples/curves
-/pyrovfx play pyro_vfx:examples/event_sequence
-/pyrovfx play_at pyro_vfx:examples/basic_sprite ~ ~1 ~
-/pyrovfx stop_all
-```
-
-Command parameters use an NBT compound and must be numeric.
-
-Minecraft client resource reload also reloads VFX definitions.
-
-
-## Included examples
-
-The repository includes example definitions under:
-
-```text
-src/main/resources/assets/pyro_vfx/vfx/examples/
-```
-
-Available effects:
-
-```text
-pyro_vfx:examples/basic_sprite
-pyro_vfx:examples/curves
-pyro_vfx:examples/event_sequence
-pyro_vfx:examples/collision_sparks
-pyro_vfx:examples/animated_sprite
-pyro_vfx:examples/model_particle
-pyro_vfx:examples/model_spawn_shape
-```
-
-See [docs/EXAMPLES.md](docs/EXAMPLES.md) for requirements and test commands.
-
-## Using effects from another mod
-
-```java
-VfxHandle trail = Vfx.play(effectId, projectile, Map.of("power", 1.5));
-trail.setParameter("power", 2.0);
 trail.trigger("burst");
 trail.stop();
 ```
 
-`Vfx` and `VfxHandle` are in `net.kofllee.pyrovfx.api`. Built-in source
-attachments work both client-side and server-side, including chained local
-translations/rotations. Custom Java callbacks can run locally or be sampled
-by the server when a Level is provided. See
-[public API usage and lifecycle](docs/PUBLIC_API.md).
+`Vfx.play` on the logical server broadcasts to eligible clients; on the client it creates a local effect. Do not call it on both logical sides for the same gameplay event. Built-in Entity/BlockEntity sources and named sockets synchronize by identity; arbitrary server callbacks can stream sampled poses. The server never simulates visual particles. [Full API contract](docs/PUBLIC_API.md).
 
-## Documentation
+## Build and inspect
 
-- [Current project status](docs/STATUS.md)
-- [JSON definition format](docs/JSON_FORMAT.md)
-- [Expressions and curves](docs/EXPRESSIONS.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Performance notes](docs/PERFORMANCE.md)
-- [M5 compute decision, budgets and verification](docs/M5_DECISION_AND_VERIFICATION.md)
-- [Examples](docs/EXAMPLES.md)
-- [Possible future development](docs/ROADMAP.md)
+On Windows:
 
-## Current limitations
-
-The current prototype does not include:
-
-- an in-game VFX editor;
-- automatic sockets for arbitrary non-vanilla renderer models or animation libraries without a mod-provided resolver (vanilla `ModelPart` and chest sockets are supported);
-- extended multiplayer soak/packet-byte benchmarks under real Internet conditions (two independent localhost clients already passed);
-- detailed per-effect profiling (global counters and benchmark reports are available);
-- per-render-type budgets and distance-based spawn LOD (global caps and render frustum/size LOD exist);
-- stable performance guarantees for large particle counts;
-- dedicated documentation tooling or JSON schema generation.
-
-`travel_distance` and `travel_distance_looping` now execute against
-game-tick source displacement, including multiple crossings per tick.
-See [M7.1 transform integration](docs/M7_TRANSFORMS.md).
-
-`on_collision` is supported as a particle trigger. It is not implemented as a normal effect or emitter trigger.
-
-## Building
-
-Clone the repository and run:
-
-```bash
-./gradlew build
+```powershell
+.\gradlew.bat build
+.\gradlew.bat runGameTestServer --no-daemon
 ```
 
-The built JAR is written to:
+On Unix-like systems, use `./gradlew`. Output: `build/libs/`. For interactive museum and optional client benchmarks, see [Test Harness](docs/TEST_HARNESS.md). Neither Minecraft clients nor benchmark runs are needed for documentation-only changes.
 
-```text
-build/libs/
-```
+Client commands include `/pyrovfx list`, `/pyrovfx play <id>`, `/pyrovfx play_at <id> <pos>`, `/pyrovfx stop_all`, `/pyrovfx sockets` and `/pyrovfx backend`. Client resource reload refreshes effect definitions.
 
-## License
+## Important boundaries
 
-Pyro VFX is licensed under the MIT License. See [LICENSE](LICENSE).
+CPU Dense/Legacy and GPU Analytic/instanced paths are selected by effect capabilities and graphics environment. Active shaderpacks use conservative Minecraft rendering fallback. GPU Compute has deliberately **not** been added; complex collision, event and stateful effects retain CPU processing. Particle admission budgets limit resource use but are not VRAM or FPS guarantees.
+
+The 66-effect museum, targeted GameTests, and two independent localhost clients provide useful development evidence, **not** proof of cross-driver, high-player-count, 4K or long-running modpack stability. Details and source measurements are in the links above.
+
+Licensed under the [MIT License](LICENSE).
