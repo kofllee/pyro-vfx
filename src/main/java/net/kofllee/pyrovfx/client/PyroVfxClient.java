@@ -44,6 +44,7 @@ public final class PyroVfxClient {
     @SubscribeEvent
     public static void clientTick(ClientTickEvent.Post event) {
         long start = VfxBenchHarness.beforeTick();
+        ClientVfxNetwork.tick();
         ClientVfxManager.tick();
         VfxBenchHarness.afterTick(start);
     }

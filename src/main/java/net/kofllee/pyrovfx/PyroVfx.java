@@ -2,6 +2,7 @@ package net.kofllee.pyrovfx;
 
 import com.mojang.logging.LogUtils;
 import net.kofllee.pyrovfx.client.vfx.VfxBudgetConfig;
+import net.kofllee.pyrovfx.network.VfxPackets;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
@@ -16,6 +17,7 @@ public final class PyroVfx {
 
     public PyroVfx(IEventBus modEventBus, ModContainer modContainer) {
         modContainer.registerConfig(ModConfig.Type.CLIENT, VfxBudgetConfig.SPEC);
+        modEventBus.addListener(VfxPackets::register);
         LOGGER.info("Pyro VFX initialized");
     }
 }

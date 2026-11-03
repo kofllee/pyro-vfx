@@ -1,10 +1,13 @@
 package net.kofllee.pyrovfx.api;
 
 import net.kofllee.pyrovfx.client.ClientVfxAccess;
+import net.kofllee.pyrovfx.network.ServerVfxNetwork;
+import net.kofllee.pyrovfx.network.VfxRemoteHandle;
 import net.kofllee.pyrovfx.vfx.transform.VfxTransform;
 import net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
@@ -15,9 +18,9 @@ import org.joml.Quaternionf;
 import java.util.Map;
 
 /**
- * Entry point for client-side effects. No registration or internal runtime access required.
- * Calls on a dedicated server (or off the client thread) return an inactive handle.
- * Server-to-client playback is introduced separately with networking.
+ * Public playback entry point. Without a ServerLevel, calls are client-local;
+ * server-controlled instances use the explicitly scoped ServerLevel overloads.
+ * No registration or internal runtime access required.
  */
 public final class Vfx {
     private static final VfxTransformProvider UNAVAILABLE = partialTick -> null;
@@ -89,6 +92,38 @@ public final class Vfx {
 
     public static VfxHandle play(ResourceLocation id, BlockEntity blockEntity, Map<String, Double> parameters) {
         return play(id, at(blockEntity), parameters);
+    }
+
+    /** Server-controlled effect sent only to nearby players tracking the source chunk. */
+    public static VfxRemoteHandle play(ServerLevel level, ResourceLocation id, Vec3 position,
+                                       Map<String, Double> parameters, double radius, int durationTicks) {
+        return ServerVfxNetwork.play(level, id, position, parameters, radius, durationTicks);
+    }
+
+    public static VfxRemoteHandle play(ServerLevel level, ResourceLocation id, VfxTransform pose,
+                                       Map<String, Double> parameters, double radius, int durationTicks) {
+        return ServerVfxNetwork.play(level, id, pose, parameters, radius, durationTicks);
+    }
+
+    public static VfxRemoteHandle play(ServerLevel level, ResourceLocation id, Entity entity,
+                                       Map<String, Double> parameters, double radius, int durationTicks) {
+        return ServerVfxNetwork.play(level, id, entity, parameters, radius, durationTicks);
+    }
+
+    public static VfxRemoteHandle play(ServerLevel level, ResourceLocation id, BlockPos pos,
+                                       Map<String, Double> parameters, double radius, int durationTicks) {
+        return ServerVfxNetwork.play(level, id, pos, parameters, radius, durationTicks);
+    }
+
+    public static VfxRemoteHandle play(ServerLevel level, ResourceLocation id, BlockEntity block,
+                                       Map<String, Double> parameters, double radius, int durationTicks) {
+        return ServerVfxNetwork.play(level, id, block, parameters, radius, durationTicks);
+    }
+
+    /** Custom poses are explicitly updated; arbitrary Java providers are never network serialized. */
+    public static VfxRemoteHandle playStreamed(ServerLevel level, ResourceLocation id, VfxTransform pose,
+                                               Map<String, Double> parameters, double radius, int durationTicks) {
+        return ServerVfxNetwork.playStreamed(level, id, pose, parameters, radius, durationTicks);
     }
 
     static boolean active(long id) {
