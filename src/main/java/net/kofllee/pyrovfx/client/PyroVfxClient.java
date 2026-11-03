@@ -1,5 +1,7 @@
 package net.kofllee.pyrovfx.client;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.dev.VfxBenchHarness;
 import net.kofllee.pyrovfx.client.render.VfxRenderer;
@@ -56,8 +58,27 @@ public final class PyroVfxClient {
         }
 
         long start = VfxBenchHarness.beforeRender();
-        VfxRenderer.render(event.getPoseStack(), event.getCamera(), event.getPartialTick().getGameTimeDeltaPartialTick(false));
-        VfxBenchHarness.afterRender(start);
+        // AFTER_LEVEL is dispatched after LevelRenderer has unwound the
+        // camera view transform. Using RenderSystem.getModelViewMatrix() here
+        // without restoring the view makes camera-relative particle positions
+        // appear glued to the screen as the player turns.
+        //
+        // Pyro geometry is already camera-relative (world - camera.position).
+        // Reapply ONLY the inverse camera rotation, not camera translation,
+        // and restore Minecraft's original stack even if rendering fails.
+        var viewStack = RenderSystem.getModelViewStack();
+        viewStack.pushMatrix();
+        try {
+            viewStack.identity().rotate(
+                    net.kofllee.pyrovfx.vfx.math.VfxCameraRelativeView.rotation(event.getCamera().rotation()));
+            RenderSystem.applyModelViewMatrix();
+            VfxRenderer.render(new PoseStack(), event.getCamera(),
+                    event.getPartialTick().getGameTimeDeltaPartialTick(false));
+        } finally {
+            viewStack.popMatrix();
+            RenderSystem.applyModelViewMatrix();
+            VfxBenchHarness.afterRender(start);
+        }
     }
 
     @SubscribeEvent

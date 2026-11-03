@@ -12,6 +12,7 @@ import net.minecraft.client.renderer.MultiBufferSource;
 public final class VfxRenderer {
     private VfxRenderer() {}
 
+
     public static void render(PoseStack poseStack, Camera camera, float partialTick){
         VfxRenderLight.beginFrame();
         Minecraft minecraft = Minecraft.getInstance();

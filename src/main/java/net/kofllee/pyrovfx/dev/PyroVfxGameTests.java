@@ -61,6 +61,24 @@ public final class PyroVfxGameTests {
     private PyroVfxGameTests() {}
 
     @GameTest(template = "empty")
+    public static void cameraRelativeParticlesMustFollowCameraRotation(GameTestHelper helper) {
+        var worldOffset = new org.joml.Vector3f(0, 0, -8);
+        var initialCamera = new org.joml.Quaternionf();
+        var turnedCamera = new org.joml.Quaternionf().rotationY((float) (Math.PI / 2));
+        var initial = new org.joml.Matrix4f().rotate(
+                net.kofllee.pyrovfx.vfx.math.VfxCameraRelativeView.rotation(initialCamera))
+                .transformPosition(new org.joml.Vector3f(worldOffset));
+        var turned = new org.joml.Matrix4f().rotate(
+                net.kofllee.pyrovfx.vfx.math.VfxCameraRelativeView.rotation(turnedCamera))
+                .transformPosition(new org.joml.Vector3f(worldOffset));
+        if (Math.abs(initial.x) > 0.001 || Math.abs(initial.z + 8) > 0.001
+                || Math.abs(turned.x) < 7.99 || Math.abs(turned.z) > 0.01) {
+            throw new AssertionError("Camera-relative world positions were screen-locked after yaw");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void museumCatalogHasCompleteValidEffectsAndPhysicalControls(GameTestHelper helper) {
         var entries = net.kofllee.pyrovfx.museum.VfxMuseumCatalog.exhibits();
         if (entries.size() < 30

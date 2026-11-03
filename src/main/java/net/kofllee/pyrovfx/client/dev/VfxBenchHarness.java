@@ -47,6 +47,10 @@ public final class VfxBenchHarness {
     private VfxBenchHarness() {}
 
     private static net.kofllee.pyrovfx.museum.VfxMuseumCatalog.Exhibit museumExhibit(String scenario) {
+        if (scenario.equals("museum_camera_front") || scenario.equals("museum_camera_turn_90"))
+            return net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("model_custom");
+        if (scenario.equals("museum_smoke_camera_front") || scenario.equals("museum_smoke_camera_turn_90"))
+            return net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("smoke_alpha");
         if (scenario.equals("museum_self_emit_near"))
             return net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("self_emit");
         return scenario.startsWith("museum_")
@@ -61,6 +65,11 @@ public final class VfxBenchHarness {
                     exhibit.effectOrigin().getZ() + 2.0);
         return new Vec3(exhibit.base().getX() + 7.5,
                 exhibit.base().getY() + 3.0, exhibit.base().getZ() + 13.3);
+    }
+
+    private static float museumYaw(String scenario, boolean inMuseum) {
+        if (scenario.endsWith("camera_turn_90")) return 90;
+        return inMuseum ? 180 : 0;
     }
 
     public static boolean enabled() {
@@ -148,7 +157,7 @@ public final class VfxBenchHarness {
             Vec3 camera = museumExhibit == null ? CAMERA
                     : museumCamera(scenario.name(), museumExhibit);
             player.teleportTo(camera.x, camera.y, camera.z);
-            player.setYRot(museumExhibit == null ? 0 : 180);
+            player.setYRot(museumYaw(scenario.name(), museumExhibit != null));
             player.setXRot(museumExhibit == null ? 14 : 8);
         });
         return "Started " + name + " (seed=" + scenario.seed() + "). Results: run/pyrovfx-benchmarks/";
@@ -180,7 +189,7 @@ public final class VfxBenchHarness {
         }
         if (minecraft.player != null) {
             var museumExhibit = museumExhibit(run.scenario.name());
-            float yaw = museumExhibit == null ? 0 : 180;
+            float yaw = museumYaw(run.scenario.name(), museumExhibit != null);
             float pitch = museumExhibit == null ? 14 : 8;
             minecraft.player.setYRot(yaw);
             minecraft.player.setXRot(pitch);

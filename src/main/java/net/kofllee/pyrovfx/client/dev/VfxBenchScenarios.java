@@ -92,6 +92,16 @@ public final class VfxBenchScenarios {
         scenarios.put("museum_self_emit_near", new Scenario("museum_self_emit_near",
                 selfEmit.effect(), selfEmit.count(), 0x50B0_2026L ^ selfEmit.id().hashCode(),
                 10, 60));
+        var camera = net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("model_custom");
+        for (var name : new String[]{"museum_camera_front", "museum_camera_turn_90"}) {
+            scenarios.put(name, new Scenario(name, camera.effect(), camera.count(),
+                    0x50B0_2026L ^ camera.id().hashCode(), 10, 60));
+        }
+        var smoke = net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("smoke_alpha");
+        for (var name : new String[]{"museum_smoke_camera_front", "museum_smoke_camera_turn_90"}) {
+            scenarios.put(name, new Scenario(name, smoke.effect(), smoke.count(),
+                    0x50B0_2026L ^ smoke.id().hashCode(), 10, 60));
+        }
         return Map.copyOf(scenarios);
     }
 
