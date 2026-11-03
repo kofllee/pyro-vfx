@@ -36,6 +36,17 @@ public final class VfxBenchScenarios {
         add(scenarios, "model_translucent_1k", "bench/model_translucent", 1_000);
         add(scenarios, "model_entity_250", "bench/model_entity", 250);
         add(scenarios, "model_entity_1k", "bench/model_entity", 1_000);
+        for (String lifecycle : new String[]{"entity", "block", "block_entity", "chunk"}) {
+            String name = "m7_lifecycle_" + lifecycle;
+            String effect = lifecycle.equals("entity")
+                    ? "museum/source_entity_world" : "museum/source_block";
+            scenarios.put(name, new Scenario(name,
+                    ResourceLocation.fromNamespaceAndPath("pyro_vfx", effect),
+                    24, 0x4D37_2026L, 5, 110));
+        }
+        scenarios.put("m7_lifecycle_world_exit", new Scenario("m7_lifecycle_world_exit",
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "museum/source_custom"),
+                24, 0x4D37_2026L, 5, 110));
         add(scenarios, "sprite_expressions_1k", "bench/sprite_expressions", 1_000);
         add(scenarios, "sprite_expressions_10k", "bench/sprite_expressions", 10_000);
         add(scenarios, "sprite_expressions_100k", "bench/sprite_expressions", 100_000);
@@ -88,6 +99,9 @@ public final class VfxBenchScenarios {
                     exhibit.effect(), exhibit.count(), 0x50B0_2026L ^ exhibit.id().hashCode(),
                     10, 60));
         }
+        var pig = net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("model_entity");
+        scenarios.put("museum_model_entity_close_pan", new Scenario("museum_model_entity_close_pan",
+                pig.effect(), pig.count(), 0x50B0_2026L ^ pig.id().hashCode(), 5, 90));
         var selfEmit = net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("self_emit");
         scenarios.put("museum_self_emit_near", new Scenario("museum_self_emit_near",
                 selfEmit.effect(), selfEmit.count(), 0x50B0_2026L ^ selfEmit.id().hashCode(),

@@ -73,6 +73,10 @@ final class VfxBenchReport {
         root.addProperty("status", run.error == null ? "completed" : "invalid");
         root.addProperty("error", run.error);
         root.addProperty("scenario", run.scenario.name());
+        if (run.lifecycle != null)
+            root.addProperty("lifecycleVerified", run.lifecycle.verified());
+        if (run.scenario.name().equals("m7_lifecycle_world_exit"))
+            root.addProperty("worldExitVerified", run.worldExitVerified);
         root.addProperty("cpuParticleBackend", Boolean.getBoolean("pyrovfx.cpu.forceLegacy")
                 ? "legacy-forced" : "auto-dense-with-feature-fallback");
         root.addProperty("gpuInstancingRequested", !Boolean.getBoolean("pyrovfx.render.forceLegacy"));

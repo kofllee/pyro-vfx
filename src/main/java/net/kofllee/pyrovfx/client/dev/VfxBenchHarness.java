@@ -47,6 +47,8 @@ public final class VfxBenchHarness {
     private VfxBenchHarness() {}
 
     private static net.kofllee.pyrovfx.museum.VfxMuseumCatalog.Exhibit museumExhibit(String scenario) {
+        if (scenario.equals("museum_model_entity_close_pan"))
+            return net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("model_entity");
         if (scenario.startsWith("museum_translucency_"))
             return net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("model_translucent");
         if (scenario.equals("museum_camera_front") || scenario.equals("museum_camera_turn_90"))
@@ -61,6 +63,9 @@ public final class VfxBenchHarness {
 
     private static Vec3 museumCamera(String scenario,
             net.kofllee.pyrovfx.museum.VfxMuseumCatalog.Exhibit exhibit) {
+        if (scenario.equals("museum_model_entity_close_pan"))
+            return new Vec3(exhibit.effectOrigin().getX() + 0.5,
+                    exhibit.effectOrigin().getY() + 1.5, exhibit.effectOrigin().getZ() + 5.5);
         if (scenario.equals("museum_self_emit_near"))
             return new Vec3(exhibit.effectOrigin().getX() + 0.5,
                     exhibit.effectOrigin().getY() + 0.5,
@@ -143,6 +148,18 @@ public final class VfxBenchHarness {
                 net.kofllee.pyrovfx.museum.VfxMuseumWorld.build(player.serverLevel());
                 museumBuiltThisSession = true;
             }
+            if (scenario.name().equals("museum_source_block")) {
+                // Verify the REAL block provider, including chunk/block
+                // lifetime checks. A missing museum must not silently turn
+                // this into a fixed-position effect.
+                var stand = net.kofllee.pyrovfx.museum.VfxMuseumCatalog.find("source_block");
+                BlockPos anchor = stand.base().offset(7, 0, 5);
+                BlockState original = player.serverLevel().getBlockState(anchor);
+                if (original.isAir()) {
+                    run.originalBlocks.put(anchor, original);
+                    player.serverLevel().setBlockAndUpdate(anchor, Blocks.STONE.defaultBlockState());
+                }
+            }
             if (scenario.name().contains("collision") || scenario.name().equals("adaptive_steady")
                     || scenario.name().equals("soak_mixed")) {
                 // Deterministic solid obstacle, independent of the test world's terrain.
@@ -193,12 +210,26 @@ public final class VfxBenchHarness {
             var museumExhibit = museumExhibit(run.scenario.name());
             float yaw = museumYaw(run.scenario.name(), museumExhibit != null);
             float pitch = museumExhibit == null ? 14 : 8;
+            if (run.scenario.name().equals("museum_model_entity_close_pan")) {
+                // Deliberately pan the camera while the particle/model's own
+                // rotation is zero to distinguish animation from raster shimmer.
+                yaw += (float) Math.sin(run.elapsedTicks * 0.075) * 6.0f;
+                minecraft.player.yRotO = 180.0f
+                        + (float) Math.sin(Math.max(0, run.elapsedTicks - 1) * 0.075) * 6.0f;
+                pitch = 0;
+            } else {
+                minecraft.player.yRotO = yaw;
+            }
             minecraft.player.setYRot(yaw);
             minecraft.player.setXRot(pitch);
-            minecraft.player.yRotO = yaw;
             minecraft.player.xRotO = pitch;
         }
         if (Minecraft.getInstance().level == null) {
+            if (run.scenario.name().equals("m7_lifecycle_world_exit")
+                    && run.worldExitRequested) {
+                // The next manager tick must observe the actual null world.
+                return System.nanoTime();
+            }
             run.error = "World was unloaded during test";
             run.finishedTick = true;
             return 0;
@@ -260,11 +291,28 @@ public final class VfxBenchHarness {
                 for (int i = 0; i < 3; i++) {
                     ClientVfxManager.playSeeded(run.definition, ORIGIN, request, run.scenario.seed() + i);
                 }
+            } else if (VfxM7LifecycleProbe.accepts(run.scenario.name())) {
+                try {
+                    run.lifecycle = VfxM7LifecycleProbe.attach(
+                            run.scenario.name(), minecraft.level, effectPosition);
+                    ClientVfxManager.playSeeded(run.definition,
+                            run.lifecycle.provider(), options, run.scenario.seed());
+                    run.lifecycle.bind();
+                } catch (Exception exception) {
+                    run.error = "M7 lifecycle setup: " + exception;
+                }
+            } else if (museum != null && museum.id().startsWith("source_")) {
+                ClientVfxManager.playSeeded(run.definition,
+                        VfxMuseumClient.benchmarkProviderFor(museum.id(), effectPosition,
+                                museum.base().offset(7, 0, 5)), options, run.scenario.seed());
             } else {
                 ClientVfxManager.playSeeded(run.definition, effectPosition, options, run.scenario.seed());
             }
             run.spawnNs = System.nanoTime() - start;
             run.spawned = true;
+            if (run.scenario.name().equals("museum_source_block")
+                    && ClientVfxManager.getActiveInstanceCount() == 0)
+                run.error = "Source block provider could not attach to the physical fixture";
             // Report an invalid client run only after spawning; otherwise the
             // harness has no active render callback to finalize and auto-exit.
             if (run.windowMismatch != null) run.error = run.windowMismatch;
@@ -279,9 +327,57 @@ public final class VfxBenchHarness {
         if (run == null || !run.spawned || run.finishedTick || startNs == 0) {
             return;
         }
+        if (run.scenario.name().equals("m7_lifecycle_world_exit")
+                && run.worldExitRequested && Minecraft.getInstance().level == null) {
+            run.worldExitVerified = ClientVfxManager.getActiveInstanceCount() == 0
+                    && ClientVfxManager.getActiveParticleCount() == 0
+                    && run.worldExitEmitter != null
+                    && run.worldExitEmitter.analyticPools().isEmpty()
+                    && run.worldExitEmitter.gpuResidentBirthBytes() == 0;
+            if (!run.worldExitVerified)
+                run.error = "World exit did not close VFX instances or retire GPU birth data";
+            try {
+                Path result = VfxBenchReport.write(run);
+                System.out.println("[Pyro VFX Bench] " + run.scenario.name()
+                        + ": " + result + " verified=" + run.worldExitVerified);
+            } catch (Exception ex) {
+                System.err.println("[Pyro VFX Bench] World-exit report failed: " + ex);
+            }
+            current = null;
+            Minecraft.getInstance().stop();
+            return;
+        }
         long elapsed = System.nanoTime() - startNs;
         long allocatedAfter = allocatedBytes();
         int index = run.elapsedTicks++;
+        if (run.scenario.name().equals("m7_lifecycle_world_exit")
+                && index == 20 && !run.worldExitRequested) {
+            if (ClientVfxManager.getActiveInstanceCount() != 1
+                    || ClientVfxManager.getActiveParticleCount() <= 0) {
+                run.error = "World-exit fixture had no active VFX to retire";
+            } else {
+                run.worldExitEmitter = ClientVfxManager.instances()
+                        .getFirst().emitters().getFirst();
+                run.worldExitRequested = true;
+                // The regular in-game menu initiates integrated-server
+                // shutdown before waiting for disconnection. In an automated
+                // client tick no menu action precedes this; request a
+                // nonblocking stop explicitly or disconnect waits forever.
+                var integrated = Minecraft.getInstance().getSingleplayerServer();
+                if (integrated != null) integrated.halt(false);
+                // Disconnect outside the client tick callback: Minecraft's
+                // normal shutdown path runs nested progress-screen frames
+                // while waiting for the integrated server to stop.
+                Minecraft.getInstance().tell(() -> Minecraft.getInstance().disconnect());
+            }
+        }
+        if (run.lifecycle != null && run.error == null) {
+            try {
+                run.lifecycle.afterTick(index);
+            } catch (Exception exception) {
+                run.error = "M7 lifecycle check: " + exception;
+            }
+        }
         boolean soak = run.scenario.name().equals("soak_mixed");
         if (((run.scenario.name().equals("reload_active")
                 || run.scenario.name().equals("model_reload_active")
@@ -356,6 +452,8 @@ public final class VfxBenchHarness {
             }
         }
         if (run.elapsedTicks >= run.scenario.warmupTicks() + run.scenario.sampleTicks()) {
+            if (run.lifecycle != null && !run.lifecycle.verified() && run.error == null)
+                run.error = "M7 lifecycle teardown did not complete";
             if (run.scenario.name().equals("soak_mixed")
                     && (run.reloadCyclesCompleted != 3 || run.peakParticles < 50)) {
                 run.error = "Mixed workload did not complete all 3 reloads or produce enough particles: "
@@ -471,11 +569,47 @@ public final class VfxBenchHarness {
         if (run == null || !run.spawned || startNs == 0) {
             return;
         }
+        if ((run.scenario.name().equals("museum_model_entity")
+                || run.scenario.name().equals("museum_model_entity_close_pan"))
+                && !run.entityIsolationVerified
+                && ClientVfxManager.getActiveParticleCount() >= 2
+                && !ClientVfxManager.instances().isEmpty()) {
+            var models = ClientVfxManager.instances().getFirst().particles();
+            if (models.size() >= 2) {
+                run.entityIsolationVerified = net.kofllee.pyrovfx.client.render
+                        .EntityModelVfxParticleRenderer.hasIndependentRenderEntities(
+                                models.get(0), models.get(1))
+                        && net.kofllee.pyrovfx.client.render.EntityModelVfxParticleRenderer
+                                .hasStableInitialHeadPose(models.get(0))
+                        && net.kofllee.pyrovfx.client.render.EntityModelVfxParticleRenderer
+                                .hasStableInitialHeadPose(models.get(1));
+                if (!run.entityIsolationVerified) {
+                    run.error = "Entity-model particles share a dummy entity or head pose interpolation is unsynchronized";
+                }
+            }
+        }
         if (run.gpuTimer != null) {
             run.gpuTimer.end();
             run.gpuTimer.poll();
         }
         long now = System.nanoTime();
+        if (run.scenario.name().equals("museum_model_entity_close_pan")
+                && run.elapsedTicks >= run.scenario.warmupTicks()
+                && run.renderCount > 0 && run.renderCount % 28 == 0
+                && run.debugHeadFrames < 9) {
+            try {
+                Path folder = Minecraft.getInstance().gameDirectory.toPath()
+                        .resolve("pyrovfx-benchmarks").resolve("head-motion-inspection");
+                Files.createDirectories(folder);
+                Path png = folder.resolve("pan-" + run.debugHeadFrames + ".png");
+                try (NativeImage image = Screenshot.takeScreenshot(Minecraft.getInstance().getMainRenderTarget())) {
+                    image.writeToFile(png);
+                }
+                run.debugHeadFrames++;
+            } catch (Exception exception) {
+                run.error = "Head-motion screenshot capture failed: " + exception;
+            }
+        }
         run.analyticUploadBytes += VfxAnalyticSpriteRenderer.uploadedBytes();
         run.analyticDatasetUploads += VfxAnalyticSpriteRenderer.uploadedDatasets();
         run.analyticDrawCalls += VfxAnalyticSpriteRenderer.drawCalls();
@@ -507,6 +641,11 @@ public final class VfxBenchHarness {
         }
         run.lastFrameNs = now;
         if (run.finishedTick) {
+            if ((run.scenario.name().equals("museum_model_entity")
+                    || run.scenario.name().equals("museum_model_entity_close_pan"))
+                    && !run.entityIsolationVerified && run.error == null) {
+                run.error = "Entity-model animation isolation/rest-pose synchronization was never observed";
+            }
             if (run.screenshotPath == null) {
                 captureScreenshot(run);
             }
@@ -547,6 +686,7 @@ public final class VfxBenchHarness {
             System.err.println("[Pyro VFX Bench] Failed to save results: " + error);
         } finally {
             ClientVfxManager.clear();
+            if (run.lifecycle != null) run.lifecycle.cleanup();
             if (run.originalVsync != null) {
                 var minecraft = Minecraft.getInstance();
                 minecraft.options.enableVsync().set(run.originalVsync);
@@ -659,6 +799,12 @@ public final class VfxBenchHarness {
         double peakAdaptiveCpuEmaMs;
         int adaptiveConstrainedTickSamples;
         boolean collisionEventObserved;
+        boolean entityIsolationVerified;
+        VfxM7LifecycleProbe lifecycle;
+        boolean worldExitRequested;
+        boolean worldExitVerified;
+        net.kofllee.pyrovfx.client.vfx.ClientVfxEmitter worldExitEmitter;
+        int debugHeadFrames;
         CompletableFuture<Void> reloadFuture;
         boolean reloadCompleted;
         int reloadCyclesCompleted;

@@ -61,6 +61,400 @@ public final class PyroVfxGameTests {
     private PyroVfxGameTests() {}
 
     @GameTest(template = "empty")
+    public static void transformProvidersRotateOffsetsAndInterpolate(GameTestHelper helper) {
+        var from = new net.kofllee.pyrovfx.vfx.transform.VfxTransform(Vec3.ZERO,
+                new org.joml.Quaternionf());
+        var to = new net.kofllee.pyrovfx.vfx.transform.VfxTransform(new Vec3(10, 2, 0),
+                new org.joml.Quaternionf().rotationY((float) Math.PI / 2));
+        var transformed = to.transform(new Vec3(1, 0, 0));
+        if (transformed.distanceTo(new Vec3(10, 2, -1)) > 0.001)
+            throw new AssertionError("Emitter local offsets must rotate with the source");
+        var middle = net.kofllee.pyrovfx.vfx.transform.VfxTransform.interpolate(from, to, 0.5f);
+        if (middle.position().distanceTo(new Vec3(5, 1, 0)) > 0.001
+                || Math.abs(middle.rotate(new Vec3(1, 0, 0)).length() - 1) > 0.001)
+            throw new AssertionError("Source pose interpolation is incorrect");
+        var restored = to.inverseTransform(transformed);
+        if (restored.distanceTo(new Vec3(1, 0, 0)) > 0.001)
+            throw new AssertionError("Local/world conversions are not invertible");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void movingGpuSourceRetainsEmitterOffsetBetweenFrames(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "moving_gpu_source_offset"),
+                JsonParser.parseString("""
+                    {"format":"pyro_vfx:1","lifetime":{"mode":"once","active_ticks":8},
+                     "emitters":[{"id":"main","space":"local",
+                      "offset":[0,2,0],"emitter_rotation":[0,90,0],
+                      "emitter_lifetime":{"mode":"once","active_ticks":8},
+                      "spawn_amount":{"mode":"steady","rate":10,"max_particles":20},
+                      "particle_lifetime":{"max_age_ticks":20},
+                      "spawn_shape":{"type":"point"},"motion":{"mode":"static"},
+                      "render":{"type":"sprite","sprite":{
+                       "texture":"minecraft:textures/particle/generic_0.png"}}}]}
+                    """).getAsJsonObject());
+        var step = new java.util.concurrent.atomic.AtomicInteger();
+        net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider source = partial ->
+                new net.kofllee.pyrovfx.vfx.transform.VfxTransform(
+                        new Vec3(5 + step.get() + partial, 10, 3),
+                        new org.joml.Quaternionf().rotationY((step.get() + partial) * 0.2f));
+        var instance = new ClientVfxInstance(definition, source, VfxPlayOptions.empty(), 17L);
+        var emitter = instance.emitters().getFirst();
+        Vec3 initial = emitter.renderSourceTransform(instance.renderTransform(1), 1).position();
+        if (initial.distanceTo(new Vec3(6, 12, 3)) > 1.0e-4)
+            throw new AssertionError("Block anchor offset lost at initial render: " + initial);
+        step.set(1);
+        instance.tick(null);
+        var renderedParent = instance.renderTransform(0.5f);
+        var renderedEmitter = emitter.renderSourceTransform(renderedParent, 0.5f);
+        if (renderedEmitter.position().distanceTo(new Vec3(6.5, 12, 3)) > 1.0e-4)
+            throw new AssertionError("Moving local GPU source snapped or lost offset: " + renderedEmitter.position());
+        Vec3 expectedDirection = renderedParent.rotate(new Vec3(0, 0, -1));
+        if (renderedEmitter.rotate(new Vec3(1, 0, 0)).distanceTo(expectedDirection) > 1.0e-4)
+            throw new AssertionError("Emitter-local rotation lost during render interpolation");
+        instance.close();
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void entityModelParticlesInterpolateContinuousWorldMotion(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "entity_model_motion"),
+                JsonParser.parseString("""
+                    {"format":"pyro_vfx:1","lifetime":{"mode":"once","active_ticks":3},
+                     "emitters":[{"id":"main",
+                      "emitter_lifetime":{"mode":"once","active_ticks":1},
+                      "spawn_amount":{"mode":"instant","amount":1},
+                      "particle_lifetime":{"max_age_ticks":20},
+                      "spawn_shape":{"type":"point"},
+                      "motion":{"mode":"dynamic","dynamic":{
+                       "direction":"custom","custom_direction":[1,0,0],"speed":20}},
+                      "render":{"type":"model","model":{
+                       "source":"entity","model":"minecraft:pig",
+                       "render_layer":"solid"},"color":"#FFFFFFFF"}}]}
+                    """).getAsJsonObject());
+        var instance = new ClientVfxInstance(definition, Vec3.ZERO, VfxPlayOptions.empty(), 91L);
+        instance.tick(null);
+        var particle = instance.particles().getFirst();
+        if (instance.emitters().getFirst().densePool() != null
+                || instance.emitters().getFirst().analyticPools().stream().anyMatch(p -> p.liveCount() > 0))
+            throw new AssertionError("Entity models must remain in the vanilla EntityRenderer fallback");
+        if (Math.abs(particle.interpolatedPosition(0.25f).x - 0.25) > 0.01
+                || Math.abs(particle.interpolatedPosition(0.75f).x - 0.75) > 0.01)
+            throw new AssertionError("Moving entity model must interpolate between game ticks");
+        instance.tick(null);
+        if (Math.abs(particle.interpolatedPosition(0.5f).x - 1.5) > 0.01)
+            throw new AssertionError("Entity model interpolation must remain continuous on later ticks");
+        instance.close();
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void untickedEntityModelHeadDoesNotInterpolateEveryFrame(GameTestHelper helper) {
+        var entity = net.minecraft.world.entity.EntityType.PIG.create(helper.getLevel());
+        if (entity == null) throw new AssertionError("Unable to create test pig");
+        // Simulate randomized initial current angles while no entity ticks
+        // ever update their 'previous' counterparts.
+        entity.yHeadRotO = 0.0f;
+        entity.yHeadRot = 12.0f;
+        entity.yBodyRotO = -3.0f;
+        entity.yBodyRot = 5.0f;
+        entity.xRotO = -4.0f;
+        entity.setXRot(7.0f);
+        net.kofllee.pyrovfx.vfx.transform.VfxEntityPoseInitializer.synchronizeUntickedPose(entity);
+        for (float partial : new float[]{0.0f, 0.25f, 0.5f, 0.75f, 1.0f}) {
+            float yaw = net.minecraft.util.Mth.rotLerp(partial, entity.yHeadRotO, entity.yHeadRot);
+            float body = net.minecraft.util.Mth.rotLerp(partial, entity.yBodyRotO, entity.yBodyRot);
+            float pitch = net.minecraft.util.Mth.lerp(partial, entity.xRotO, entity.getXRot());
+            if (Math.abs(yaw - 12.0f) > 1.0e-4f
+                    || Math.abs(body - 5.0f) > 1.0e-4f
+                    || Math.abs(pitch - 7.0f) > 1.0e-4f) {
+                throw new AssertionError("Unticked entity head/body pose oscillates across partial ticks");
+            }
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void lostTransformSourceStopsBirthsFreezesOffsetAndDrainsParticles(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "m7_source_disappear"),
+                JsonParser.parseString("""
+                    {"format":"pyro_vfx:1","lifetime":{"mode":"once","active_ticks":200},
+                     "emitters":[{"id":"main","space":"local",
+                       "offset":["effect.age",0,0],
+                       "emitter_lifetime":{"mode":"once","active_ticks":180},
+                       "spawn_amount":{"mode":"steady","rate":80,"max_particles":40},
+                       "spawn_shape":{"type":"point"},
+                       "particle_lifetime":{"max_age_ticks":8},
+                       "motion":{"mode":"static"},
+                       "render":{"type":"sprite","sprite":{
+                         "texture":"minecraft:textures/particle/generic_0.png",
+                         "blend_mode":"additive"}}}]}
+                    """).getAsJsonObject());
+        String initial = System.getProperty("pyrovfx.cpu.forceLegacy");
+        try {
+            for (boolean forceLegacy : new boolean[]{false,true}) {
+                System.setProperty("pyrovfx.cpu.forceLegacy", Boolean.toString(forceLegacy));
+                var alive = new java.util.concurrent.atomic.AtomicBoolean(true);
+                var samples = new java.util.concurrent.atomic.AtomicInteger();
+                net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider provider = partial -> {
+                    samples.incrementAndGet();
+                    return alive.get() ? net.kofllee.pyrovfx.vfx.transform.VfxTransform.at(Vec3.ZERO) : null;
+                };
+                var instance = new ClientVfxInstance(definition, provider, VfxPlayOptions.empty(), 105L);
+                for (int i = 0; i < 5; i++) instance.tick(null);
+                var emitter = instance.emitters().getFirst();
+                if (emitter.liveParticleCount() == 0 || emitter.emittedParticles() == 0)
+                    throw new AssertionError("Lifecycle fixture did not begin emitting");
+                if ((emitter.densePool() != null) == forceLegacy)
+                    throw new AssertionError("Lifecycle test selected the wrong CPU backend");
+                Vec3 finalPose = emitter.sourceTransform().position();
+                int emitted = emitter.emittedParticles();
+                alive.set(false);
+                instance.tick(null);
+                int sampledAtLoss = samples.get();
+                for (int i = 0; i < 14; i++) {
+                    instance.tick(null);
+                    if (emitter.emittedParticles() != emitted)
+                        throw new AssertionError("Source loss permitted new births in " + emitter.selectedBackend());
+                    if (emitter.sourceTransform().position().distanceTo(finalPose) > 1.0e-5)
+                        throw new AssertionError("Detached source still moved local particles");
+                }
+                if (samples.get() != sampledAtLoss)
+                    throw new AssertionError("Detached instance retained and polled its provider callback");
+                if (!instance.isFinished() || emitter.liveParticleCount() != 0)
+                    throw new AssertionError("Detached " + emitter.selectedBackend() + " failed to drain");
+                instance.close();
+            }
+        } finally {
+            if (initial == null) System.clearProperty("pyrovfx.cpu.forceLegacy");
+            else System.setProperty("pyrovfx.cpu.forceLegacy", initial);
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void movingModelSpaceAndRotationMatchAnalyticDenseAndLegacy(GameTestHelper helper) {
+        String original = System.getProperty("pyrovfx.cpu.forceLegacy");
+        try {
+            for (String space : List.of("world", "local")) {
+                var definition = VfxDefinitionParser.parse(
+                        ResourceLocation.fromNamespaceAndPath("pyro_vfx", "m7_three_backend_" + space),
+                        JsonParser.parseString("""
+                            {"format":"pyro_vfx:1","lifetime":{"mode":"once","active_ticks":16},
+                             "emitters":[{"id":"main","space":"SPACE",
+                              "offset":[1,1,0],"emitter_rotation":[0,30,0],
+                              "emitter_lifetime":{"mode":"once","active_ticks":1},
+                              "spawn_amount":{"mode":"instant","amount":1},
+                              "spawn_shape":{"type":"point"},
+                              "particle_lifetime":{"max_age_ticks":15},
+                              "motion":{"mode":"static"},
+                              "rotation":{"mode":"dynamic","dynamic":{
+                                "start_rotation":[0,0,0],"angular_velocity":[0,20,0]}},
+                              "render":{"type":"model","environment_lighting":false,
+                                "model":{"source":"custom","model":"pyro_vfx:vfx/smoke_cube",
+                                "render_layer":"solid"},"color":"#FFFFFFFF",
+                                "scale":[1,1,1]}}]}
+                            """.replace("SPACE", space)).getAsJsonObject());
+                var emitterDef = definition.emitters().getFirst();
+                var analyticPlan = VfxAnalyticPlan.analyse(emitterDef, true);
+                if (!analyticPlan.supported())
+                    throw new AssertionError("M7 fixture unexpectedly refused GPU: " + analyticPlan.reason());
+                var source = new java.util.concurrent.atomic.AtomicReference<>(
+                        new net.kofllee.pyrovfx.vfx.transform.VfxTransform(
+                                new Vec3(3, 10, 2),
+                                new org.joml.Quaternionf().rotationY((float)Math.toRadians(10))));
+                var provider = (net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider) partial -> source.get();
+                System.setProperty("pyrovfx.cpu.forceLegacy", "false");
+                var dense = new ClientVfxInstance(definition, provider, VfxPlayOptions.empty(), 112L);
+                System.setProperty("pyrovfx.cpu.forceLegacy", "true");
+                var legacy = new ClientVfxInstance(definition, provider, VfxPlayOptions.empty(), 112L);
+                var initialEmitter = source.get().child(new Vec3(1, 1, 0), new Vec3(0, 30, 0));
+                var analytic = new VfxAnalyticParticlePool(emitterDef, analyticPlan);
+                var random = RandomSource.create(112L);
+                var effectContext = ClientVfxExpressionContexts.effectStart(
+                        source.get().position(), 0, Map.of(), definition.curves(),
+                        random, definition.program().variables());
+                var emitterContext = ClientVfxExpressionContexts.emitterStart(
+                        effectContext, initialEmitter.position(), 0.5);
+                analytic.spawn(1, initialEmitter.position(), emitterContext, random, initialEmitter);
+                if (dense.emitters().getFirst().densePool() == null
+                        || legacy.emitters().getFirst().densePool() != null)
+                    throw new AssertionError("Three-backend fixture selected the wrong CPU path");
+                for (int tick = 0; tick < 5; tick++) {
+                    if (tick > 0) {
+                        source.set(new net.kofllee.pyrovfx.vfx.transform.VfxTransform(
+                                new Vec3(3 + tick * 0.5, 10 + tick * 0.25, 2),
+                                new org.joml.Quaternionf().rotationY(
+                                        (float)Math.toRadians(10 + tick * 11))));
+                    }
+                    dense.tick(null);
+                    legacy.tick(null);
+                    analytic.tick();
+                    var pose = source.get().child(new Vec3(1, 1, 0), new Vec3(0, 30, 0));
+                    analytic.setSourceTransform(pose);
+                    var denseParticle = dense.emitters().getFirst().densePool().snapshot(0);
+                    var legacyParticle = legacy.emitters().getFirst().legacyParticles().getFirst();
+                    Vec3 dPos = denseParticle.position(), lPos = legacyParticle.position();
+                    if (dPos.distanceTo(lPos) > 1.0e-4)
+                        throw new AssertionError(space + " Dense/Legacy location mismatch " + dPos + " / " + lPos);
+                    if (denseParticle.rotation().distanceTo(legacyParticle.rotation()) > 1.0e-3)
+                        throw new AssertionError(space + " Dense/Legacy model rotation mismatch");
+                    // A read-only ByteBuffer view resets its byte order;
+                    // interpret resident GPU bytes using the native packing.
+                    var data = analytic.data().order(java.nio.ByteOrder.nativeOrder());
+                    Vec3 birth = new Vec3(data.getFloat(0), data.getFloat(4), data.getFloat(8));
+                    Vec3 gpuWorld = space.equals("local") ? pose.transform(birth) : birth;
+                    if (dPos.distanceTo(gpuWorld) > 5.0e-4)
+                        throw new AssertionError(space + " GPU/Dense world position mismatch at tick "
+                                + tick + ": " + gpuWorld + " / " + dPos);
+                    Vec3 gpuAngles = space.equals("local")
+                            ? pose.rotateAngles(analytic.modelRotation(1.0f))
+                            : analytic.modelRotation(1.0f);
+                    if (denseParticle.rotation().distanceTo(gpuAngles) > 1.0e-2)
+                        throw new AssertionError(space + " GPU/Dense model orientation mismatch at tick "
+                                + tick + ": " + gpuAngles + " / " + denseParticle.rotation());
+                }
+                dense.close();
+                legacy.close();
+                analytic.close();
+            }
+        } finally {
+            if (original == null) System.clearProperty("pyrovfx.cpu.forceLegacy");
+            else System.setProperty("pyrovfx.cpu.forceLegacy", original);
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void localParticlesFollowTheSourceWhileWorldParticlesDetach(GameTestHelper helper) {
+        java.util.concurrent.atomic.AtomicInteger location = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicBoolean rotated = new java.util.concurrent.atomic.AtomicBoolean();
+        net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider source = partial ->
+                new net.kofllee.pyrovfx.vfx.transform.VfxTransform(
+                        new Vec3(location.get(), 0, 0),
+                        new org.joml.Quaternionf().rotationY(
+                                rotated.get() ? (float) (Math.PI / 2) : 0.0f));
+        for (String space : List.of("local", "world")) {
+            String json = """
+                    {"format":"pyro_vfx:1","lifetime":{"mode":"once","active_ticks":10},
+                     "emitters":[{"id":"origin","space":"SPACE",
+                      "offset":[1,0,0],
+                      "emitter_lifetime":{"mode":"once","active_ticks":1},
+                      "spawn_amount":{"mode":"instant","amount":1},
+                      "spawn_shape":{"type":"point"},
+                      "particle_lifetime":{"max_age_ticks":40},
+                      "motion":{"mode":"static"},
+                      "render":{"type":"sprite","sprite":{
+                        "texture":"minecraft:textures/particle/generic_0.png"}}}]}
+                    """.replace("SPACE", space);
+            var definition = VfxDefinitionParser.parse(
+                    ResourceLocation.fromNamespaceAndPath("pyro_vfx", "space_" + space),
+                    JsonParser.parseString(json).getAsJsonObject());
+            location.set(0);
+            rotated.set(false);
+            var instance = new ClientVfxInstance(definition, source, VfxPlayOptions.empty(), 42L);
+            instance.tick(null);
+            var emitter = instance.emitters().getFirst();
+            if (emitter.densePool() == null || emitter.densePool().size() != 1)
+                throw new AssertionError("Source-space test should use CPU Dense");
+            location.set(3);
+            rotated.set(true);
+            instance.tick(null);
+            Vec3 actual = emitter.densePool().snapshot(0).position();
+            Vec3 expected = space.equals("local") ? new Vec3(3, 0, -1) : new Vec3(1, 0, 0);
+            if (actual.distanceTo(expected) > 1.0e-4)
+                throw new AssertionError(space + " space moved particle to " + actual);
+            instance.close();
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void emitterRotationIsIndependentOfParticleRotation(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "emitter_orientation"),
+                JsonParser.parseString("""
+                    {"format":"pyro_vfx:1","lifetime":{"mode":"once","active_ticks":10},"emitters":[
+                     {"id":"origin","space":"world","emitter_rotation":[0,90,0],
+                      "offset":[1,0,0],
+                      "emitter_lifetime":{"mode":"once","active_ticks":1},
+                      "spawn_amount":{"mode":"instant","amount":1},
+                      "particle_lifetime":{"max_age_ticks":30},
+                      "spawn_shape":{"type":"point"},
+                      "motion":{"mode":"dynamic","dynamic":{
+                       "direction":"custom","custom_direction":[1,0,0],"speed":20}},
+                      "render":{"type":"sprite","sprite":{
+                        "texture":"minecraft:textures/particle/generic_0.png"}}}]}
+                    """).getAsJsonObject());
+        var instance = new ClientVfxInstance(definition, Vec3.ZERO, VfxPlayOptions.empty(), 1L);
+        instance.tick(null);
+        var velocity = instance.emitters().getFirst().densePool().snapshot(0).velocity();
+        if (Math.abs(velocity.x) > 1.0e-4 || velocity.z > -0.5)
+            throw new AssertionError("Emitter rotation did not rotate particle velocity: " + velocity);
+        instance.close();
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void travelTriggersCrossEveryIntervalInSpatialOrder(GameTestHelper helper) {
+        var triggers = List.of(
+                net.kofllee.pyrovfx.vfx.definition.VfxTriggerDefinition
+                        .travelDistance(1.0, "loop", true),
+                net.kofllee.pyrovfx.vfx.definition.VfxTriggerDefinition
+                        .travelDistance(2.5, "once", false));
+        var tracker = new net.kofllee.pyrovfx.client.vfx.VfxTravelTriggers(triggers);
+        var output = new java.util.ArrayList<String>();
+        tracker.advance(Vec3.ZERO, new Vec3(3.5, 0, 0),
+                (trigger, location) -> output.add(trigger.eventId() + ":" + location.x));
+        if (!output.equals(List.of("loop:1.0", "loop:2.0", "once:2.5", "loop:3.0")))
+            throw new AssertionError("Crossed distance thresholds must fire in path order: " + output);
+        output.clear();
+        tracker.advance(new Vec3(3.5, 0, 0), new Vec3(2.5, 0, 0),
+                (trigger, location) -> output.add(trigger.eventId() + ":" + location.x));
+        if (!output.equals(List.of("loop:3.0")))
+            throw new AssertionError("Turning back must accumulate absolute distance: " + output);
+        output.clear();
+        tracker.advance(new Vec3(2.5, 0, 0), new Vec3(2.5, 0, 0),
+                (trigger, location) -> output.add(trigger.eventId()));
+        tracker.advance(new Vec3(2.5, 0, 0), new Vec3(100, 0, 0),
+                (trigger, location) -> output.add(trigger.eventId()));
+        if (!output.isEmpty()) throw new AssertionError("Stopped and teleported sources must not emit");
+        tracker.advance(new Vec3(100, 0, 0), new Vec3(101, 0, 0),
+                (trigger, location) -> output.add(trigger.eventId() + ":" + location.x));
+        if (!output.equals(List.of("loop:101.0")))
+            throw new AssertionError("Looping triggers must restart at destination: " + output);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void museumAttachmentDefinitionsKeepDenseAndAnalyticEligibility(GameTestHelper helper) {
+        for (String id : List.of("source_entity_world", "source_entity_local",
+                "source_rotation", "source_block", "source_custom",
+                "source_model_part", "source_distance", "source_model_local")) {
+            String path = "assets/pyro_vfx/vfx/museum/" + id + ".json";
+            try (var stream = PyroVfxGameTests.class.getClassLoader().getResourceAsStream(path)) {
+                if (stream == null) throw new AssertionError("Missing attachment museum fixture: " + path);
+                var json = JsonParser.parseReader(new java.io.InputStreamReader(
+                        stream, StandardCharsets.UTF_8)).getAsJsonObject();
+                var definition = VfxDefinitionParser.parse(
+                        ResourceLocation.fromNamespaceAndPath("pyro_vfx", "museum/" + id), json);
+                var emitter = definition.emitters().getFirst();
+                if (!VfxDenseParticlePool.supports(emitter))
+                    throw new AssertionError("Attachment must retain CPU Dense eligibility: " + id);
+                if (!id.equals("source_distance")
+                        && !net.kofllee.pyrovfx.client.vfx.VfxAnalyticPlan.analyse(emitter, true).supported())
+                    throw new AssertionError("Simple attachment must retain GPU Analytic eligibility: " + id);
+            } catch (java.io.IOException e) {
+                throw new AssertionError("Failed to read attachment fixture: " + id, e);
+            }
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void cameraRelativeParticlesMustFollowCameraRotation(GameTestHelper helper) {
         var worldOffset = new org.joml.Vector3f(0, 0, -8);
         var initialCamera = new org.joml.Quaternionf();

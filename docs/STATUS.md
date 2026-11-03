@@ -20,13 +20,15 @@ world queries and unsupported GPU semantics retain CPU/Minecraft fallbacks.
 
 ## Museum / editor-preparation verification (3 November 2026)
 
-The physical 5 × 12 museum now includes 58 distinct effects, 8 spawn
+The initial physical 5 × 12 museum covered 58 distinct effects, 8 spawn
 shapes, 6 sprite facings, model source/layer variants, motion and rotation
 families, curves, expressions, events, collisions and simulation/render paths.
-All 58 have completed Minecraft 1.21.1 NeoForge real-client reports with
-nonzero particle counts on the tested RTX 4090 Laptop GPU.
-64/64 dedicated-server GameTests passed. A 600-tick mixed test with three
-resource reloads completed; this is not a full-duration soak.
+All 58 passed the original Minecraft 1.21.1 NeoForge real-client survey on
+the tested RTX 4090 Laptop GPU. M7.1 added eight attachment exhibits,
+bringing the current manifest to **66 effects** (additional stand rows).
+The original 64/64 GameTest run and 600-tick three-reload mixed test are
+historical verification milestones, not a full-duration soak. The latest
+M7.1 acceptance regression passes **74/74 GameTests**.
 
 Six isolated NeoForge graphics profiles were tested: Sodium, Embeddium,
 Iris with shaders disabled, and Iris with Complementary, BSL and Photon.
@@ -301,16 +303,21 @@ These features exist, but should not be described as stable production behavior.
 - Infinite looping effects.
 - Heavy use of expressions on every particle tick.
 
-## Parsed but not executed
+## Source attachments and spatial behavior (M7.1)
 
-The parser accepts these trigger types:
-
-- `travel_distance`
-- `travel_distance_looping`
-
-The current effect and emitter runtime does not execute them.
-
-They should not be used in normal effect definitions until runtime support is implemented.
+Transform providers now support static, entity, block, block entity,
+callback-driven model part and custom lambda poses on the client.
+Emitter-local offsets and rotations, local/world particle space and both
+travel-distance triggers execute in the runtime. CPU Dense and eligible
+GPU Analytic pipelines remain available. The public handle API and
+network packets are **not** part of M7.1.
+See [transform integration and limitations](M7_TRANSFORMS.md).
+The M7.1 acceptance run passed 74/74 GameTests and real-client checks for
+entity/block/block-entity removal, client chunk unload and world exit. Tests
+also compared matched GPU Analytic, CPU Dense and Legacy moving effects and
+confirmed CPU collision fallback. Client chunk availability now checks the
+actual loaded chunk rather than `ClientLevel.hasChunk` (always true in this
+Minecraft version). See the [M7.1 acceptance evidence](M7_TRANSFORMS.md#m71-final-acceptance--2026-11-03).
 
 ## Context-specific behavior
 
@@ -347,14 +354,10 @@ Minecraft `RenderType` rendering as a compatibility fallback.
 - Event timeline editor.
 - World-space shape gizmos.
 - Public integration API.
-- Play-by-id API independent of client internals.
+- Stable public play-by-id API independent of client internals (the client-only M7.1 convenience exists).
 - Effect handles.
 - Stop-by-handle.
-- Attached effects.
-- Entity attachment.
-- Projectile attachment.
-- Block attachment lifecycle.
-- Custom transform providers.
+- Serialized or server-driven attachments (client-side source providers exist).
 - Server-to-client networking.
 - Visibility radius packets.
 - Per-effect performance statistics.
