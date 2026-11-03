@@ -1,5 +1,6 @@
 package net.kofllee.pyrovfx.vfx.transform;
 
+import net.kofllee.pyrovfx.client.ClientVfxAccess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
@@ -24,11 +25,12 @@ public final class VfxTrackedTransformProvider implements VfxTransformProvider {
     private final VfxTransform fixed;
     private final VfxTransformProvider sampler;
     private final VfxTransform local;
+    private final String socket;
 
     private VfxTrackedTransformProvider(Kind kind, Level level, Entity entity,
                                         BlockEntity blockEntity, BlockPos blockPos,
                                         VfxTransform fixed, VfxTransformProvider sampler,
-                                        VfxTransform local) {
+                                        VfxTransform local, String socket) {
         this.kind = kind;
         this.level = new WeakReference<>(level);
         this.entity = new WeakReference<>(entity);
@@ -37,31 +39,42 @@ public final class VfxTrackedTransformProvider implements VfxTransformProvider {
         this.fixed = fixed;
         this.sampler = sampler;
         this.local = local;
+        this.socket = socket;
     }
 
     public static VfxTrackedTransformProvider entity(Entity entity, VfxTransformProvider sampler) {
         return new VfxTrackedTransformProvider(Kind.ENTITY, entity.level(), entity, null,
-                null, null, sampler, VfxTransform.at(Vec3.ZERO));
+                null, null, sampler, VfxTransform.at(Vec3.ZERO), null);
     }
 
     public static VfxTrackedTransformProvider block(Level level, BlockPos pos, VfxTransformProvider sampler) {
         return new VfxTrackedTransformProvider(Kind.BLOCK, level, null, null,
-                pos, null, sampler, VfxTransform.at(Vec3.ZERO));
+                pos, null, sampler, VfxTransform.at(Vec3.ZERO), null);
     }
 
     public static VfxTrackedTransformProvider blockEntity(BlockEntity entity, VfxTransformProvider sampler) {
         return new VfxTrackedTransformProvider(Kind.BLOCK_ENTITY, entity.getLevel(), null,
-                entity, entity.getBlockPos(), null, sampler, VfxTransform.at(Vec3.ZERO));
+                entity, entity.getBlockPos(), null, sampler, VfxTransform.at(Vec3.ZERO), null);
     }
 
     public static VfxTrackedTransformProvider fixed(Level level, VfxTransform pose) {
         return new VfxTrackedTransformProvider(Kind.FIXED, level, null, null, null,
-                pose, partialTick -> pose, VfxTransform.at(Vec3.ZERO));
+                pose, partialTick -> pose, VfxTransform.at(Vec3.ZERO), null);
     }
 
     public VfxTrackedTransformProvider withLocal(VfxTransform next) {
         return new VfxTrackedTransformProvider(kind, level.get(), entity.get(),
-                blockEntity.get(), blockPos, fixed, sampler, local.compose(next));
+                blockEntity.get(), blockPos, fixed, sampler, local.compose(next), socket);
+    }
+
+    public VfxTrackedTransformProvider withSocket(String name) {
+        if (kind != Kind.ENTITY && kind != Kind.BLOCK_ENTITY)
+            throw new IllegalStateException("Named sockets require an Entity or BlockEntity");
+        if (name == null || name.isBlank() || name.length() > 128
+                || !name.matches("[a-z0-9_.:-]+(?:/[a-z0-9_.:-]+)*"))
+            throw new IllegalArgumentException("Invalid VFX socket: " + name);
+        return new VfxTrackedTransformProvider(kind, level.get(), entity.get(),
+                blockEntity.get(), blockPos, fixed, sampler, local, name);
     }
 
     public Kind kind() { return kind; }
@@ -71,9 +84,12 @@ public final class VfxTrackedTransformProvider implements VfxTransformProvider {
     public BlockPos blockPos() { return blockPos; }
     public VfxTransform fixedPose() { return fixed; }
     public VfxTransform local() { return local; }
+    public String socketName() { return socket; }
 
     @Override public VfxTransform get(float partialTick) {
         VfxTransform root = sampler.get(partialTick);
+        if (root != null && socket != null && level.get() != null && level.get().isClientSide())
+            root = ClientVfxAccess.sampleSocket(entity.get(), blockEntity.get(), socket, partialTick);
         return root == null ? null : root.compose(local);
     }
 }

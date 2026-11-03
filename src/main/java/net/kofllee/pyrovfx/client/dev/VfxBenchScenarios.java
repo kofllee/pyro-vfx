@@ -44,6 +44,12 @@ public final class VfxBenchScenarios {
         scenarios.put("m7_network_auto", new Scenario("m7_network_auto",
                 ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/event_order"),
                 0, 0x4D75_2026L, 5, 95));
+        scenarios.put("m7_network_sockets", new Scenario("m7_network_sockets",
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "museum/source_entity_world"),
+                0, 0x4D76_2026L, 5, 145));
+        scenarios.put("m7_network_late", new Scenario("m7_network_late",
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "museum/source_custom"),
+                0, 0x4D77_2026L, 5, 125));
         add(scenarios, "model_1k", "bench/model", 1_000);
         add(scenarios, "model_translucent_1k", "bench/model_translucent", 1_000);
         add(scenarios, "model_entity_250", "bench/model_entity", 250);

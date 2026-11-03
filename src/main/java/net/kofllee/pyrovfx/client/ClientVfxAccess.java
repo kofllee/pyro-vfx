@@ -2,6 +2,8 @@ package net.kofllee.pyrovfx.client;
 
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import net.kofllee.pyrovfx.client.vfx.VfxTransformProviders;
+import net.kofllee.pyrovfx.client.vfx.VfxSockets;
+import net.kofllee.pyrovfx.vfx.transform.VfxTransform;
 import net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -35,6 +37,11 @@ public final class ClientVfxAccess {
         return ready() ? ClientVfxManager.playManaged(id, source, parameters) : 0;
     }
 
+    public static long play(ResourceLocation id, VfxTransformProvider source,
+                            Map<String, Double> parameters, int elapsedTicks) {
+        return ready() ? ClientVfxManager.playManaged(id, source, parameters, elapsedTicks) : 0;
+    }
+
     /** Null means the source cannot be captured on this client thread/world. */
     public static VfxTransformProvider sourceEntity(Entity entity) {
         return ready() && entity != null && entity.level() == Minecraft.getInstance().level
@@ -50,6 +57,16 @@ public final class ClientVfxAccess {
     public static VfxTransformProvider sourceBlockEntity(BlockEntity entity) {
         return ready() && entity != null && entity.getLevel() == Minecraft.getInstance().level
                 ? VfxTransformProviders.blockEntity(entity) : null;
+    }
+
+    public static VfxTransform sampleSocket(Entity entity, BlockEntity blockEntity,
+                                            String socket, float partialTick) {
+        if (!ready()) return null;
+        if (entity != null && entity.level() == Minecraft.getInstance().level)
+            return VfxSockets.resolve(entity, socket, partialTick);
+        if (blockEntity != null && blockEntity.getLevel() == Minecraft.getInstance().level)
+            return VfxSockets.resolve(blockEntity, socket, partialTick);
+        return null;
     }
 
     public static boolean active(long id) {

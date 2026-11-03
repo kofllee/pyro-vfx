@@ -57,6 +57,8 @@ public final class VfxMuseumWorld {
                                 VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "entity")))
                         .then(literal("offset").executes(ctx ->
                                 VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "offset")))
+                        .then(literal("socket").executes(ctx ->
+                                VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "socket")))
                         .then(literal("block").executes(ctx ->
                                 VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "block")))
                         .then(literal("stream").executes(ctx ->

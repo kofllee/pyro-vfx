@@ -2,6 +2,7 @@ package net.kofllee.pyrovfx.client;
 
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import net.kofllee.pyrovfx.client.vfx.VfxTransformProviders;
+import net.kofllee.pyrovfx.api.Vfx;
 import net.kofllee.pyrovfx.network.VfxPackets;
 import net.kofllee.pyrovfx.vfx.transform.VfxTransform;
 import net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider;
@@ -48,8 +49,10 @@ public final class ClientVfxNetwork {
         RemotePose streamedPose;
         long handle;
         int waitTicks;
+        int elapsedTicks;
         Remote(VfxPackets.Start m) {
             id = m.id(); effect = m.effect(); parameters = new HashMap<>(m.parameters()); anchor = m.anchor();
+            elapsedTicks = m.elapsedTicks();
             if (anchor.kind() == VfxPackets.Anchor.STREAM) streamedPose = new RemotePose(anchor.pose());
         }
     }
@@ -81,6 +84,8 @@ public final class ClientVfxNetwork {
                 continue;
             }
             if (tryStart(remote)) continue;
+            remote.elapsedTicks = Math.min(VfxPackets.Start.MAX_ELAPSED_TICKS,
+                    remote.elapsedTicks + 1);
             if (++remote.waitTicks > SOURCE_GRACE_TICKS) it.remove();
         }
     }
@@ -96,7 +101,7 @@ public final class ClientVfxNetwork {
     private static boolean tryStart(Remote remote) {
         VfxTransformProvider source = resolve(remote);
         if (source == null) return false;
-        remote.handle = ClientVfxAccess.play(remote.effect, source, remote.parameters);
+        remote.handle = ClientVfxAccess.play(remote.effect, source, remote.parameters, remote.elapsedTicks);
         if (remote.handle != 0) {
             while (!remote.pendingEvents.isEmpty())
                 ClientVfxManager.triggerHandle(remote.handle, remote.pendingEvents.removeFirst());
@@ -113,8 +118,11 @@ public final class ClientVfxNetwork {
             case VfxPackets.Anchor.STREAM -> remote.streamedPose;
             case VfxPackets.Anchor.ENTITY -> {
                 Entity entity = world.getEntity(anchor.entityId());
-                yield entity != null && !entity.isRemoved() && entity.getUUID().equals(anchor.entityUuid())
-                        ? VfxTransformProviders.entity(entity) : null;
+                if (entity == null || entity.isRemoved() || !entity.getUUID().equals(anchor.entityUuid()))
+                    yield null;
+                VfxTransformProvider provider = anchor.socket().isEmpty()
+                        ? VfxTransformProviders.entity(entity) : Vfx.at(entity).socket(anchor.socket());
+                yield provider.get(1.0f) == null ? null : provider;
             }
             case VfxPackets.Anchor.BLOCK -> {
                 if (world.getChunkSource().getChunk(anchor.block().getX() >> 4,
@@ -128,8 +136,10 @@ public final class ClientVfxNetwork {
                         anchor.block().getZ() >> 4,
                         net.minecraft.world.level.chunk.status.ChunkStatus.FULL, false) == null) yield null;
                 BlockEntity entity = world.getBlockEntity(anchor.block());
-                yield entity != null && !entity.isRemoved()
-                        ? VfxTransformProviders.blockEntity(entity) : null;
+                if (entity == null || entity.isRemoved()) yield null;
+                VfxTransformProvider provider = anchor.socket().isEmpty()
+                        ? VfxTransformProviders.blockEntity(entity) : Vfx.at(entity).socket(anchor.socket());
+                yield provider.get(1.0f) == null ? null : provider;
             }
             default -> null;
         };

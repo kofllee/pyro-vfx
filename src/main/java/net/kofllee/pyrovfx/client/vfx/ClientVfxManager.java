@@ -79,6 +79,12 @@ public final class ClientVfxManager {
 
     /** Public API backing. Returns zero on rejection; never creates an instance outside a client world. */
     public static long playManaged(ResourceLocation id, VfxTransformProvider provider, Map<String, Double> parameters) {
+        return playManaged(id, provider, parameters, 0);
+    }
+
+    /** Start a late remote observer at the server's effect/emitter phase. */
+    public static long playManaged(ResourceLocation id, VfxTransformProvider provider,
+                                   Map<String, Double> parameters, int elapsedTicks) {
         ClientLevel level = trackWorld();
         VfxDefinition definition = id == null ? null : VfxRegistry.get(id);
         if (level == null || definition == null || provider == null || parameters == null
@@ -94,6 +100,7 @@ public final class ClientVfxManager {
         }
         try {
             ClientVfxInstance instance = new ClientVfxInstance(definition, provider, options.build());
+            if (elapsedTicks > 0) instance.seekElapsed(elapsedTicks);
             long handleId = nextHandleId++;
             instance.publicHandleId(handleId);
             INSTANCES.add(instance);

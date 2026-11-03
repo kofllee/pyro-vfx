@@ -48,6 +48,19 @@ public final class ClientVfxEmitter {
 
     private final double emitterRandom;
 
+    /** Jump the emitter's clock without producing particles from past ticks. */
+    void seekElapsed(int elapsed) {
+        if (elapsed <= 0) return;
+        age = elapsed;
+        creationTriggersFired = true;
+        expirationTriggersFired = VfxLifetimeRuntime.emitter(
+                definition.emitterLifetime().mode(), age, delayTicks, activeTicks, sleepTicks, loops).finished();
+        if (definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.ONCE
+                && elapsed > delayTicks)
+            lastInstantAge = 0;
+        // For a looping instant emitter, the next cycle still spawns normally.
+    }
+
 
     private final List<ClientVfxParticle> particles = new ArrayList<>();
     private final List<ClientVfxParticle> pendingParticles = new ArrayList<>();

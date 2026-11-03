@@ -33,8 +33,11 @@ public final class VfxNetworkGameTests {
                 VfxPackets.Anchor.fixed(pose),
                 VfxPackets.Anchor.stream(pose),
                 VfxPackets.Anchor.entity(19, UUID.randomUUID(), pose, local),
+                VfxPackets.Anchor.entity(22, UUID.randomUUID(), pose, local, "head"),
                 VfxPackets.Anchor.block(new BlockPos(2, 4, 6), false, pose, local),
-                VfxPackets.Anchor.block(new BlockPos(2, 4, 6), true, pose, local)
+                VfxPackets.Anchor.block(new BlockPos(2, 4, 6), true, pose, local),
+                VfxPackets.Anchor.block(new BlockPos(2, 4, 6), true, pose, local,
+                        "pyrotechnica:muzzle")
         };
         FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
         try {
@@ -44,6 +47,7 @@ public final class VfxNetworkGameTests {
                 if (value.kind() != decoded.kind() || value.entityId() != decoded.entityId()
                         || !value.entityUuid().equals(decoded.entityUuid())
                         || !value.block().equals(decoded.block())
+                        || !value.socket().equals(decoded.socket())
                         || value.pose().position().distanceTo(decoded.pose().position()) > 1e-8
                         || Math.abs(value.pose().rotation().dot(decoded.pose().rotation())) < 0.99999f
                         || value.local().position().distanceTo(decoded.local().position()) > 1e-8
@@ -61,6 +65,12 @@ public final class VfxNetworkGameTests {
             } catch (IllegalArgumentException expected) {
                 // Expected.
             }
+            // Infinite server leases may run much longer than the ten-minute
+            // *finite* lease limit. Late clients must retain their real phase.
+            new VfxPackets.Start(UUID.randomUUID(),
+                    ResourceLocation.withDefaultNamespace("overworld"),
+                    ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/event_order"),
+                    VfxPackets.Anchor.fixed(pose), Map.of(), 20 * 60 * 60);
             buffer.clear();
             buffer.writeByte(VfxPackets.Anchor.ENTITY);
             buffer.writeVarInt(7);
@@ -73,9 +83,25 @@ public final class VfxNetworkGameTests {
             buffer.writeFloat(0);
             buffer.writeFloat(0);
             buffer.writeFloat(1);
+            buffer.writeUtf("", 128);
             try {
                 VfxPackets.readAnchor(buffer);
                 throw new AssertionError("Non-finite network local offset was accepted");
+            } catch (IllegalArgumentException expected) {
+                // Expected.
+            }
+            try {
+                VfxPackets.Anchor.block(BlockPos.ZERO, false, pose, local, "head");
+                throw new AssertionError("Plain block unexpectedly accepted an animated socket");
+            } catch (IllegalArgumentException expected) {
+                // Expected.
+            }
+            try {
+                new VfxPackets.Start(UUID.randomUUID(),
+                        ResourceLocation.withDefaultNamespace("overworld"),
+                        ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/event_order"),
+                        VfxPackets.Anchor.fixed(pose), Map.of(), -1);
+                throw new AssertionError("Negative remote timeline age accepted");
             } catch (IllegalArgumentException expected) {
                 // Expected.
             }
@@ -165,6 +191,41 @@ public final class VfxNetworkGameTests {
         helper.runAfterDelay(3, () -> {
             if (handle.isActive()) throw new AssertionError("Removed entity retained remote effect");
             helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty", timeoutTicks = 70)
+    public static void thousandStationaryEffectsUseBatchedAudienceChecks(GameTestHelper helper) {
+        var level = helper.getLevel();
+        var effect = ResourceLocation.fromNamespaceAndPath("pyro_vfx", "museum/source_custom");
+        Vec3 position = Vec3.atCenterOf(helper.absolutePos(new BlockPos(1, 1, 1)));
+        var handles = new java.util.ArrayList<VfxRemoteHandle>();
+        try {
+            for (int i = 0; i < 1_000; i++) {
+                var handle = ServerVfxNetwork.play(level, effect, position,
+                        Map.of(), 32, 60);
+                if (!handle.isActive())
+                    throw new AssertionError("Cannot initialize 1,000 active server VFX leases: " + i);
+                handles.add(handle);
+            }
+        } catch (Throwable error) {
+            handles.forEach(VfxRemoteHandle::stop);
+            throw error;
+        }
+        helper.runAfterDelay(12, () -> {
+            try {
+                var counters = ServerVfxNetwork.telemetry(level);
+                if (counters == null || counters.effects() < 1_000
+                        || counters.audienceScans() > 400)
+                    throw new AssertionError("Static audience refreshes were not throttled: " + counters);
+                org.slf4j.LoggerFactory.getLogger(VfxNetworkGameTests.class).info(
+                        "Pyro network 1000-effect stress: {} ms server VFX tick, {} audience scans, {} candidate player checks, {} actual players",
+                        String.format(java.util.Locale.ROOT, "%.3f", counters.networkTickNanos() / 1e6),
+                        counters.audienceScans(), counters.playerChecks(), counters.players());
+                helper.succeed();
+            } finally {
+                handles.forEach(VfxRemoteHandle::stop);
+            }
         });
     }
 }

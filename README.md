@@ -6,7 +6,7 @@ It provides a reusable effect format with programmable emitters, expressions, cu
 
 > **Project status: actively developed experimental engine**
 >
-> M0–M4 implement the CPU/GPU backends, and M5 adds shared runtime safety budgets. Targeted correctness and real-client scenarios pass, but this is not yet production ready: long soaks, driver/modpack combinations and multiplayer compatibility remain unverified.
+> M0–M4 implement the CPU/GPU backends, and M5 adds shared runtime safety budgets. Targeted correctness, integrated-client scenarios and an independent two-client localhost dedicated-server acceptance test pass, but this is not yet production ready: long soaks, driver/modpack combinations and real-network/high-player-count compatibility remain unverified.
 
 M6 is in progress: Pyro VFX no longer delegates particle lifetime to
 Minecraft ParticleEngine, analytic GPU sprites support constant-parameter UV
@@ -74,14 +74,14 @@ Pyro VFX currently includes:
   with one `VfxHandle` on client and logical server; parameters, events and
   runtime attachment changes work through the same interface.
 - NeoForge clientbound effect synchronization with Entity/Block sources,
-  networked `Vfx.at(...).offset(...).rotate(...)` chains, bounded audiences/
-  leases, and automatic or explicit streaming for custom Java transforms.
+  networked `Vfx.at(...).socket(...).offset(...).rotate(...)` chains, bounded
+  audiences/leases, and automatic or explicit streaming for custom Java transforms.
 
 Normal integration does not require packet or networking code:
 
 ```java
 VfxHandle trail = Vfx.play(ROCKET_TRAIL,
-        Vfx.at(rocket).offset(0, 0, -0.5).rotate(0, 90, 0));
+        Vfx.at(rocket).socket("head").offset(0, 0, -0.5).rotate(0, 90, 0));
 Vfx.play(IMPACT, level, impactPosition);
 trail.setParameter("density", 1.5);
 trail.stop();
@@ -93,9 +93,16 @@ Built-in transform chains synchronize by vanilla source identity. Arbitrary
 server Java callbacks can be automatically streamed with `Vfx.play(id, level,
 callback)`. For options, game-thread rules and avoiding duplicate calls on
 both sides, see [docs/PUBLIC_API.md](docs/PUBLIC_API.md).
+Vanilla ModelParts and chest lids can be addressed by `socket("head")` or
+`socket("lid")`. Named custom sockets use client-only
+`VfxSockets.registerEntity/registerBlockEntity` resolvers; the server only
+sends their identifiers. Late network viewers start at the current timeline
+phase, not at effect age zero, but previously emitted particles are not
+reconstructed.
 For the underlying protocol and exact limitations, see
-[docs/NETWORKING.md](docs/NETWORKING.md). Independent multi-client testing
-remains unverified.
+[docs/NETWORKING.md](docs/NETWORKING.md). Independent two-client localhost
+testing passes; real Internet conditions and large player populations remain
+unverified.
 
 A detailed feature status is available in [docs/STATUS.md](docs/STATUS.md).
 
@@ -203,6 +210,7 @@ example_mod:smoke/burst
 /pyrovfx play_at <effect> <position>
 /pyrovfx play_at <effect> <position> <parameters>
 /pyrovfx stop_all
+/pyrovfx sockets
 ```
 
 Examples:
@@ -274,8 +282,8 @@ by the server when a Level is provided. See
 The current prototype does not include:
 
 - an in-game VFX editor;
-- generic named-bone network serialization (server-provided socket transforms and client-local model-part callbacks are supported instead);
-- automated verification with two independently connected real clients;
+- automatic sockets for arbitrary non-vanilla renderer models or animation libraries without a mod-provided resolver (vanilla `ModelPart` and chest sockets are supported);
+- extended multiplayer soak/packet-byte benchmarks under real Internet conditions (two independent localhost clients already passed);
 - detailed per-effect profiling (global counters and benchmark reports are available);
 - per-render-type budgets and distance-based spawn LOD (global caps and render frustum/size LOD exist);
 - stable performance guarantees for large particle counts;

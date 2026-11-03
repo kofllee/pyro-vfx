@@ -13,6 +13,18 @@ public interface VfxTransformProvider {
     VfxTransform get(float partialTick);
 
     /**
+     * Select a named client-resolved attachment on a tracked Entity or BlockEntity.
+     * For vanilla living entities, paths such as "head" and "body/right_arm"
+     * refer to ModelParts. Namespaced sockets may be supplied by other mods.
+     * The source identity is retained for server networking.
+     */
+    default VfxTransformProvider socket(String name) {
+        if (this instanceof VfxTrackedTransformProvider tracked)
+            return tracked.withSocket(name);
+        throw new IllegalStateException("Named VFX sockets need Vfx.at(entity) or Vfx.at(blockEntity)");
+    }
+
+    /**
      * Offsets the effect in the source's local axes.
      * Returns a new provider; this provider is unchanged.
      */

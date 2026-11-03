@@ -47,6 +47,12 @@ public final class VfxUnifiedApiGameTests {
         if (!(rocketNozzle instanceof VfxTrackedTransformProvider tracked)
                 || tracked.kind() != VfxTrackedTransformProvider.Kind.ENTITY)
             throw new AssertionError("Nested operations lost entity identity");
+        var headSocket = Vfx.at(pig).socket("head")
+                .offset(0, 0.25, 0).rotate(0, 90, 0);
+        if (!(headSocket instanceof VfxTrackedTransformProvider headTracked)
+                || !"head".equals(headTracked.socketName())
+                || headTracked.kind() != VfxTrackedTransformProvider.Kind.ENTITY)
+            throw new AssertionError("Named socket/offset chain lost tracked entity identity");
         VfxTransform rootPose = new VfxTransform(pig.position(), new Quaternionf().rotationYXZ(
                 (float) Math.toRadians(-pig.getYRot()), (float) Math.toRadians(pig.getXRot()), 0));
         VfxTransform expected = rootPose
@@ -65,6 +71,8 @@ public final class VfxUnifiedApiGameTests {
         var blockEntity = Vfx.at(chest).offset(0.1, 0.2, -0.3).rotate(10, 20, 30);
         if (!(block instanceof VfxTrackedTransformProvider)
                 || !(blockEntity instanceof VfxTrackedTransformProvider)
+                || !effect.attach(headSocket)
+                || !effect.attach(Vfx.at(chest).socket("pyrotechnica:lid"))
                 || !effect.attach(block) || !effect.attach(blockEntity)
                 || !effect.attach(rocketNozzle))
             throw new AssertionError("Rebinding a network instance lost its source");

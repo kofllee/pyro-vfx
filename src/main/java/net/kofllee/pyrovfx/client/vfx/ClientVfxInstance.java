@@ -176,6 +176,29 @@ public final class ClientVfxInstance {
         this(definition, position, VfxPlayOptions.empty());
     }
 
+    /**
+     * Align effect and emitter timelines on late network Start without replaying
+     * historic spawns, collisions or already-fired events. This is phase sync,
+     * not a reconstruction of preexisting particle state.
+     */
+    public void seekElapsed(int elapsed) {
+        if (elapsed <= 0) return;
+        age = Math.clamp(elapsed, 0, 2_000_000_000);
+        creationTriggersFired = true;
+        expirationTriggersFired = lifetimeState().finished();
+        int activeElapsed;
+        int afterDelay = Math.max(0, age - delayTicks);
+        if (definition.lifetime().mode() == net.kofllee.pyrovfx.vfx.type.VfxLifetimeMode.ONCE) {
+            activeElapsed = Math.min(activeTicks, afterDelay);
+        } else {
+            long cycle = (long) activeTicks + sleepTicks;
+            long capped = loops > 0 && cycle > 0 ? Math.min(afterDelay, cycle * loops) : afterDelay;
+            activeElapsed = cycle <= 0 ? 0 : (int) Math.min(Integer.MAX_VALUE,
+                    (capped / cycle) * activeTicks + Math.min(capped % cycle, activeTicks));
+        }
+        for (var emitter : emitters) emitter.seekElapsed(activeElapsed);
+    }
+
     private static Map<String, Double> resolveParameters(
             VfxDefinition definition,
             VfxExpressionContext effectStartContext,
@@ -351,6 +374,9 @@ public final class ClientVfxInstance {
     public VfxDefinition definition() {
         return definition;
     }
+
+    /** Current effect timeline position (including any late remote phase offset). */
+    public int ageTicks() { return age; }
 
     /** Cost sampled in the manager; never attributes other mod or GPU work. */
     void recordCpuTime(long elapsedNs) {

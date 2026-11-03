@@ -56,6 +56,30 @@ neoForge {
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
+        // Isolated, opt-in real multiplayer acceptance. Two separately launched
+        // Minecraft clients connect to a localhost-only development server.
+        networkTestServer {
+            server()
+            gameDirectory = project.file('run-network-test-server')
+            programArgument '--nogui'
+            systemProperty 'pyrovfx.multiclient.server', 'true'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+        networkTestClientA {
+            client()
+            gameDirectory = project.file('run-network-test-client-a')
+            programArguments.addAll '--quickPlayMultiplayer', '127.0.0.1:25575',
+                    '--username', 'PyroA', '--width', '960', '--height', '540'
+            systemProperty 'pyrovfx.multiclient.client', 'A'
+        }
+        networkTestClientB {
+            client()
+            gameDirectory = project.file('run-network-test-client-b')
+            programArguments.addAll '--quickPlayMultiplayer', '127.0.0.1:25575',
+                    '--username', 'PyroB', '--width', '960', '--height', '540'
+            systemProperty 'pyrovfx.multiclient.client', 'B'
+        }
+
         clientBench {
             client()
             programArguments.addAll '--quickPlaySingleplayer', providers.gradleProperty('benchWorld').orElse('Test VFX').get()

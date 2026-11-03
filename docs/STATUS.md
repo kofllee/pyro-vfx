@@ -52,24 +52,39 @@ client-local or logical-server broadcast by source Level. Normal calls
 return one `VfxHandle`, with optional `VfxOptions` (96-block radius,
 1200-tick bounded lease by default). Existing explicit network overloads
 remain compatible. Built-in `Vfx.at(Entity/BlockEntity/Level+BlockPos)`
-provider chains now preserve their source identity and composed local
-translation/rotation across NeoForge v2 payloads. Arbitrary Java providers
+provider chains now preserve their source identity, optional named sockets,
+and composed local translation/rotation across NeoForge v3 payloads. Arbitrary Java providers
 with an explicit Level are automatically sampled/streamed by the server; manual
 `updatePose` remains optional for explicit streams. Packets carry instance
 commands, source IDs and local transforms, **not particle state or Java code**.
 Viewers are filtered by dimension, composed world-space distance and the
 original source chunk.
 
-The latest dedicated-server regression passes **86/86 GameTests**,
-including nested transform composition, v2 packet local-pose serialization,
+The latest dedicated-server regression passes **87/87 GameTests**,
+including nested transform composition, v3 packet local-pose/socket serialization,
 source cleanup and automatic server callback streaming. Integrated-client
 scenarios include
 `m7_api_handles` (local handles), `m7_network_sync`
 (Start/Parameter/Trigger/Stop), `m7_network_attachments`
 (composed Entity/Block offsets and rotations, Rebind, source removal, Stop),
-and `m7_network_auto` (automatic callback pose movement, rebind and cleanup).
-Actual two-client networking, network traffic percentiles, late-joining
-animation phase consistency and adverse network conditions are **not verified**.
+and `m7_network_auto` (automatic callback pose movement, rebind and cleanup),
+`m7_network_sockets` (vanilla head, chest lid, client-registered socket and
+rebind), and `m7_network_late` (leaving and returning to the radius at the
+same server timeline phase). The server sends named socket IDs instead of
+continuously streaming client-only bone transforms. Late viewers align
+effect/emitter age but do not reconstruct preexisting particles or random
+event state. Server spatial audience bins, staggered 4-tick refreshes, and
+per-tick CPU/packet counters reduce and expose audience-check costs.
+The 1,000-effect zero-player server GameTest measures the new audience scheduling.
+An **actual independent two-client dedicated-server acceptance** also passed:
+`PyroA` 8/8 checks and `PyroB` 8/8 checks, including audience exit/return,
+dimension change, source removal/recreation, socket transforms and cleanup.
+The same localhost server measured **1,000 effects and 2 connected players**
+at **254 audience scans, 508 player candidate checks and 0.310 ms** of server
+VFX networking on one sampled tick. Effects were deliberately out of both
+players' packet audiences; this is not a bandwidth or p95 benchmark.
+High-player-count network throughput, precise deterministic show replay,
+nonlocal latency, adverse networks and large modpacks remain **unverified**.
 See [NETWORKING.md](NETWORKING.md) for protocol, limitations and replay steps.
 
 ## Stable prototype features

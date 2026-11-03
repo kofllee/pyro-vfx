@@ -42,7 +42,7 @@ public final class VfxNetworkMuseum {
         Vec3 center = player.position().add(0, 1.7, 0);
         ResourceLocation effect = ResourceLocation.fromNamespaceAndPath("pyro_vfx",
                 switch (kind) {
-                    case "entity", "offset" -> "museum/source_entity_world";
+                    case "entity", "offset", "socket" -> "museum/source_entity_world";
                     case "block" -> "museum/source_block";
                     case "stream", "auto" -> "museum/source_custom";
                     case "event" -> "examples/event_sequence";
@@ -55,6 +55,8 @@ public final class VfxNetworkMuseum {
             case "entity" -> Vfx.play(effect, player, options);
             case "offset" -> Vfx.play(effect, Vfx.at(player)
                     .offset(0, 1.0, -0.5).rotate(0, 90, 0).offset(0.25, 0, 0), options);
+            case "socket" -> Vfx.play(effect, Vfx.at(player)
+                    .socket("head").offset(0, 0.2, -0.25), options);
             case "block" -> Vfx.play(effect, level, player.blockPosition().below(), options);
             case "stream" -> Vfx.playStreamed(effect, level, VfxTransform.at(center), options);
             case "auto" -> Vfx.play(effect, level, partialTick -> {
@@ -100,8 +102,16 @@ public final class VfxNetworkMuseum {
     }
 
     public static int status(ServerPlayer player) {
+        var metrics = ServerVfxNetwork.telemetry(player.serverLevel());
         player.sendSystemMessage(Component.literal("Remote VFX leases in this dimension: "
-                + ServerVfxNetwork.liveCount(player.serverLevel())));
+                + ServerVfxNetwork.liveCount(player.serverLevel())
+                + (metrics == null ? "" : ", players=" + metrics.players()
+                + ", audience scans=" + metrics.audienceScans()
+                + ", candidates checked=" + metrics.playerChecks()
+                + ", Start/Stop/Pose=" + metrics.starts() + "/" + metrics.stops()
+                + "/" + metrics.posePackets()
+                + ", network tick=" + String.format(java.util.Locale.ROOT, "%.3f ms",
+                        metrics.networkTickNanos() / 1e6))));
         return 1;
     }
 

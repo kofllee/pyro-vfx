@@ -70,6 +70,9 @@ public final class PyroVfxClientCommands {
                         .then(literal("backend")
                                 .executes(context -> showBackends())
                         )
+                        .then(literal("sockets")
+                                .executes(context -> showSockets())
+                        )
                         .then(VfxMuseumClient.commands())
                         .then(literal("play_at")
                                 .then(argument("effect", ResourceLocationArgument.id())
@@ -115,6 +118,34 @@ public final class PyroVfxClientCommands {
                     )
             );
         }
+    }
+
+    private static int showSockets() {
+        var minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) return 0;
+        if (minecraft.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit) {
+            var blockEntity = minecraft.level.getBlockEntity(hit.getBlockPos());
+            if (blockEntity != null) {
+                var blockPaths = new java.util.ArrayList<>(
+                        net.kofllee.pyrovfx.client.vfx.VfxSockets.vanillaParts(blockEntity));
+                java.util.Collections.sort(blockPaths);
+                minecraft.player.displayClientMessage(Component.literal("VFX sockets on block "
+                        + hit.getBlockPos() + ": " + (blockPaths.isEmpty()
+                        ? "no supported vanilla socket" : String.join(", ", blockPaths))), false);
+                return blockPaths.isEmpty() ? 0 : 1;
+            }
+        }
+        net.minecraft.world.entity.Entity target = minecraft.crosshairPickEntity;
+        if (target == null && minecraft.hitResult instanceof net.minecraft.world.phys.EntityHitResult hit)
+            target = hit.getEntity();
+        if (target == null) target = minecraft.player;
+        var parts = new java.util.ArrayList<>(
+                net.kofllee.pyrovfx.client.vfx.VfxSockets.vanillaParts(target, 1.0f));
+        java.util.Collections.sort(parts);
+        minecraft.player.displayClientMessage(Component.literal("VFX sockets on "
+                + target.getDisplayName().getString() + ": "
+                + (parts.isEmpty() ? "no vanilla ModelParts" : String.join(", ", parts))), false);
+        return parts.isEmpty() ? 0 : 1;
     }
 
     private static int playEffectAtWithParameters(

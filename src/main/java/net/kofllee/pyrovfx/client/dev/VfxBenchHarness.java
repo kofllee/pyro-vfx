@@ -309,6 +309,18 @@ public final class VfxBenchHarness {
                 } catch (Exception exception) {
                     run.error = "Network auto-stream setup: " + exception;
                 }
+            } else if (run.scenario.name().equals("m7_network_sockets")) {
+                try {
+                    run.networkSockets = VfxM7SocketProbe.start(run.scenario.effect(), effectPosition);
+                } catch (Exception exception) {
+                    run.error = "Network sockets setup: " + exception;
+                }
+            } else if (run.scenario.name().equals("m7_network_late")) {
+                try {
+                    run.networkLate = VfxM7LateJoinProbe.start(run.scenario.effect(), effectPosition);
+                } catch (Exception exception) {
+                    run.error = "Late viewer setup: " + exception;
+                }
             } else if (run.scenario.name().equals("global_budget_spike")) {
                 // Heavy override remains DISABLED: exercise production global admission.
                 var request = VfxPlayOptions.builder().param("count",
@@ -431,6 +443,20 @@ public final class VfxBenchHarness {
                 run.error = "Automatic network streaming check: " + exception;
             }
         }
+        if (run.networkSockets != null && run.error == null) {
+            try {
+                run.networkSockets.afterTick(index);
+            } catch (Exception exception) {
+                run.error = "Vanilla/custom socket check: " + exception;
+            }
+        }
+        if (run.networkLate != null && run.error == null) {
+            try {
+                run.networkLate.afterTick(index);
+            } catch (Exception exception) {
+                run.error = "Late viewer phase check: " + exception;
+            }
+        }
         boolean soak = run.scenario.name().equals("soak_mixed");
         if (((run.scenario.name().equals("reload_active")
                 || run.scenario.name().equals("model_reload_active")
@@ -519,6 +545,12 @@ public final class VfxBenchHarness {
             if (run.scenario.name().equals("m7_network_auto")
                     && (run.networkAuto == null || !run.networkAuto.verified()) && run.error == null)
                 run.error = "Automatic network callback streaming verification did not complete";
+            if (run.scenario.name().equals("m7_network_sockets")
+                    && (run.networkSockets == null || !run.networkSockets.verified()) && run.error == null)
+                run.error = "Vanilla/custom model socket verification did not complete";
+            if (run.scenario.name().equals("m7_network_late")
+                    && (run.networkLate == null || !run.networkLate.verified()) && run.error == null)
+                run.error = "Late viewer phase verification did not complete";
             if (run.scenario.name().equals("soak_mixed")
                     && (run.reloadCyclesCompleted != 3 || run.peakParticles < 50)) {
                 run.error = "Mixed workload did not complete all 3 reloads or produce enough particles: "
@@ -870,6 +902,8 @@ public final class VfxBenchHarness {
         VfxM7NetworkProbe network;
         VfxM7NetworkAttachmentsProbe networkAttachments;
         VfxM7AutoStreamProbe networkAuto;
+        VfxM7SocketProbe networkSockets;
+        VfxM7LateJoinProbe networkLate;
         boolean worldExitRequested;
         boolean worldExitVerified;
         net.kofllee.pyrovfx.client.vfx.ClientVfxEmitter worldExitEmitter;

@@ -63,7 +63,7 @@ call `stop()` yourself. The networking backend enforces the existing
 limits (256-block maximum radius, 10-minute maximum finite lease,
 32 parameters and 4096 live instances per dimension).
 
-## Transform Providers: offset/rotate work on both sides
+## Transform Providers: named sockets, offset/rotate and both logical sides
 
 ```java
 VfxTransformProvider nozzle = Vfx.at(rocket)
@@ -78,6 +78,12 @@ smokeTrail.detach();
 Vfx.play(smoke, Vfx.at(level, blockPos).offset(0, 0.5, 0));
 Vfx.play(smoke, Vfx.at(level, hitPosition).rotate(0, 90, 0));
 Vfx.play(smoke, Vfx.at(blockEntity).offset(0, 0.5, 0));
+
+// Animated vanilla model parts are resolved on the client by name.
+Vfx.play(smoke, Vfx.at(rocket).socket("head").offset(0, 0.1, -0.3));
+
+// Animated vanilla chest/ender-chest lid.
+Vfx.play(smoke, Vfx.at(chest).socket("lid").offset(0, 0.2, 0));
 ```
 
 All built-in `Vfx.at(Entity)`, `Vfx.at(BlockEntity)`,
@@ -91,6 +97,45 @@ The order of transforms matters: `offset(...).rotate(...)` moves along the
 original source axes before rotating; `rotate(...).offset(...)` rotates the
 new offset as well. Entity rotation follows vanilla yaw/pitch. Block sources
 start at the block center with world-aligned axes.
+
+### Named client-resolved sockets
+
+`socket("head")`, `socket("right_arm")`, and nested names such as
+`socket("root/head")` find vanilla `ModelPart` nodes by their tree/field
+names. Standard living-entity animation is replayed client-side even when
+the entity is not drawn by the camera, and renderer model poses are restored
+after sampling. Vanilla chest/ender-chest BlockEntities also expose
+`socket("lid")`, `socket("lock")`, and `socket("bottom")`.
+
+Sockets preserve the Entity/BlockEntity root identity through
+`offset()/rotate()/compose()` and `VfxHandle.attach(...)`, so server playback
+broadcasts **only root identity, socket ID and local pose**, not per-frame
+bone matrices. The client computes the socket's world pose and pauses starting
+an unresolved socket until its source becomes available. No point-name
+registration is needed for supported vanilla models.
+
+For custom model renderers and other animation libraries, register a
+client-side point (use a namespace unique to your mod):
+
+```java
+// Client initialization only. Resolver returns WORLD-space position/rotation.
+VfxSockets.registerEntity("pyrotechnica:muzzle",
+        (entity, partialTick) -> turretMuzzleWorldPose(entity, partialTick));
+
+VfxSockets.registerBlockEntity("pyrotechnica:valve",
+        (blockEntity, partialTick) -> valveWorldPose(blockEntity, partialTick));
+
+// Safe to invoke on logical server: it sends the socket name, not a Java callback.
+Vfx.play(smoke, Vfx.at(turret).socket("pyrotechnica:muzzle"));
+```
+
+`VfxSockets` is `net.kofllee.pyrovfx.client.vfx.VfxSockets` and **must only
+be imported/referenced from client-only code**, not from server common
+initialization. Each client needs a compatible resolver and synchronized
+animation input. Vanilla-model samplers do not reproduce arbitrary custom
+renderer transforms, layer-specific hand/item poses or GeckoLib internals;
+those need explicit mod-owned resolvers. For diagnostics run `/pyrovfx sockets`
+while looking at an Entity, or use `VfxSockets.vanillaParts(...)` in code.
 
 `Vfx.at(BlockPos)` without a Level remains a **client-only shorthand**.
 `Vfx.play(id, Vec3)` and `VfxTransformProvider.fixed(Vec3)` without a Level
@@ -113,10 +158,8 @@ changed pose snapshots through its existing 10 Hz throttled, interpolated
 streaming channel. You do **not** need to call `updatePose()` each tick.
 An arbitrary callback passed without a world (`Vfx.play(id, provider)`) still
 has no way to identify its dimension: that overload remains client-local.
-Server callback code must use server-available state; a client renderer-only
-`ModelPart` or bone callback cannot run on the dedicated server. In that case
-use a server-defined socket transform, or play the callback locally where the
-renderer has the animation data.
+Server callback code must use server-available state. A client-only
+`ModelPart` or other animation can instead use the named `socket()` API above.
 
 Explicit streaming remains available when the mod already has an external
 pose synchronization schedule:
@@ -158,9 +201,12 @@ integrations need neither import.
 - The old `Vfx.play(id, Vec3)`, `Vfx.play(id, BlockPos)`, and
   `Vfx.play(id, Vec3, rotation, ...)` overloads remain **client-local**
   for compatibility because they do not carry a Level.
-- Source identity + local rotation/offset uses NeoForge payload protocol **v2**.
+- Source identity + local rotation/offset and sockets use NeoForge payload protocol **v3**.
   The server and connecting clients need compatible Pyro VFX versions; version
-  1 payloads cannot be decoded as version 2.
+  1/2 payloads cannot be decoded as version 3.
+- Late remote Start includes server elapsed ticks. Future emitter/trigger
+  scheduling uses the current timeline phase; historical particles and random
+  states are not replayed or reconstructed for a late observer.
 
 See [NETWORKING.md](NETWORKING.md) for recipients, transport, retry
 window, lifecycle and other protocol limitations.
@@ -181,5 +227,5 @@ integrated client does not establish two-client compatibility.
 
 ```powershell
 .\gradlew.bat build runGameTestServer --offline --console=plain
-.\gradlew.bat runClientBench '-PbenchScenario=m7_api_handles,m7_network_sync,m7_network_attachments,m7_network_auto' -PbenchWidth=1280 -PbenchHeight=720 --offline --console=plain
+.\gradlew.bat runClientBench '-PbenchScenario=m7_api_handles,m7_network_sync,m7_network_attachments,m7_network_auto,m7_network_sockets,m7_network_late' -PbenchWidth=1280 -PbenchHeight=720 --offline --console=plain
 ```

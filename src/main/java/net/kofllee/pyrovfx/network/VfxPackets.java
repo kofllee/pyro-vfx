@@ -22,8 +22,8 @@ public final class VfxPackets {
     private VfxPackets() {}
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        // Anchor encoding includes a source-local pose in protocol 2.
-        var packets = event.registrar("2");
+        // Protocol 3 adds client-resolved named sockets and server elapsed age.
+        var packets = event.registrar("3");
         packets.playToClient(Start.TYPE, Start.CODEC, (message, context) -> ClientHandler.start(message));
         packets.playToClient(Stop.TYPE, Stop.CODEC, (message, context) -> ClientHandler.stop(message));
         packets.playToClient(Parameter.TYPE, Parameter.CODEC, (message, context) -> ClientHandler.parameter(message));
@@ -34,33 +34,43 @@ public final class VfxPackets {
 
     /** Source identity is explicit, not a serialized Strategy. */
     public record Anchor(byte kind, int entityId, UUID entityUuid, BlockPos block,
-                         VfxTransform pose, VfxTransform local) {
+                         VfxTransform pose, VfxTransform local, String socket) {
         public static final byte FIXED = 0, ENTITY = 1, BLOCK = 2, BLOCK_ENTITY = 3, STREAM = 4;
         private static final VfxTransform IDENTITY = VfxTransform.at(Vec3.ZERO);
         public Anchor {
             if (kind < FIXED || kind > STREAM || entityUuid == null || block == null
-                    || pose == null || local == null)
+                    || pose == null || local == null || socket == null || socket.length() > 128
+                    || (!socket.isEmpty() && (kind != ENTITY && kind != BLOCK_ENTITY))
+                    || (!socket.isEmpty() && !socket.matches("[a-z0-9_.:-]+(?:/[a-z0-9_.:-]+)*")))
                 throw new IllegalArgumentException("Invalid network VFX anchor");
         }
         public static Anchor fixed(VfxTransform pose) {
-            return new Anchor(FIXED, 0, new UUID(0, 0), BlockPos.ZERO, pose, IDENTITY);
+            return new Anchor(FIXED, 0, new UUID(0, 0), BlockPos.ZERO, pose, IDENTITY, "");
         }
         public static Anchor stream(VfxTransform pose) {
-            return new Anchor(STREAM, 0, new UUID(0, 0), BlockPos.ZERO, pose, IDENTITY);
+            return new Anchor(STREAM, 0, new UUID(0, 0), BlockPos.ZERO, pose, IDENTITY, "");
         }
         public static Anchor entity(int id, UUID uuid, VfxTransform pose) {
             return entity(id, uuid, pose, IDENTITY);
         }
         public static Anchor entity(int id, UUID uuid, VfxTransform pose, VfxTransform local) {
-            return new Anchor(ENTITY, id, uuid, BlockPos.ZERO, pose, local);
+            return entity(id, uuid, pose, local, "");
+        }
+        public static Anchor entity(int id, UUID uuid, VfxTransform pose,
+                                    VfxTransform local, String socket) {
+            return new Anchor(ENTITY, id, uuid, BlockPos.ZERO, pose, local, socket);
         }
         public static Anchor block(BlockPos pos, boolean blockEntity, VfxTransform pose) {
             return block(pos, blockEntity, pose, IDENTITY);
         }
         public static Anchor block(BlockPos pos, boolean blockEntity,
                                    VfxTransform pose, VfxTransform local) {
+            return block(pos, blockEntity, pose, local, "");
+        }
+        public static Anchor block(BlockPos pos, boolean blockEntity,
+                                   VfxTransform pose, VfxTransform local, String socket) {
             return new Anchor(blockEntity ? BLOCK_ENTITY : BLOCK, 0,
-                    new UUID(0, 0), pos.immutable(), pose, local);
+                    new UUID(0, 0), pos.immutable(), pose, local, socket);
         }
     }
 
@@ -73,6 +83,7 @@ public final class VfxPackets {
         }
         writeTransform(b, a.pose());
         writeTransform(b, a.local());
+        b.writeUtf(a.socket(), 128);
     }
 
     static Anchor readAnchor(FriendlyByteBuf b) {
@@ -86,7 +97,7 @@ public final class VfxPackets {
             case Anchor.FIXED, Anchor.STREAM -> {}
             default -> throw new IllegalArgumentException("Unknown VFX network anchor " + kind);
         }
-        return new Anchor(kind, id, uuid, pos, readTransform(b), readTransform(b));
+        return new Anchor(kind, id, uuid, pos, readTransform(b), readTransform(b), b.readUtf(128));
     }
 
     static void writeTransform(FriendlyByteBuf b, VfxTransform t) {
@@ -125,12 +136,24 @@ public final class VfxPackets {
     }
 
     public record Start(UUID id, ResourceLocation dimension, ResourceLocation effect, Anchor anchor,
-                        Map<String, Double> parameters) implements CustomPacketPayload {
+                        Map<String, Double> parameters, int elapsedTicks) implements CustomPacketPayload {
+        // The server lease may be indefinite. Do not cap a late observer's phase
+        // at the 10-minute maximum for *finite* leases.
+        public static final int MAX_ELAPSED_TICKS = 2_000_000_000;
+        public Start {
+            if (elapsedTicks < 0 || elapsedTicks > MAX_ELAPSED_TICKS)
+                throw new IllegalArgumentException("Invalid remote VFX elapsed ticks");
+        }
+        public Start(UUID id, ResourceLocation dimension, ResourceLocation effect, Anchor anchor,
+                     Map<String, Double> parameters) {
+            this(id, dimension, effect, anchor, parameters, 0);
+        }
         public static final Type<Start> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath("pyro_vfx", "start"));
         public static final StreamCodec<RegistryFriendlyByteBuf, Start> CODEC = StreamCodec.of(
                 (b, v) -> { b.writeUUID(v.id); b.writeResourceLocation(v.dimension); b.writeResourceLocation(v.effect);
-                            writeAnchor(b, v.anchor); writeParameters(b, v.parameters); },
-                b -> new Start(b.readUUID(), b.readResourceLocation(), b.readResourceLocation(), readAnchor(b), readParameters(b)));
+                            writeAnchor(b, v.anchor); writeParameters(b, v.parameters); b.writeVarInt(v.elapsedTicks); },
+                b -> new Start(b.readUUID(), b.readResourceLocation(), b.readResourceLocation(),
+                        readAnchor(b), readParameters(b), b.readVarInt()));
         @Override public Type<Start> type() { return TYPE; }
     }
 

@@ -40,8 +40,42 @@ public final class ServerVfxNetwork {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final int MAX_LIVE = 4096;
     private static final double MAX_RADIUS = 256;
+    private static final int AUDIENCE_RECHECK_TICKS = 4;
+    private static final int AUDIENCE_BUCKET_BLOCKS = 64;
     private static final Map<ServerLevel, Map<UUID, Remote>> LEVELS = new IdentityHashMap<>();
+    private static final Map<ServerLevel, AudienceIndex> AUDIENCE_INDEX = new IdentityHashMap<>();
+    private static final Map<ServerLevel, TickCounters> ACTIVE_COUNTERS = new IdentityHashMap<>();
+    private static final Map<ServerLevel, NetworkTelemetry> LAST_TELEMETRY = new IdentityHashMap<>();
     private ServerVfxNetwork() {}
+
+    /** Last completed logical server tick, not a synthetic throughput prediction. */
+    public record NetworkTelemetry(int effects, int players, int audienceScans,
+                                   int playerChecks, int starts, int stops,
+                                   int posePackets, long networkTickNanos) {}
+
+    private static final class TickCounters {
+        int scans, checks, starts, stops, poses;
+    }
+
+    private static long bucketKey(int x, int z) {
+        return ((long) x << 32) | (z & 0xffffffffL);
+    }
+
+    /** Spatial bins built once per dimension/tick, used only when cheaper than scanning all players. */
+    private static final class AudienceIndex {
+        final java.util.List<ServerPlayer> players;
+        final Map<Long, java.util.List<ServerPlayer>> buckets = new HashMap<>();
+
+        AudienceIndex(ServerLevel level) {
+            players = level.players();
+            for (ServerPlayer player : players) {
+                if (player.isRemoved()) continue;
+                int x = Math.floorDiv(player.getBlockX(), AUDIENCE_BUCKET_BLOCKS);
+                int z = Math.floorDiv(player.getBlockZ(), AUDIENCE_BUCKET_BLOCKS);
+                buckets.computeIfAbsent(bucketKey(x, z), ignored -> new ArrayList<>()).add(player);
+            }
+        }
+    }
 
     private static class Source {
         final byte kind;
@@ -51,6 +85,7 @@ public final class ServerVfxNetwork {
         final Block originalBlock;
         final WeakReference<BlockEntity> originalBlockEntity;
         final VfxTransform local;
+        final String socket;
         VfxTransform pose;
 
         private Source(byte kind, int entityId, UUID entityUuid, BlockPos blockPos,
@@ -60,17 +95,24 @@ public final class ServerVfxNetwork {
             this.originalBlockEntity = blockEntity == null ? null : new WeakReference<>(blockEntity);
             this.pose = pose;
             this.local = VfxTransform.at(Vec3.ZERO);
+            this.socket = "";
         }
 
         private Source(Source source, VfxTransform local) {
+            this(source, local, source.socket);
+        }
+
+        private Source(Source source, VfxTransform local, String socket) {
             this.kind = source.kind; this.entityId = source.entityId; this.entityUuid = source.entityUuid;
             this.blockPos = source.blockPos; this.originalBlock = source.originalBlock;
             this.originalBlockEntity = source.originalBlockEntity;
             this.pose = source.pose;
             this.local = local;
+            this.socket = socket;
         }
 
         Source withLocal(VfxTransform offset) { return new Source(this, offset); }
+        Source withSocket(String name) { return new Source(this, local, name == null ? "" : name); }
 
         static Source fixed(VfxTransform pose, boolean streamed) {
             return new Source(streamed ? VfxPackets.Anchor.STREAM : VfxPackets.Anchor.FIXED,
@@ -111,9 +153,9 @@ public final class ServerVfxNetwork {
 
         VfxPackets.Anchor anchor(VfxTransform resolved) {
             return switch (kind) {
-                case VfxPackets.Anchor.ENTITY -> VfxPackets.Anchor.entity(entityId, entityUuid, resolved, local);
+                case VfxPackets.Anchor.ENTITY -> VfxPackets.Anchor.entity(entityId, entityUuid, resolved, local, socket);
                 case VfxPackets.Anchor.BLOCK -> VfxPackets.Anchor.block(blockPos, false, resolved, local);
-                case VfxPackets.Anchor.BLOCK_ENTITY -> VfxPackets.Anchor.block(blockPos, true, resolved, local);
+                case VfxPackets.Anchor.BLOCK_ENTITY -> VfxPackets.Anchor.block(blockPos, true, resolved, local, socket);
                 case VfxPackets.Anchor.STREAM -> VfxPackets.Anchor.stream(resolved);
                 default -> VfxPackets.Anchor.fixed(resolved);
             };
@@ -148,6 +190,9 @@ public final class ServerVfxNetwork {
         int lastPoseTick;
         VfxTransform lastSentPose;
         VfxTransformProvider autoProvider;
+        int lastAudienceTick = Integer.MIN_VALUE;
+        VfxTransform lastAudiencePose;
+        BlockPos lastTrackingPos;
 
         Remote(ResourceLocation effect, Source source, Map<String, Double> parameters,
                double radius, int maxTicks) {
@@ -252,7 +297,7 @@ public final class ServerVfxNetwork {
             case FIXED -> provider.fixedPose() == null
                     ? null : Source.fixed(provider.fixedPose(), false);
         };
-        return source == null ? null : source.withLocal(provider.local());
+        return source == null ? null : source.withLocal(provider.local()).withSocket(provider.socketName());
     }
 
     /**
@@ -380,6 +425,8 @@ public final class ServerVfxNetwork {
         remote.lastPoseTick = remote.ticks;
         remote.lastSentPose = pose;
         refresh(level, remote);
+        TickCounters counters = ACTIVE_COUNTERS.get(level);
+        if (counters != null) counters.poses += remote.viewers.size();
         send(level, remote, new VfxPackets.Pose(id, level.dimension().location(), pose));
         return true;
     }
@@ -414,17 +461,28 @@ public final class ServerVfxNetwork {
         VfxTransform pose = remote.source.resolve(level);
         if (pose == null) return;
         BlockPos sourcePos = remote.source.trackingPos(level, pose);
+        remote.lastAudienceTick = remote.ticks;
+        remote.lastAudiencePose = pose;
+        remote.lastTrackingPos = sourcePos;
+        TickCounters counters = ACTIVE_COUNTERS.get(level);
+        if (counters != null) counters.scans++;
         Set<UUID> interested = new HashSet<>();
-        for (ServerPlayer player : level.players()) {
-            if (player.isRemoved() || player.position().distanceToSqr(pose.position()) > remote.radiusSq
-                    || !player.getChunkTrackingView().contains(sourcePos.getX() >> 4,
-                            sourcePos.getZ() >> 4)) continue;
-            interested.add(player.getUUID());
-            if (remote.viewers.add(player.getUUID())) {
-                PacketDistributor.sendToPlayer(player, new VfxPackets.Start(remote.id,
-                        level.dimension().location(), remote.effect, remote.source.anchor(pose),
-                        Map.copyOf(remote.parameters)));
+        AudienceIndex index = AUDIENCE_INDEX.get(level);
+        int minX = Math.floorDiv((int) Math.floor(pose.position().x - Math.sqrt(remote.radiusSq)), AUDIENCE_BUCKET_BLOCKS);
+        int maxX = Math.floorDiv((int) Math.floor(pose.position().x + Math.sqrt(remote.radiusSq)), AUDIENCE_BUCKET_BLOCKS);
+        int minZ = Math.floorDiv((int) Math.floor(pose.position().z - Math.sqrt(remote.radiusSq)), AUDIENCE_BUCKET_BLOCKS);
+        int maxZ = Math.floorDiv((int) Math.floor(pose.position().z + Math.sqrt(remote.radiusSq)), AUDIENCE_BUCKET_BLOCKS);
+        long bins = ((long) maxX - minX + 1) * ((long) maxZ - minZ + 1);
+        if (index != null && bins < index.players.size()) {
+            for (int x = minX; x <= maxX; x++) for (int z = minZ; z <= maxZ; z++) {
+                var players = index.buckets.get(bucketKey(x, z));
+                if (players == null) continue;
+                for (ServerPlayer player : players)
+                    maybeAddViewer(level, remote, pose, sourcePos, player, interested, counters);
             }
+        } else {
+            for (ServerPlayer player : index == null ? level.players() : index.players)
+                maybeAddViewer(level, remote, pose, sourcePos, player, interested, counters);
         }
         for (UUID past : new ArrayList<>(remote.viewers)) {
             if (interested.contains(past)) continue;
@@ -432,7 +490,37 @@ public final class ServerVfxNetwork {
             if (player != null && player.serverLevel() == level)
                 PacketDistributor.sendToPlayer(player, new VfxPackets.Stop(remote.id, level.dimension().location()));
             remote.viewers.remove(past);
+            if (counters != null) counters.stops++;
         }
+    }
+
+    private static void maybeAddViewer(ServerLevel level, Remote remote, VfxTransform pose,
+                                       BlockPos sourcePos, ServerPlayer player, Set<UUID> interested,
+                                       TickCounters counters) {
+        if (counters != null) counters.checks++;
+        if (player.isRemoved() || player.position().distanceToSqr(pose.position()) > remote.radiusSq
+                || !player.getChunkTrackingView().contains(sourcePos.getX() >> 4,
+                        sourcePos.getZ() >> 4)) return;
+        interested.add(player.getUUID());
+        if (remote.viewers.add(player.getUUID())) {
+            PacketDistributor.sendToPlayer(player, new VfxPackets.Start(remote.id,
+                    level.dimension().location(), remote.effect, remote.source.anchor(pose),
+                    Map.copyOf(remote.parameters),
+                    Math.clamp(remote.ticks, 0, VfxPackets.Start.MAX_ELAPSED_TICKS)));
+            if (counters != null) counters.starts++;
+        }
+    }
+
+    private static boolean shouldRefreshAudience(Remote remote, VfxTransform pose, BlockPos sourceChunk) {
+        return remote.lastAudiencePose == null
+                || !sourceChunk.equals(remote.lastTrackingPos)
+                || remote.lastAudiencePose.position().distanceToSqr(pose.position()) > 16.0
+                || (remote.ticks - remote.lastAudienceTick >= AUDIENCE_RECHECK_TICKS
+                    // Effects often start together (e.g. a fireworks show). Spread
+                    // their steady audience scans across ticks to avoid a 1000-
+                    // effect burst every fourth tick.
+                    && Math.floorMod(remote.ticks + remote.id.hashCode(),
+                            AUDIENCE_RECHECK_TICKS) == 0);
     }
 
     @SubscribeEvent
@@ -440,7 +528,13 @@ public final class ServerVfxNetwork {
         for (ServerLevel level : event.getServer().getAllLevels()) {
             var entries = LEVELS.get(level);
             if (entries == null || entries.isEmpty()) continue;
-            for (Remote remote : new ArrayList<>(entries.values())) {
+            long startedNs = System.nanoTime();
+            TickCounters counters = new TickCounters();
+            AudienceIndex index = new AudienceIndex(level);
+            AUDIENCE_INDEX.put(level, index);
+            ACTIVE_COUNTERS.put(level, counters);
+            try {
+              for (Remote remote : new ArrayList<>(entries.values())) {
                 if (!entries.containsKey(remote.id)) continue;
                 if (remote.autoProvider != null) {
                     VfxTransform next = sample(remote.autoProvider);
@@ -456,8 +550,17 @@ public final class ServerVfxNetwork {
                     stop(level, remote.id);
                 } else {
                     if (remote.maxTicks == -1) remote.ticks++;
-                    refresh(level, remote);
+                    VfxTransform currentPose = remote.source.resolve(level);
+                    if (currentPose != null && shouldRefreshAudience(remote, currentPose,
+                            remote.source.trackingPos(level, currentPose))) refresh(level, remote);
                 }
+              }
+            } finally {
+                AUDIENCE_INDEX.remove(level);
+                ACTIVE_COUNTERS.remove(level);
+                LAST_TELEMETRY.put(level, new NetworkTelemetry(entries.size(), index.players.size(),
+                        counters.scans, counters.checks, counters.starts, counters.stops,
+                        counters.poses, System.nanoTime() - startedNs));
             }
         }
     }
@@ -466,10 +569,18 @@ public final class ServerVfxNetwork {
     public static void levelUnload(LevelEvent.Unload event) {
         if (!(event.getLevel() instanceof ServerLevel level)) return;
         var entries = LEVELS.remove(level);
+        AUDIENCE_INDEX.remove(level);
+        ACTIVE_COUNTERS.remove(level);
+        LAST_TELEMETRY.remove(level);
         if (entries != null) for (Remote remote : entries.values()) stopViewers(level, remote);
     }
 
     public static int liveCount(ServerLevel level) {
         return serverThread(level) && LEVELS.containsKey(level) ? LEVELS.get(level).size() : 0;
+    }
+
+    public static NetworkTelemetry telemetry(ServerLevel level) {
+        return serverThread(level) ? LAST_TELEMETRY.getOrDefault(level,
+                new NetworkTelemetry(liveCount(level), level.players().size(), 0, 0, 0, 0, 0, 0)) : null;
     }
 }
