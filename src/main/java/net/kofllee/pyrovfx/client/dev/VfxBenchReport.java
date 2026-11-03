@@ -95,6 +95,8 @@ final class VfxBenchReport {
         root.addProperty("gpuAnalyticUploadBytesTotal", run.analyticUploadBytes);
         root.addProperty("gpuAnalyticDatasetUploadsTotal", run.analyticDatasetUploads);
         root.addProperty("gpuAnalyticDrawCallsTotal", run.analyticDrawCalls);
+        root.addProperty("gpuAnalyticCulledCohortsTotal", run.analyticSkippedCohorts);
+        root.addProperty("gpuAnalyticCulledParticlesTotal", run.analyticSkippedParticles);
         root.addProperty("gpuAnalyticMaxInstancesSubmitted", run.maxAnalyticInstances);
         root.addProperty("gpuAnalyticBirthStateStrideBytes", 24);
         var globalBudget = ClientVfxManager.globalBudget();

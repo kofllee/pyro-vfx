@@ -18,6 +18,8 @@ import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
+import net.kofllee.pyrovfx.client.render.VfxRenderVisibility;
+import org.joml.Matrix4f;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -43,6 +45,15 @@ public final class VfxAnalyticParticlePool {
     private int count, age, gpuBuffer;
     private int gpuGeneration = -1;
     private boolean dirty = true;
+    // Conservative birth-state envelope, updated only when particles are born.
+    // Analytic particles share motion coefficients, so the full cohort can be
+    // rejected before GPU upload without walking every particle at render time.
+    private double minX = Double.POSITIVE_INFINITY, minY = Double.POSITIVE_INFINITY,
+            minZ = Double.POSITIVE_INFINITY, maxX = Double.NEGATIVE_INFINITY,
+            maxY = Double.NEGATIVE_INFINITY, maxZ = Double.NEGATIVE_INFINITY;
+    private double minVx = Double.POSITIVE_INFINITY, minVy = Double.POSITIVE_INFINITY,
+            minVz = Double.POSITIVE_INFINITY, maxVx = Double.NEGATIVE_INFINITY,
+            maxVy = Double.NEGATIVE_INFINITY, maxVz = Double.NEGATIVE_INFINITY;
 
     public VfxAnalyticParticlePool(VfxEmitterDefinition d, VfxAnalyticPlan p) {
         definition = d;
@@ -82,7 +93,10 @@ public final class VfxAnalyticParticlePool {
     public void spawn(int amount, Vec3 origin, VfxExpressionContext scope, RandomSource random,
                       net.kofllee.pyrovfx.vfx.transform.VfxTransform source) {
         if (amount <= 0) return;
-        if (count == 0) birthTransform = source;
+        if (count == 0) {
+            birthTransform = source;
+            resetEnvelope();
+        }
         int newCount = Math.addExact(count, amount);
         int needed = Math.multiplyExact(newCount, stride);
         if (states == null || needed > states.capacity()) {
@@ -107,8 +121,14 @@ public final class VfxAnalyticParticlePool {
                 pos = source.transform(pos);
                 vel = source.rotate(vel);
             }
-            states.putFloat((float) pos.x).putFloat((float) pos.y).putFloat((float) pos.z);
-            states.putFloat((float) vel.x).putFloat((float) vel.y).putFloat((float) vel.z);
+            float x = (float) pos.x, y = (float) pos.y, z = (float) pos.z;
+            float vx = (float) vel.x, vy = (float) vel.y, vz = (float) vel.z;
+            states.putFloat(x).putFloat(y).putFloat(z);
+            states.putFloat(vx).putFloat(vy).putFloat(vz);
+            minX = Math.min(minX, x); minY = Math.min(minY, y); minZ = Math.min(minZ, z);
+            maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); maxZ = Math.max(maxZ, z);
+            minVx = Math.min(minVx, vx); minVy = Math.min(minVy, vy); minVz = Math.min(minVz, vz);
+            maxVx = Math.max(maxVx, vx); maxVy = Math.max(maxVy, vy); maxVz = Math.max(maxVz, vz);
             if (birthRandomAttribute) states.putFloat((float) particleRandom);
         }
         count = newCount;
@@ -122,6 +142,45 @@ public final class VfxAnalyticParticlePool {
         }
     }
     public int liveCount() { return count; }
+
+    /**
+     * Conservative cohort frustum test for constant/shared-age sprite sizes.
+     * GPU birth-randomized sizes are deliberately not culled: no safe uniform
+     * maximum can be inferred. Models have arbitrary baked geometry as well.
+     * No particle lifetime, event or physics state is touched by this test.
+     */
+    public boolean mayBeVisible(Matrix4f mvp, Vec3 cameraPosition, float partialTick) {
+        if (count == 0) return false;
+        if (model() || gpuBirthAppearance || Boolean.getBoolean("pyrovfx.render.debugNoCulling"))
+            return true;
+        double[] c = plan.coefficients(age, partialTick);
+        Vec3 acceleration = effectiveAcceleration();
+        double x0 = minX + (c[0] >= 0 ? minVx : maxVx) * c[0] + acceleration.x * c[1];
+        double y0 = minY + (c[0] >= 0 ? minVy : maxVy) * c[0] + acceleration.y * c[1];
+        double z0 = minZ + (c[0] >= 0 ? minVz : maxVz) * c[0] + acceleration.z * c[1];
+        double x1 = maxX + (c[0] >= 0 ? maxVx : minVx) * c[0] + acceleration.x * c[1];
+        double y1 = maxY + (c[0] >= 0 ? maxVy : minVy) * c[0] + acceleration.y * c[1];
+        double z1 = maxZ + (c[0] >= 0 ? maxVz : minVz) * c[0] + acceleration.z * c[1];
+        double halfX = (x1 - x0) * 0.5, halfY = (y1 - y0) * 0.5,
+                halfZ = (z1 - z0) * 0.5;
+        // Recompute shared-age size only once per cohort, not per particle.
+        updateAppearance(partialTick);
+        double spriteRadius = Math.hypot(scale.x, scale.y) * 0.5;
+        double radius = Math.sqrt(halfX * halfX + halfY * halfY + halfZ * halfZ)
+                + spriteRadius + 0.1; // float storage / interpolation margin
+        if (!Double.isFinite(radius) || !Double.isFinite(x0 + x1 + y0 + y1 + z0 + z1))
+            return true;
+        Vec3 center = new Vec3((x0 + x1) * 0.5, (y0 + y1) * 0.5,
+                (z0 + z1) * 0.5);
+        if (localSpace()) center = sourceTransform.transform(center);
+        return VfxRenderVisibility.visible(mvp, center.x - cameraPosition.x,
+                center.y - cameraPosition.y, center.z - cameraPosition.z, radius);
+    }
+
+    private void resetEnvelope() {
+        minX = minY = minZ = minVx = minVy = minVz = Double.POSITIVE_INFINITY;
+        maxX = maxY = maxZ = maxVx = maxVy = maxVz = Double.NEGATIVE_INFINITY;
+    }
     public boolean localSpace() {
         return definition.space() == net.kofllee.pyrovfx.vfx.type.VfxSpace.LOCAL;
     }

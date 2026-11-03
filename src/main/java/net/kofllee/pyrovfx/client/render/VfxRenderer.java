@@ -1,6 +1,7 @@
 package net.kofllee.pyrovfx.client.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxInstance;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxParticle;
@@ -8,9 +9,15 @@ import net.kofllee.pyrovfx.vfx.type.VfxRenderType;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
+import org.joml.Matrix4f;
 
 public final class VfxRenderer {
     private VfxRenderer() {}
+    private static int culledAnalyticCohorts;
+    private static int culledAnalyticParticles;
+
+    public static int culledAnalyticCohorts() { return culledAnalyticCohorts; }
+    public static int culledAnalyticParticles() { return culledAnalyticParticles; }
 
 
     public static void render(PoseStack poseStack, Camera camera, float partialTick){
@@ -24,9 +31,11 @@ public final class VfxRenderer {
         VfxInstancedModelRenderer.resetFrameStats();
         VfxAnalyticSpriteRenderer.resetFrameStats();
         VfxAnalyticSpriteRenderer.maintain();
+        culledAnalyticCohorts = culledAnalyticParticles = 0;
 
         MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
 
+        Matrix4f frameMvp = null; // Only build the matrix if an analytic cohort needs testing.
         boolean gpuFrame = false;
         boolean queuedVanilla = false;
         ClientVfxManager.beginRender();
@@ -37,6 +46,15 @@ public final class VfxRenderer {
                     emitter.setRenderTransform(sourceTransform, partialTick);
                     for (var analytic : emitter.analyticPools()) {
                         if (analytic.liveCount() == 0) continue;
+                        if (frameMvp == null) {
+                            frameMvp = new Matrix4f(RenderSystem.getProjectionMatrix())
+                                    .mul(RenderSystem.getModelViewMatrix()).mul(poseStack.last().pose());
+                        }
+                        if (!analytic.mayBeVisible(frameMvp, camera.getPosition(), partialTick)) {
+                            culledAnalyticCohorts++;
+                            culledAnalyticParticles += analytic.liveCount();
+                            continue;
+                        }
                         if (gpuFrame) VfxInstancedSpriteRenderer.flush();
                         bufferSource.endBatch();
                         queuedVanilla = false;

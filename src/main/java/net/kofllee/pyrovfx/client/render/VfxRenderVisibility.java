@@ -11,6 +11,18 @@ import org.joml.Matrix4f;
  */
 public final class VfxRenderVisibility {
     private VfxRenderVisibility() {}
+    private static final double MIN_DIAMETER_PX = readMinDiameterPx();
+
+    private static double readMinDiameterPx() {
+        try {
+            return Math.clamp(Double.parseDouble(
+                    System.getProperty("pyrovfx.render.minDiameterPx", "0.20")), 0.0, 2.0);
+        } catch (NumberFormatException ignored) {
+            return 0.20;
+        }
+    }
+
+    public static double minDiameterPixels() { return MIN_DIAMETER_PX; }
 
     public static boolean visible(Matrix4f mvp, double x, double y, double z, double radius) {
         float fx = (float) x, fy = (float) y, fz = (float) z;

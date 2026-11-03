@@ -104,6 +104,9 @@ public final class VfxBenchScenarios {
         add(scenarios, "sprite_horizontal", "bench/sprite_horizontal", 1_000);
         add(scenarios, "sprite_frustum", "bench/sprite_frustum", 1_000);
         add(scenarios, "sprite_lod", "bench/sprite_lod", 1_000);
+        // 64 independent emitters distributed around the camera, not a single
+        // dense cloud. Tests per-cohort visibility and upload avoidance.
+        add(scenarios, "distributed_analytic_64", "bench/analytic_uv", 0);
         add(scenarios, "budget_spike", "bench/budget_spike", 0);
         // Three independent 20k requests: per-effect caps are not sufficient.
         // The client-wide 30k/tick budget must reject 30k across instances.

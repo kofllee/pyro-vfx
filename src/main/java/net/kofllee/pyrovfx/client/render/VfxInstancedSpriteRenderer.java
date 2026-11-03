@@ -273,7 +273,8 @@ public final class VfxInstancedSpriteRenderer {
             return;
         }
         if (!VfxRenderVisibility.exceedsPixelFootprint(mvp, dx, dy, dz, radius,
-                Minecraft.getInstance().getWindow().getHeight(), lodThreshold())) {
+                Minecraft.getInstance().getWindow().getHeight(),
+                VfxRenderVisibility.minDiameterPixels())) {
             subpixelCulled++;
             return;
         }
@@ -385,21 +386,6 @@ public final class VfxInstancedSpriteRenderer {
         flush();
         alphaCount = 0;
         ALPHA_MATERIALS.clear();
-    }
-
-    private static final double MIN_DIAMETER_PX = parseLodThreshold();
-
-    private static double parseLodThreshold() {
-        try {
-            return Math.clamp(Double.parseDouble(
-                    System.getProperty("pyrovfx.render.minDiameterPx", "0.20")), 0.0, 2.0);
-        } catch (NumberFormatException ignored) {
-            return 0.20;
-        }
-    }
-
-    private static double lodThreshold() {
-        return MIN_DIAMETER_PX;
     }
 
     private static void ensureCapacity(int required) {

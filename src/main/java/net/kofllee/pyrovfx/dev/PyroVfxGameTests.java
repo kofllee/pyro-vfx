@@ -1710,6 +1710,44 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
+    public static void analyticCohortCullingKeepsLocalAndEdgeParticles(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath("pyro_vfx", "cohort_visibility_test");
+        var json = JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{
+                  "id":"cohort","space":"local",
+                  "emitter_lifetime":{"mode":"once","active_ticks":1},
+                  "spawn_amount":{"mode":"instant","amount":1},
+                  "spawn_shape":{"type":"point"},
+                  "particle_lifetime":{"max_age_ticks":40},
+                  "motion":{"mode":"static"},
+                  "render":{"type":"sprite","facing":"camera",
+                    "sprite":{"texture":"minecraft:textures/particle/generic_0.png","blend_mode":"additive"},
+                    "color":"#FFFFFFFF","scale":[1,1,1]}}]}
+                """).getAsJsonObject();
+        var definition = VfxDefinitionParser.parse(id, json);
+        var plan = VfxAnalyticPlan.analyse(definition.emitters().getFirst(), true);
+        if (!plan.supported()) throw new AssertionError("Expected analytic sprite: " + plan.reason());
+        var pool = new VfxAnalyticParticlePool(definition.emitters().getFirst(), plan);
+        var source = net.kofllee.pyrovfx.vfx.transform.VfxTransform.at(new Vec3(10, 0, 0));
+        var scope = ClientVfxExpressionContexts.effectStart(new Vec3(10, 0, 0), 0,
+                Map.of(), definition.curves(), RandomSource.create(71),
+                definition.program().variables());
+        pool.spawn(1, new Vec3(10, 0, 0), scope, RandomSource.create(72), source);
+        pool.setSourceTransform(source);
+        Matrix4f identity = new Matrix4f();
+        if (pool.mayBeVisible(identity, Vec3.ZERO, 0.5f)
+                || !pool.mayBeVisible(identity, new Vec3(10, 0, 0), 0.5f)
+                || !pool.mayBeVisible(identity, new Vec3(11.2, 0, 0), 0.5f)) {
+            throw new AssertionError("Cohort visibility failed offscreen/onscreen/frustum-edge cases");
+        }
+        pool.setSourceTransform(net.kofllee.pyrovfx.vfx.transform.VfxTransform.at(Vec3.ZERO));
+        if (!pool.mayBeVisible(identity, Vec3.ZERO, 0.5f) || pool.liveCount() != 1)
+            throw new AssertionError("Local-space source motion must not cull or destroy live particles");
+        pool.close();
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void expressionVariables(GameTestHelper helper) {
         VfxExpressionContext context = VfxExpressionContext.root()
                 .setNumber("param.power", 2.0)

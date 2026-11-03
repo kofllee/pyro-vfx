@@ -328,6 +328,16 @@ public final class VfxBenchHarness {
                 for (int i = 0; i < 3; i++) {
                     ClientVfxManager.playSeeded(run.definition, ORIGIN, request, run.scenario.seed() + i);
                 }
+            } else if (run.scenario.name().equals("distributed_analytic_64")) {
+                // Same 32k particles and same seeds in both A/B modes. Their
+                // distant positions stay alive; only render work may be skipped.
+                var distributed = VfxPlayOptions.builder().param("count", 500).build();
+                for (int i = 0; i < 64; i++) {
+                    double x = (i % 8 - 3.5) * 24;
+                    double z = (i / 8 - 3.5) * 24;
+                    ClientVfxManager.playSeeded(run.definition,
+                            ORIGIN.add(x, 0, z), distributed, run.scenario.seed() + i);
+                }
             } else if (VfxM7LifecycleProbe.accepts(run.scenario.name())) {
                 try {
                     run.lifecycle = VfxM7LifecycleProbe.attach(
@@ -710,6 +720,8 @@ public final class VfxBenchHarness {
         run.analyticUploadBytes += VfxAnalyticSpriteRenderer.uploadedBytes();
         run.analyticDatasetUploads += VfxAnalyticSpriteRenderer.uploadedDatasets();
         run.analyticDrawCalls += VfxAnalyticSpriteRenderer.drawCalls();
+        run.analyticSkippedCohorts += net.kofllee.pyrovfx.client.render.VfxRenderer.culledAnalyticCohorts();
+        run.analyticSkippedParticles += net.kofllee.pyrovfx.client.render.VfxRenderer.culledAnalyticParticles();
         run.maxAnalyticInstances = Math.max(run.maxAnalyticInstances, VfxAnalyticSpriteRenderer.instances());
         if (Boolean.getBoolean("pyrovfx.bench.gpuTelemetry")) {
             run.runtimeGpuSamples = net.kofllee.pyrovfx.client.render.VfxGpuTelemetry.sampleCount();
@@ -879,6 +891,8 @@ public final class VfxBenchHarness {
         int gpuSamples;
         long analyticUploadBytes;
         long analyticDrawCalls;
+        long analyticSkippedCohorts;
+        long analyticSkippedParticles;
         long runtimeGpuSamples;
         double runtimeGpuLastMs;
         int analyticDatasetUploads;
