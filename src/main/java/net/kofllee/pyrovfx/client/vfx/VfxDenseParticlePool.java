@@ -39,6 +39,8 @@ public final class VfxDenseParticlePool {
     private static final double TICK_SECONDS = VfxTime.SECONDS_PER_TICK;
     private static final double TICK_SECONDS_SQUARED = TICK_SECONDS * TICK_SECONDS;
     private final VfxEmitterDefinition definition;
+    private net.kofllee.pyrovfx.vfx.transform.VfxTransform localSource;
+    private boolean sourceMotionApplied;
     private final boolean dynamic;
     private final boolean moving;
     private final boolean rotating;
@@ -84,8 +86,11 @@ public final class VfxDenseParticlePool {
     public VfxDenseParticlePool(VfxEmitterDefinition definition) {
         this.definition = definition;
         this.dynamic = definition.motion().mode() == VfxMotionMode.DYNAMIC;
-        this.moving = definition.motion().mode() != VfxMotionMode.STATIC;
-        this.rotating = definition.rotation().mode() != VfxRotationMode.NONE;
+        this.moving = definition.motion().mode() != VfxMotionMode.STATIC
+                || definition.space() == net.kofllee.pyrovfx.vfx.type.VfxSpace.LOCAL;
+        this.rotating = definition.rotation().mode() != VfxRotationMode.NONE
+                || definition.space() == net.kofllee.pyrovfx.vfx.type.VfxSpace.LOCAL
+                && definition.render().type() == VfxRenderType.MODEL;
         this.dynamicRotation = definition.rotation().mode() == VfxRotationMode.DYNAMIC;
         this.colliding = definition.motion().mode() == VfxMotionMode.DYNAMIC
                 && definition.motion().collision().collide();
@@ -305,20 +310,22 @@ public final class VfxDenseParticlePool {
             prevR[i] = r[i]; prevG[i] = g[i]; prevB[i] = b[i]; prevA[i] = a[i];
 
             double oldX = px[i], oldY = py[i], oldZ = pz[i];
-            if (moving) {
+            if (moving && !sourceMotionApplied) {
                 prevX[i] = oldX; prevY[i] = oldY; prevZ[i] = oldZ;
             }
-            if (rotating) {
+            if (rotating && !sourceMotionApplied) {
                 prevRx[i] = rx[i]; prevRy[i] = ry[i]; prevRz[i] = rz[i];
             }
             setContext(scope, i, oldX, oldY, oldZ);
             if (dynamic) {
                 VfxVec3 acceleration = definition.motion().dynamic().acceleration().evaluate(scope);
+                Vec3 accelerationVector = localSource == null ? acceleration.toVec3()
+                        : localSource.rotate(acceleration.toVec3());
                 double drag = definition.motion().dynamic().linearDrag().evaluateDouble(scope);
                 double multiplier = Math.exp(-drag * TICK_SECONDS);
-                vx[i] = (vx[i] + acceleration.x() * TICK_SECONDS_SQUARED) * multiplier;
-                vy[i] = (vy[i] + acceleration.y() * TICK_SECONDS_SQUARED) * multiplier;
-                vz[i] = (vz[i] + acceleration.z() * TICK_SECONDS_SQUARED) * multiplier;
+                vx[i] = (vx[i] + accelerationVector.x * TICK_SECONDS_SQUARED) * multiplier;
+                vy[i] = (vy[i] + accelerationVector.y * TICK_SECONDS_SQUARED) * multiplier;
+                vz[i] = (vz[i] + accelerationVector.z * TICK_SECONDS_SQUARED) * multiplier;
                 if (colliding) {
                     var collision = VfxDenseCollisionSystem.resolve(level,
                             definition.motion().collision(), scope, blockCursor,
@@ -336,9 +343,10 @@ public final class VfxDenseParticlePool {
                 }
             } else if (definition.motion().mode() == VfxMotionMode.PARAMETRIC) {
                 VfxVec3 offset = definition.motion().parametric().offset().evaluate(scope);
-                px[i] = spawnX[i] + offset.x();
-                py[i] = spawnY[i] + offset.y();
-                pz[i] = spawnZ[i] + offset.z();
+                Vec3 displacement = localSource == null ? offset.toVec3() : localSource.rotate(offset.toVec3());
+                px[i] = spawnX[i] + displacement.x;
+                py[i] = spawnY[i] + displacement.y;
+                pz[i] = spawnZ[i] + displacement.z;
             }
             if (rotating) {
                 if (dynamicRotation) {
@@ -349,9 +357,11 @@ public final class VfxDenseParticlePool {
                     wy[i] = (wy[i] + accel.y() * TICK_SECONDS_SQUARED) * drag;
                     wz[i] = (wz[i] + accel.z() * TICK_SECONDS_SQUARED) * drag;
                     rx[i] += wx[i]; ry[i] += wy[i]; rz[i] += wz[i];
-                } else {
+                } else if (definition.rotation().mode() == VfxRotationMode.PARAMETRIC) {
                     VfxVec3 angles = definition.rotation().parametric().rotation().evaluate(scope);
-                    rx[i] = angles.x(); ry[i] = angles.y(); rz[i] = angles.z();
+                    Vec3 result = localSource == null ? angles.toVec3()
+                            : localSource.rotateAngles(angles.toVec3());
+                    rx[i] = result.x; ry[i] = result.y; rz[i] = result.z;
                     if (age[i] == 0) {
                         prevRx[i] = rx[i]; prevRy[i] = ry[i]; prevRz[i] = rz[i];
                     }
@@ -370,6 +380,55 @@ public final class VfxDenseParticlePool {
         }
         Arrays.fill(uv, out, size, null);
         size = out;
+        sourceMotionApplied = false;
+    }
+
+    /** Rotate and translate dense world state in place, without per-particle objects. */
+    public void followSource(net.kofllee.pyrovfx.vfx.transform.VfxTransform previous,
+                             net.kofllee.pyrovfx.vfx.transform.VfxTransform current) {
+        if (definition.space() != net.kofllee.pyrovfx.vfx.type.VfxSpace.LOCAL) return;
+        localSource = current;
+        if (size == 0) return;
+        if (previous.position().equals(current.position())
+                && previous.rotation().equals(current.rotation())) return;
+        sourceMotionApplied = true;
+        var delta = current.rotation().mul(previous.rotation().conjugate());
+        var basis = new org.joml.Matrix3f().set(delta);
+        double a = basis.m00(), b = basis.m10(), c = basis.m20();
+        double d = basis.m01(), e = basis.m11(), f = basis.m21();
+        double g = basis.m02(), h = basis.m12(), k = basis.m22();
+        Vec3 previousOrigin = previous.position(), currentOrigin = current.position();
+        var rotationScratch = rotating ? new org.joml.Quaternionf() : null;
+        var eulerScratch = rotating ? new org.joml.Vector3f() : null;
+        for (int i = 0; i < size; i++) {
+            prevX[i] = px[i]; prevY[i] = py[i]; prevZ[i] = pz[i];
+            double x = px[i] - previousOrigin.x, y = py[i] - previousOrigin.y,
+                    z = pz[i] - previousOrigin.z;
+            px[i] = currentOrigin.x + a*x + b*y + c*z;
+            py[i] = currentOrigin.y + d*x + e*y + f*z;
+            pz[i] = currentOrigin.z + g*x + h*y + k*z;
+            x = spawnX[i] - previousOrigin.x; y = spawnY[i] - previousOrigin.y;
+            z = spawnZ[i] - previousOrigin.z;
+            spawnX[i] = currentOrigin.x + a*x + b*y + c*z;
+            spawnY[i] = currentOrigin.y + d*x + e*y + f*z;
+            spawnZ[i] = currentOrigin.z + g*x + h*y + k*z;
+            if (dynamic) {
+                x = vx[i]; y = vy[i]; z = vz[i];
+                vx[i] = a*x + b*y + c*z;
+                vy[i] = d*x + e*y + f*z;
+                vz[i] = g*x + h*y + k*z;
+            }
+            if (rotating) {
+                rotationScratch.rotationXYZ(
+                        (float) Math.toRadians(rx[i]), (float) Math.toRadians(ry[i]),
+                        (float) Math.toRadians(rz[i])).premul(delta);
+                prevRx[i] = rx[i]; prevRy[i] = ry[i]; prevRz[i] = rz[i];
+                rotationScratch.getEulerAnglesXYZ(eulerScratch);
+                rx[i] = Math.toDegrees(eulerScratch.x);
+                ry[i] = Math.toDegrees(eulerScratch.y);
+                rz[i] = Math.toDegrees(eulerScratch.z);
+            }
+        }
     }
 
     private void setContext(VfxExpressionContext scope, int i, double oldX, double oldY, double oldZ) {

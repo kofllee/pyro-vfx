@@ -68,7 +68,7 @@ public final class VfxEventRunner {
             }
 
             Vec3 emitterOffset = emitter.definition().offset().evaluate(effectContext).toVec3();
-            Vec3 emitterPosition = callerPosition.add(emitterOffset);
+            Vec3 emitterPosition = callerPosition.add(emitter.rotateParent(emitterOffset));
 
             VfxLifetimeState lifetimeState = emitter.lifetimeState();
 

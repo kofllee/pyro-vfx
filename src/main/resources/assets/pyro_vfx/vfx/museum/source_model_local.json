@@ -1,0 +1,78 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "Museum / Local rotating 3D model particles: GPU resident model stays attached to rotating lambda transform."
+  },
+  "parameters": {
+    "count": 24
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 190
+  },
+  "emitters": [
+    {
+      "id": "rotating_models",
+      "space": "local",
+      "emitter_rotation": [
+        0,
+        30,
+        0
+      ],
+      "offset": [
+        0,
+        1,
+        0
+      ],
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.85
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 150
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "dynamic",
+        "dynamic": {
+          "start_rotation": [
+            0,
+            0,
+            0
+          ],
+          "angular_velocity": [
+            0,
+            20,
+            0
+          ]
+        }
+      },
+      "render": {
+        "type": "model",
+        "environment_lighting": false,
+        "model": {
+          "source": "custom",
+          "model": "pyro_vfx:vfx/smoke_cube",
+          "render_layer": "solid"
+        },
+        "color": "#FFFFFFFF",
+        "scale": [
+          0.14,
+          0.14,
+          0.14
+        ]
+      }
+    }
+  ]
+}

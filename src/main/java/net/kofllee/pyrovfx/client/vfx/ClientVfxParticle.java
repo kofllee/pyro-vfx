@@ -19,7 +19,7 @@ import static org.joml.Math.lerp;
 public final class ClientVfxParticle implements VfxSpriteParticleView {
 
     private final VfxEmitterDefinition emitterDefinition;
-    private final Vec3 spawnPosition;
+    private Vec3 spawnPosition;
     private final int lifetime;
     private final double random;
 
@@ -124,8 +124,11 @@ public final class ClientVfxParticle implements VfxSpriteParticleView {
     }
 
     public void tick(ClientLevel level, VfxExpressionContext emitterContext){
-        previousPosition = position;
-        previousRotation = rotation;
+        if (!sourceMotionApplied) {
+            previousPosition = position;
+            previousRotation = rotation;
+        }
+        sourceMotionApplied = false;
         previousScale = scale;
         previousColor = color;
 
@@ -173,6 +176,32 @@ public final class ClientVfxParticle implements VfxSpriteParticleView {
         age++;
     }
 
+    private boolean sourceMotionApplied;
+    private net.kofllee.pyrovfx.vfx.transform.VfxTransform localSource;
+
+    /** Keep a local particle attached while retaining its world-space collision path. */
+    public void followSource(net.kofllee.pyrovfx.vfx.transform.VfxTransform previous,
+                             net.kofllee.pyrovfx.vfx.transform.VfxTransform current) {
+        previousPosition = position;
+        previousRotation = rotation;
+        position = current.transform(previous.inverseTransform(position));
+        spawnPosition = current.transform(previous.inverseTransform(spawnPosition));
+        velocity = current.rotate(previous.inverseRotate(velocity));
+        var angles = current.rotation().mul(previous.rotation().conjugate())
+                .mul(new org.joml.Quaternionf().rotationXYZ(
+                        (float) Math.toRadians(rotation.x), (float) Math.toRadians(rotation.y),
+                        (float) Math.toRadians(rotation.z)))
+                .getEulerAnglesXYZ(new org.joml.Vector3f());
+        rotation = new Vec3(Math.toDegrees(angles.x), Math.toDegrees(angles.y),
+                Math.toDegrees(angles.z));
+        localSource = current;
+        sourceMotionApplied = true;
+    }
+
+    public void setLocalSource(net.kofllee.pyrovfx.vfx.transform.VfxTransform current) {
+        localSource = current;
+    }
+
     private void tickMotion(ClientLevel level, VfxExpressionContext particleContext){
         if(emitterDefinition.motion().mode() == VfxMotionMode.STATIC)
             return;
@@ -180,12 +209,13 @@ public final class ClientVfxParticle implements VfxSpriteParticleView {
         if (emitterDefinition.motion().mode() == VfxMotionMode.PARAMETRIC){
             Vec3 offset = emitterDefinition.motion().parametric().offset().evaluate(particleContext).toVec3();
 
-            position = spawnPosition.add(offset);
+            position = spawnPosition.add(localSource == null ? offset : localSource.rotate(offset));
             return;
         }
 
         if (emitterDefinition.motion().mode() == VfxMotionMode.DYNAMIC){
             Vec3 accelerationPerSecondSquared = emitterDefinition.motion().dynamic().acceleration().evaluate(particleContext).toVec3();
+            if (localSource != null) accelerationPerSecondSquared = localSource.rotate(accelerationPerSecondSquared);
 
             Vec3 acceleration = accelerationPerSecondSquared.scale(VfxTime.SECONDS_PER_TICK * VfxTime.SECONDS_PER_TICK);
 
@@ -353,7 +383,8 @@ public final class ClientVfxParticle implements VfxSpriteParticleView {
             return;
 
         if (emitterDefinition.rotation().mode() == VfxRotationMode.PARAMETRIC){
-            rotation = emitterDefinition.rotation().parametric().rotation().evaluate(particleContext).toVec3();
+            Vec3 angles = emitterDefinition.rotation().parametric().rotation().evaluate(particleContext).toVec3();
+            rotation = localSource == null ? angles : localSource.rotateAngles(angles);
             return;
         }
 

@@ -5,6 +5,9 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
+import net.kofllee.pyrovfx.client.vfx.VfxTransformProviders;
+import net.kofllee.pyrovfx.vfx.transform.VfxTransform;
+import net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider;
 import net.kofllee.pyrovfx.client.vfx.VfxBudgetConfig;
 import net.kofllee.pyrovfx.client.vfx.VfxPlayOptions;
 import net.kofllee.pyrovfx.museum.VfxMuseumCatalog;
@@ -169,17 +172,71 @@ public final class VfxMuseumClient {
         ClientVfxManager.clear();
         var opts = VfxPlayOptions.builder().param("count", count).build();
         long seed = 0x50B0_2026L ^ e.id().hashCode();
-        ClientVfxManager.playSeeded(definition,
-                new net.minecraft.world.phys.Vec3(
+        var origin = new net.minecraft.world.phys.Vec3(
                     e.effectOrigin().getX() + 0.5,
                     e.effectOrigin().getY() + 0.5,
-                    e.effectOrigin().getZ() + 0.5),
-                opts, seed);
+                    e.effectOrigin().getZ() + 0.5);
+        VfxTransformProvider source = providerFor(id, origin, e.base().offset(7, 0, 5));
+        ClientVfxManager.playSeeded(definition, source, opts, seed);
         lastExhibit = id;
         say("Museum: " + e.title() + " [" + mode + "] x" + count + " seed=" + seed);
         say("EXPECTED: " + e.description());
         pendingInspectionTicks = 4; // Read backend after the first simulation tick.
         return 1;
+    }
+
+    /** Shared by interactive museum stands and the real-client benchmark harness. */
+    static VfxTransformProvider providerFor(String id, net.minecraft.world.phys.Vec3 origin,
+                                            net.minecraft.core.BlockPos blockAnchor) {
+        var mc = Minecraft.getInstance();
+        return switch (id) {
+            case "source_entity_world", "source_entity_local" -> VfxTransformProviders.entity(mc.player);
+            case "source_block" -> VfxTransformProviders.block(mc.level, blockAnchor);
+            case "source_rotation", "source_model_local" -> partial -> new VfxTransform(origin,
+                    new org.joml.Quaternionf().rotationY(
+                            (mc.level.getGameTime() + partial) * 0.11f));
+            case "source_custom", "source_distance" -> partial -> {
+                double time = (mc.level.getGameTime() + partial) * 0.07;
+                return new VfxTransform(origin.add(Math.sin(time) * 3.0, 0, 0),
+                        new org.joml.Quaternionf().rotationY((float) time));
+            };
+            case "source_model_part" -> VfxTransformProviders.modelPart(mc.player,
+                    (entity, partial) -> {
+                        // Synthetic head-anchor callback: illustrates owner-provided
+                        // pose sampling, not automatic extraction of vanilla bones.
+                        float yaw = net.minecraft.util.Mth.rotLerp(partial,
+                                entity.yRotO, entity.getYRot());
+                        float pitch = net.minecraft.util.Mth.rotLerp(partial,
+                                entity.xRotO, entity.getXRot());
+                        return new VfxTransform(entity.getEyePosition(partial),
+                                new org.joml.Quaternionf().rotationYXZ(
+                                        (float) Math.toRadians(-yaw),
+                                        (float) Math.toRadians(pitch), 0));
+                    });
+            default -> VfxTransformProviders.fixed(origin);
+        };
+    }
+
+    /**
+     * A/B benchmark attachment phase starts at zero independently of the
+     * integrated world's game-time history. Live museum playback retains the
+     * original absolute-time provider behavior.
+     */
+    static VfxTransformProvider benchmarkProviderFor(String id, net.minecraft.world.phys.Vec3 origin,
+                                                      net.minecraft.core.BlockPos blockAnchor) {
+        var level = Minecraft.getInstance().level;
+        long startTick = level.getGameTime();
+        return switch (id) {
+            case "source_rotation", "source_model_local" -> partial -> new VfxTransform(origin,
+                    new org.joml.Quaternionf().rotationY(
+                            (level.getGameTime() - startTick + partial) * 0.11f));
+            case "source_custom", "source_distance" -> partial -> {
+                double time = (level.getGameTime() - startTick + partial) * 0.07;
+                return new VfxTransform(origin.add(Math.sin(time) * 3.0, 0, 0),
+                        new org.joml.Quaternionf().rotationY((float)time));
+            };
+            default -> providerFor(id, origin, blockAnchor);
+        };
     }
     private static int compare(String id) {
         lastCompareWasCpu = !lastCompareWasCpu;

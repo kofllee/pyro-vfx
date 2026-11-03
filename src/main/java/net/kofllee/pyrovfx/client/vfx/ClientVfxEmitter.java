@@ -8,6 +8,8 @@ import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.type.VfxEmitterLifetimeMode;
 import net.kofllee.pyrovfx.vfx.type.VfxSpawnAmountMode;
 import net.kofllee.pyrovfx.vfx.type.VfxRenderType;
+import net.kofllee.pyrovfx.vfx.type.VfxSpace;
+import net.kofllee.pyrovfx.vfx.transform.VfxTransform;
 import net.kofllee.pyrovfx.vfx.type.VfxTriggerType;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -21,6 +23,14 @@ import java.util.Map;
 
 public final class ClientVfxEmitter {
     private final VfxEmitterDefinition definition;
+    private VfxTransform sourceTransform;
+    private VfxTransform parentSourceTransform;
+    private VfxTransform previousSourceTransform;
+    private VfxTransform previousParentSourceTransform;
+    private boolean sourceInitialized;
+    private final VfxTravelTriggers travelTriggers;
+    private final List<VfxTravelTriggers.Hit> travelHits = new ArrayList<>();
+    private Vec3 previousEmitterPosition;
     private int age;
     private int lastInstantAge = -1;
     private int emittedParticles;
@@ -58,6 +68,12 @@ public final class ClientVfxEmitter {
     ) {
 
         this.definition = definition;
+        this.sourceTransform = VfxTransform.at(emitterPosition);
+        this.parentSourceTransform = sourceTransform;
+        this.previousSourceTransform = sourceTransform;
+        this.previousParentSourceTransform = parentSourceTransform;
+        this.travelTriggers = new VfxTravelTriggers(definition.triggers());
+        this.previousEmitterPosition = emitterPosition;
         this.analyticPlan = VfxAnalyticPlan.analyse(definition,
                 net.neoforged.fml.loading.FMLEnvironment.dist.isClient()
                         && net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer.gpuPossible());
@@ -95,6 +111,7 @@ public final class ClientVfxEmitter {
             Vec3 emitterPosition,
             VfxExpressionContext effectContext,
             boolean canSpawn,
+            boolean sourceAvailable,
             Map<String, VfxEventDefinition> events,
             Map<String, ClientVfxEmitter> emittersById,
             VfxEventRuntime eventRuntime,
@@ -118,17 +135,30 @@ public final class ClientVfxEmitter {
                 emitterRandom
         );
 
-        tickTriggers(
-                level,
-                effectPosition,
-                emitterPosition,
-                emitterContext,
-                random,
-                events,
-                emittersById,
-                lifetimeState,
-                eventRuntime
-        );
+        if (canSpawn) {
+            travelTriggers.advance(previousEmitterPosition, emitterPosition,
+                    (trigger, at) -> travelHits.add(new VfxTravelTriggers.Hit(trigger, at)));
+            for (var hit : travelHits) {
+                VfxEventRunner.run(hit.trigger().eventId(), events, emittersById,
+                        level, effectPosition, hit.at(), emitterContext, eventRuntime, random);
+            }
+            travelHits.clear();
+        }
+        previousEmitterPosition = emitterPosition;
+
+        if (sourceAvailable) {
+            tickTriggers(
+                    level,
+                    effectPosition,
+                    emitterPosition,
+                    emitterContext,
+                    random,
+                    events,
+                    emittersById,
+                    lifetimeState,
+                    eventRuntime
+            );
+        }
 
         if (canSpawn && lifetimeState.active()) {
             tickSpawnAmount(level, effectPosition, emitterPosition, emitterContext, lifetimeState, random, eventRuntime);
@@ -158,16 +188,20 @@ public final class ClientVfxEmitter {
 
                 particle.tick(level, emitterContext);
 
-                tickParticleTriggers(
-                        level,
-                        effectPosition,
-                        particle,
-                        emitterContext,
-                        random,
-                        events,
-                        emittersById,
-                        eventRuntime
-                );
+                // Detached effects retain their already-live particles but
+                // cannot re-enter the emitter graph through collision events.
+                if (sourceAvailable) {
+                    tickParticleTriggers(
+                            level,
+                            effectPosition,
+                            particle,
+                            emitterContext,
+                            random,
+                            events,
+                            emittersById,
+                            eventRuntime
+                    );
+                }
                 hasExpiredParticles |= particle.isDead();
             }
         } finally {
@@ -186,6 +220,40 @@ public final class ClientVfxEmitter {
         }
         double elapsed = (System.nanoTime() - startedNs) / 1_000_000.0;
         simulationEmaMs = simulationEmaMs == 0 ? elapsed : simulationEmaMs * 0.9 + elapsed * 0.1;
+    }
+
+    /** Move existing local particles before this tick's new births and events. */
+    public void setSource(VfxTransform previous, VfxTransform current, VfxTransform parent) {
+        this.previousSourceTransform = previous;
+        this.previousParentSourceTransform = sourceInitialized ? parentSourceTransform : parent;
+        this.sourceInitialized = true;
+        this.sourceTransform = current;
+        this.parentSourceTransform = parent;
+        if (definition.space() != VfxSpace.LOCAL) return;
+        if (densePool != null) densePool.followSource(previous, current);
+        if (previous.position().equals(current.position())
+                && previous.rotation().equals(current.rotation())) return;
+        for (ClientVfxParticle particle : particles) particle.followSource(previous, current);
+        for (ClientVfxParticle particle : pendingParticles) particle.followSource(previous, current);
+    }
+
+    public VfxTransform sourceTransform() { return sourceTransform; }
+    public Vec3 rotateParent(Vec3 offset) { return parentSourceTransform.rotate(offset); }
+
+    /**
+     * Sample the moving parent continuously and interpolate the emitter's own
+     * offset/orientation independently. GPU birth positions are emitter-local.
+     */
+    public VfxTransform renderSourceTransform(VfxTransform renderedParent, float partialTick) {
+        VfxTransform previousLocal = previousSourceTransform.relativeTo(previousParentSourceTransform);
+        VfxTransform currentLocal = sourceTransform.relativeTo(parentSourceTransform);
+        return renderedParent.compose(VfxTransform.interpolate(previousLocal, currentLocal, partialTick));
+    }
+
+    /** Called once per visible frame, not once per particle. */
+    public void setRenderTransform(VfxTransform parent, float partialTick) {
+        VfxTransform pose = renderSourceTransform(parent, partialTick);
+        for (VfxAnalyticParticlePool batch : analyticBatches) batch.setSourceTransform(pose);
     }
 
     private void tickTriggers(
@@ -363,7 +431,7 @@ public final class ClientVfxEmitter {
                 batch = new VfxAnalyticParticlePool(definition, analyticPlan);
                 analyticBatches.add(batch);
             }
-            batch.spawn(count, emitterPosition, emitterContext, random);
+            batch.spawn(count, emitterPosition, emitterContext, random, sourceTransform);
             emittedParticles += count;
             return;
         }
@@ -382,6 +450,9 @@ public final class ClientVfxEmitter {
                     preSpawnContext,
                     random
             );
+            Vec3 sampledPosition = particlePosition;
+            particlePosition = emitterPosition.add(sourceTransform.rotate(
+                    particlePosition.subtract(emitterPosition)));
 
             VfxExpressionContext particleSpawnContext = ClientVfxExpressionContexts.particleSpawn(
                     emitterContext,
@@ -393,15 +464,19 @@ public final class ClientVfxEmitter {
             Vec3 velocity = VfxMotionSampler.sampleInitialVelocity(
                     definition.motion(),
                     emitterPosition,
-                    particlePosition,
+                    sampledPosition,
                     particleSpawnContext,
                     random
             );
+            velocity = sourceTransform.rotate(velocity);
 
             Vec3 rotation = VfxRotationSampler.sampleInitialRotation(
                     definition.rotation(),
                     particleSpawnContext
             );
+            if (definition.render().type() == VfxRenderType.MODEL && sourceTransform.hasRotation()) {
+                rotation = sourceTransform.rotateAngles(rotation);
+            }
 
             Vec3 angularVelocity = VfxRotationSampler.sampleInitialAngularVelocity(
                     definition.rotation(),
@@ -445,6 +520,7 @@ public final class ClientVfxEmitter {
                         definition, particlePosition, velocity, rotation, angularVelocity,
                         lifeTime, particleRandom, initialScale, initialColor, particleSpawnContext
                 );
+                if (definition.space() == VfxSpace.LOCAL) particle.setLocalSource(sourceTransform);
                 if (updatingParticles) {
                     pendingParticles.add(particle);
                 } else {

@@ -235,15 +235,16 @@ The current prototype does not include:
 - an in-game VFX editor;
 - a public integration API;
 - effect handles;
-- attached effects;
-- entity or projectile following;
+- server-controlled attached effects (client transform providers are available);
 - networking;
 - detailed per-effect profiling (global counters and benchmark reports are available);
 - per-render-type budgets and distance-based spawn LOD (global caps and render frustum/size LOD exist);
 - stable performance guarantees for large particle counts;
 - dedicated documentation tooling or JSON schema generation.
 
-`travel_distance` and `travel_distance_looping` are accepted by the parser, but are not currently executed by the runtime.
+`travel_distance` and `travel_distance_looping` now execute against
+game-tick source displacement, including multiple crossings per tick.
+See [M7.1 transform integration](docs/M7_TRANSFORMS.md).
 
 `on_collision` is supported as a particle trigger. It is not implemented as a normal effect or emitter trigger.
 

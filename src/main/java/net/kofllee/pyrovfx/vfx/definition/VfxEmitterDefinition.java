@@ -1,6 +1,7 @@
 package net.kofllee.pyrovfx.vfx.definition;
 
 import net.kofllee.pyrovfx.vfx.expression.VfxVec3Expression;
+import net.kofllee.pyrovfx.vfx.type.VfxSpace;
 
 import java.util.List;
 
@@ -15,6 +16,8 @@ public record VfxEmitterDefinition(
         VfxParticleLifetimeDefinition particleLifetime,
         VfxMotionDefinition motion,
         VfxRotationDefinition rotation,
-        VfxRenderDefinition render
+        VfxRenderDefinition render,
+        VfxSpace space,
+        VfxVec3Expression emitterRotation
 ) {
 }

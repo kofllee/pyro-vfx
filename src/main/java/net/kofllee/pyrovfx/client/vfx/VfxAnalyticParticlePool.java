@@ -25,6 +25,10 @@ import java.nio.ByteOrder;
 public final class VfxAnalyticParticlePool {
     public static final int STRIDE = 24;
     private final VfxEmitterDefinition definition;
+    private net.kofllee.pyrovfx.vfx.transform.VfxTransform sourceTransform =
+            net.kofllee.pyrovfx.vfx.transform.VfxTransform.at(Vec3.ZERO);
+    private net.kofllee.pyrovfx.vfx.transform.VfxTransform birthTransform =
+            net.kofllee.pyrovfx.vfx.transform.VfxTransform.at(Vec3.ZERO);
     private final VfxAnalyticPlan plan;
     private final VfxAnalyticModelRotation sharedModelRotation;
     private Vec3 scale;
@@ -71,7 +75,14 @@ public final class VfxAnalyticParticlePool {
     }
 
     public void spawn(int amount, Vec3 origin, VfxExpressionContext scope, RandomSource random) {
+        spawn(amount, origin, scope, random,
+                net.kofllee.pyrovfx.vfx.transform.VfxTransform.at(Vec3.ZERO));
+    }
+
+    public void spawn(int amount, Vec3 origin, VfxExpressionContext scope, RandomSource random,
+                      net.kofllee.pyrovfx.vfx.transform.VfxTransform source) {
         if (amount <= 0) return;
+        if (count == 0) birthTransform = source;
         int newCount = Math.addExact(count, amount);
         int needed = Math.multiplyExact(newCount, stride);
         if (states == null || needed > states.capacity()) {
@@ -89,8 +100,13 @@ public final class VfxAnalyticParticlePool {
         states.position(count * stride);
         for (int i = 0; i < amount; i++) {
             double particleRandom = random.nextDouble();
-            Vec3 pos = VfxSpawnPositionSampler.sample(origin, definition.spawnShape(), scope, random);
-            Vec3 vel = VfxMotionSampler.sampleInitialVelocity(definition.motion(), origin, pos, scope, random);
+            Vec3 localOrigin = source.inverseTransform(origin);
+            Vec3 pos = VfxSpawnPositionSampler.sample(localOrigin, definition.spawnShape(), scope, random);
+            Vec3 vel = VfxMotionSampler.sampleInitialVelocity(definition.motion(), localOrigin, pos, scope, random);
+            if (!localSpace()) {
+                pos = source.transform(pos);
+                vel = source.rotate(vel);
+            }
             states.putFloat((float) pos.x).putFloat((float) pos.y).putFloat((float) pos.z);
             states.putFloat((float) vel.x).putFloat((float) vel.y).putFloat((float) vel.z);
             if (birthRandomAttribute) states.putFloat((float) particleRandom);
@@ -106,6 +122,20 @@ public final class VfxAnalyticParticlePool {
         }
     }
     public int liveCount() { return count; }
+    public boolean localSpace() {
+        return definition.space() == net.kofllee.pyrovfx.vfx.type.VfxSpace.LOCAL;
+    }
+    public net.kofllee.pyrovfx.vfx.transform.VfxTransform sourceTransform() {
+        return sourceTransform;
+    }
+    public void setSourceTransform(net.kofllee.pyrovfx.vfx.transform.VfxTransform transform) {
+        sourceTransform = transform;
+    }
+    public Vec3 effectiveAcceleration() {
+        Vec3 original = new Vec3(plan.accelerationX(), plan.accelerationY(), plan.accelerationZ());
+        return localSpace() || !birthTransform.hasRotation()
+                ? original : birthTransform.rotate(original);
+    }
     public boolean model() { return definition.render().type() == VfxRenderType.MODEL; }
     public boolean gpuBirthAppearance() { return gpuBirthAppearance; }
     public boolean birthRandomAttribute() { return birthRandomAttribute; }
@@ -113,7 +143,10 @@ public final class VfxAnalyticParticlePool {
     public String gpuColorGlsl() { return definition.render().appearance().color().glsl(); }
     public String gpuScaleGlsl() { return definition.render().appearance().scale().glslXY(); }
     public Vec3 modelRotation(float partial) {
-        return sharedModelRotation == null ? Vec3.ZERO : sharedModelRotation.angles(age, partial);
+        Vec3 particleRotation = sharedModelRotation == null
+                ? Vec3.ZERO : sharedModelRotation.angles(age, partial);
+        return !localSpace() && birthTransform.hasRotation()
+                ? birthTransform.rotateAngles(particleRotation) : particleRotation;
     }
     /** Direct buffer capacity (not just currently live bytes). */
     public long allocatedStateBytes() { return states == null ? 0 : states.capacity(); }
@@ -196,8 +229,12 @@ public final class VfxAnalyticParticlePool {
         if (states == null || count == 0) return;
         updateAppearance(partial);
         double[] c = plan.coefficients(age, partial);
+        Vec3 acceleration = effectiveAcceleration();
         if (model()) {
             Vec3 modelAngles = modelRotation(partial);
+            if (localSpace() && sourceTransform.hasRotation()) {
+                modelAngles = sourceTransform.rotateAngles(modelAngles);
+            }
             for (int i = 0; i < count; i++) {
                 int offset = i * STRIDE;
                 Vec3 birth = new Vec3(states.getFloat(offset), states.getFloat(offset + 4),
@@ -205,8 +242,13 @@ public final class VfxAnalyticParticlePool {
                 Vec3 velocity = new Vec3(states.getFloat(offset + 12),
                         states.getFloat(offset + 16), states.getFloat(offset + 20));
                 Vec3 current = birth.add(velocity.scale(c[0])).add(
-                        plan.accelerationX() * c[1], plan.accelerationY() * c[1],
-                        plan.accelerationZ() * c[1]);
+                        acceleration.x * c[1], acceleration.y * c[1],
+                        acceleration.z * c[1]);
+                if (localSpace()) {
+                    birth = sourceTransform.transform(birth);
+                    current = sourceTransform.transform(current);
+                    velocity = sourceTransform.rotate(velocity);
+                }
                 ClientVfxParticle snapshot = ClientVfxParticle.denseSnapshot(definition,
                         birth, current, current, velocity, modelAngles, modelAngles,
                         scale, scale, color, color, 0, plan.lifetime(), age, null);
@@ -228,10 +270,12 @@ public final class VfxAnalyticParticlePool {
         @Override public VfxEmitterDefinition emitterDefinition() { return definition; }
         @Override public Vec3 interpolatedPosition(float partial) {
             int offset = index * stride;
-            return new Vec3(
-                    states.getFloat(offset) + states.getFloat(offset+12)*cv + plan.accelerationX()*ca,
-                    states.getFloat(offset+4) + states.getFloat(offset+16)*cv + plan.accelerationY()*ca,
-                    states.getFloat(offset+8) + states.getFloat(offset+20)*cv + plan.accelerationZ()*ca);
+            Vec3 acceleration = effectiveAcceleration();
+            Vec3 value = new Vec3(
+                    states.getFloat(offset) + states.getFloat(offset+12)*cv + acceleration.x*ca,
+                    states.getFloat(offset+4) + states.getFloat(offset+16)*cv + acceleration.y*ca,
+                    states.getFloat(offset+8) + states.getFloat(offset+20)*cv + acceleration.z*ca);
+            return localSpace() ? sourceTransform.transform(value) : value;
         }
         @Override public Vec3 interpolatedRotation(float partial) { return Vec3.ZERO; }
         private VfxExpressionContext particleAppearanceContext(int sampledAge, int positionTick) {
@@ -292,7 +336,9 @@ public final class VfxAnalyticParticlePool {
         }
         @Override public Vec3 velocity() {
             int offset = index*stride;
-            return new Vec3(states.getFloat(offset+12),states.getFloat(offset+16),states.getFloat(offset+20));
+            Vec3 value = new Vec3(states.getFloat(offset+12),states.getFloat(offset+16),
+                    states.getFloat(offset+20));
+            return localSpace() ? sourceTransform.rotate(value) : value;
         }
         @Override public ClientVfxSpriteUvState spriteUv() { return uvState; }
         @Override public int age() { return age; }

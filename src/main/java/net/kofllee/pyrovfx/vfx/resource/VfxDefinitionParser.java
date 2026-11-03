@@ -228,8 +228,8 @@ public final class VfxDefinitionParser {
             case TRAVEL_DISTANCE -> {
                 double distance = getDouble(json, "distance", 0.0);
 
-                if (distance <= 0.0) {
-                    throw new IllegalArgumentException("Travel distance trigger distance must be > 0");
+                if (!Double.isFinite(distance) || distance <= 0.0) {
+                    throw new IllegalArgumentException("Travel distance trigger distance must be finite and > 0");
                 }
 
                 yield VfxTriggerDefinition.travelDistance(distance, eventId, false);
@@ -238,8 +238,8 @@ public final class VfxDefinitionParser {
             case TRAVEL_DISTANCE_LOOPING -> {
                 double distance = getDouble(json, "distance", 0.0);
 
-                if (distance <= 0.0) {
-                    throw new IllegalArgumentException("Travel distance looping trigger distance must be > 0");
+                if (!Double.isFinite(distance) || distance <= 0.0) {
+                    throw new IllegalArgumentException("Travel distance looping trigger distance must be finite and > 0");
                 }
 
                 yield VfxTriggerDefinition.travelDistance(distance, eventId, true);
@@ -401,7 +401,11 @@ public final class VfxDefinitionParser {
                 ? parseRotation(getObject(json, "rotation"))
                 : VfxRotationDefinition.none();
 
-        return new VfxEmitterDefinition(id, triggers, particleTriggers, emitterLifetime, spawnAmount, offset, spawnShape, particleLifetime, motion, rotation, render);
+        var space = parseEnum(net.kofllee.pyrovfx.vfx.type.VfxSpace.class,
+                getString(json, "space", "world"), "emitter space");
+        return new VfxEmitterDefinition(id, triggers, particleTriggers, emitterLifetime, spawnAmount, offset,
+                spawnShape, particleLifetime, motion, rotation, render, space,
+                getVec3Expression(json, "emitter_rotation", VfxVec3.ZERO));
     }
 
     private static VfxRotationDefinition parseRotation(JsonObject json) {

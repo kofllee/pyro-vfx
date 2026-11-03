@@ -6,6 +6,8 @@ import net.kofllee.pyrovfx.vfx.definition.VfxParameterDefinition;
 import net.kofllee.pyrovfx.vfx.definition.VfxTriggerDefinition;
 import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.type.VfxTriggerType;
+import net.kofllee.pyrovfx.vfx.transform.VfxTransform;
+import net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
@@ -14,7 +16,13 @@ import java.util.*;
 
 public final class ClientVfxInstance {
     private final VfxDefinition definition;
-    private final Vec3 position;
+    private Vec3 position;
+    private VfxTransformProvider provider;
+    private VfxTransform previousTransform;
+    private VfxTransform currentTransform;
+    private boolean sourceLost;
+    private final VfxTravelTriggers travelTriggers;
+    private final List<VfxTravelTriggers.Hit> travelHits = new ArrayList<>();
     private final List<ClientVfxEmitter> emitters = new ArrayList<>();
     private final Map<String, ClientVfxEmitter> emittersById = new HashMap<>();
     private final Map<String, Double> parameters;
@@ -79,16 +87,32 @@ public final class ClientVfxInstance {
     }
 
     public ClientVfxInstance(VfxDefinition definition, Vec3 position, VfxPlayOptions options){
-        this(definition, position, options, RandomSource.create());
+        this(definition, VfxTransformProvider.fixed(position), options, RandomSource.create());
     }
 
     public ClientVfxInstance(VfxDefinition definition, Vec3 position, VfxPlayOptions options, long seed) {
-        this(definition, position, options, RandomSource.create(seed));
+        this(definition, VfxTransformProvider.fixed(position), options, RandomSource.create(seed));
     }
 
-    private ClientVfxInstance(VfxDefinition definition, Vec3 position, VfxPlayOptions options, RandomSource random) {
+    public ClientVfxInstance(VfxDefinition definition, VfxTransformProvider provider, VfxPlayOptions options) {
+        this(definition, provider, options, RandomSource.create());
+    }
+
+    public ClientVfxInstance(VfxDefinition definition, VfxTransformProvider provider,
+                             VfxPlayOptions options, long seed) {
+        this(definition, provider, options, RandomSource.create(seed));
+    }
+
+    private ClientVfxInstance(VfxDefinition definition, VfxTransformProvider provider, VfxPlayOptions options, RandomSource random) {
         this.definition = definition;
-        this.position = position;
+        this.provider = Objects.requireNonNull(provider, "provider");
+        this.currentTransform = provider.get(1.0f);
+        if (currentTransform == null)
+            throw new IllegalStateException("Transform provider unavailable at effect creation");
+        this.previousTransform = currentTransform;
+        this.position = currentTransform.position();
+        Vec3 position = this.position;
+        this.travelTriggers = new VfxTravelTriggers(definition.triggers());
         this.random = random;
 
         this.effectRandom = random.nextDouble();
@@ -128,7 +152,9 @@ public final class ClientVfxInstance {
 
         for(var emitterDef : definition.program().emitters()){
             Vec3 emitterOffset = emitterDef.offset().evaluate(effectStartContext).toVec3();
-            Vec3 emitterStartPosition = position.add(emitterOffset);
+            Vec3 emitterAngles = emitterDef.emitterRotation().evaluate(effectStartContext).toVec3();
+            VfxTransform emitterPose = currentTransform.child(emitterOffset, emitterAngles);
+            Vec3 emitterStartPosition = emitterPose.position();
 
             ClientVfxEmitter emitter = new ClientVfxEmitter(
                     emitterDef,
@@ -138,6 +164,7 @@ public final class ClientVfxInstance {
             );
 
             emitters.add(emitter);
+            emitter.setSource(emitterPose, emitterPose, currentTransform);
             emittersById.put(emitterDef.id(), emitter);
         }
     }
@@ -173,6 +200,17 @@ public final class ClientVfxInstance {
     }
 
     public void tick(ClientLevel level, VfxGlobalBudget global){
+        previousTransform = currentTransform;
+        if (!sourceLost) {
+            VfxTransform resolved = provider.get(1.0f);
+            if (resolved == null) {
+                sourceLost = true;
+                provider = null; // release callback captures as soon as the source disappears
+            } else {
+                currentTransform = resolved;
+                position = resolved.position();
+            }
+        }
         int liveParticles = 0;
         for (var emitter : emitters) {
             liveParticles += emitter.liveParticleCount();
@@ -201,14 +239,35 @@ public final class ClientVfxInstance {
                 definition.program().variables()
         );
 
-        tickEffectTriggers(level, effectContext, lifetimeState);
-        tickEffectExpirationTriggers(level, effectContext, lifetimeState);
+        // Once an attachment disappears, freeze the final emitter pose.
+        // Effect-age-dependent offsets must not keep dragging detached live
+        // particles around as they finish their remaining lifetime.
+        if (!sourceLost) {
+            for (var emitter : emitters) {
+                Vec3 offset = emitter.definition().offset().evaluate(effectContext).toVec3();
+                Vec3 angles = emitter.definition().emitterRotation().evaluate(effectContext).toVec3();
+                VfxTransform emitterPose = currentTransform.child(offset, angles);
+                emitter.setSource(emitter.sourceTransform(), emitterPose, currentTransform);
+            }
+        }
+
+        if (!sourceLost) {
+            tickEffectTriggers(level, effectContext, lifetimeState);
+            travelHits.clear();
+            travelTriggers.advance(previousTransform.position(), currentTransform.position(),
+                    (trigger, at) -> travelHits.add(new VfxTravelTriggers.Hit(trigger, at)));
+            for (var hit : travelHits) {
+                runEffectTrigger(level, effectContext, hit.trigger(), hit.at());
+            }
+            travelHits.clear();
+            tickEffectExpirationTriggers(level, effectContext, lifetimeState);
+        }
 
         for (var emitter : emitters) {
-            Vec3 emitterOffset = emitter.definition().offset().evaluate(effectContext).toVec3();
-            Vec3 emitterPosition = position.add(emitterOffset);
+            Vec3 emitterPosition = emitter.sourceTransform().position();
 
-            emitter.tick(level, position, emitterPosition, effectContext, lifetimeState.active(), definition.program().events(), emittersById, eventRuntime, random);
+            emitter.tick(level, position, emitterPosition, effectContext, !sourceLost && lifetimeState.active(), !sourceLost,
+                    definition.program().events(), emittersById, eventRuntime, random);
         }
 
         age++;
@@ -220,7 +279,7 @@ public final class ClientVfxInstance {
 
             for (VfxTriggerDefinition trigger : definition.triggers()) {
                 if (trigger.type() == VfxTriggerType.ON_CREATION) {
-                    runEffectTrigger(level, effectContext, trigger);
+                    runEffectTrigger(level, effectContext, trigger, position);
                 }
             }
         }
@@ -229,7 +288,7 @@ public final class ClientVfxInstance {
             for (VfxTriggerDefinition trigger : definition.triggers()) {
                 if (trigger.type() == VfxTriggerType.TIMELINE
                         && age == trigger.timeTicks()) {
-                    runEffectTrigger(level, effectContext, trigger);
+                    runEffectTrigger(level, effectContext, trigger, position);
                 }
             }
         }
@@ -248,7 +307,7 @@ public final class ClientVfxInstance {
 
         for (VfxTriggerDefinition trigger : definition.triggers()) {
             if (trigger.type() == VfxTriggerType.ON_EXPIRATION) {
-                runEffectTrigger(level, effectContext, trigger);
+                runEffectTrigger(level, effectContext, trigger, position);
             }
         }
     }
@@ -256,7 +315,8 @@ public final class ClientVfxInstance {
     private void runEffectTrigger(
             ClientLevel level,
             VfxExpressionContext effectContext,
-            VfxTriggerDefinition trigger
+            VfxTriggerDefinition trigger,
+            Vec3 eventPosition
     ) {
         VfxEventRunner.run(
                 trigger.eventId(),
@@ -264,7 +324,7 @@ public final class ClientVfxInstance {
                 emittersById,
                 level,
                 position,
-                position,
+                eventPosition,
                 effectContext,
                 eventRuntime,
                 random
@@ -272,6 +332,7 @@ public final class ClientVfxInstance {
     }
 
     public boolean isFinished() {
+        if (sourceLost) return hasNoParticles();
         if (!lifetimeState().finished()) {
             return false;
         }
@@ -325,7 +386,17 @@ public final class ClientVfxInstance {
     }
 
     public void close() {
+        provider = null;
         for (ClientVfxEmitter emitter : emitters) emitter.close();
+    }
+
+    /** Render-only interpolation; no mutations or gameplay events in this method. */
+    public VfxTransform renderTransform(float partialTick) {
+        if (!sourceLost && provider != null) {
+            VfxTransform sampled = provider.get(partialTick);
+            if (sampled != null) return sampled;
+        }
+        return VfxTransform.interpolate(previousTransform, currentTransform, partialTick);
     }
 
     public void setParameter(String id, double value) {

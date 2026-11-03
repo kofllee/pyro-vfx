@@ -52,6 +52,9 @@ public final class VfxInstancedModelRenderer {
             uniform mat4 uMvp;
             uniform int uAnalytic;
             uniform vec3 uCamera, uAcceleration, uSharedScale;
+            uniform vec3 uSourcePosition;
+            uniform vec4 uSourceRotation;
+            uniform int uLocalSpace;
             uniform vec2 uMotion;
             uniform vec4 uSharedColor;
             uniform vec4 uSharedRotation;
@@ -59,6 +62,10 @@ public final class VfxInstancedModelRenderer {
             out vec4 vColor;
             out vec4 vBakedColor;
             out vec2 vLight;
+            vec3 rotateSource(vec3 v) {
+                vec3 t = 2.0 * cross(uSourceRotation.xyz, v);
+                return v + uSourceRotation.w * t + cross(uSourceRotation.xyz, t);
+            }
             void main() {
                 vec3 scale = uAnalytic != 0 ? uSharedScale : iScale;
                 vec4 rot = uAnalytic != 0 ? uSharedRotation : iRotation;
@@ -70,6 +77,8 @@ public final class VfxInstancedModelRenderer {
                 vec3 p = (aPosition - vec3(0.5)) * scale;
                 vec3 t = 2.0 * cross(rot.xyz, p);
                 vec3 point = origin + p + rot.w * t + cross(rot.xyz, t);
+                if (uAnalytic != 0 && uLocalSpace != 0)
+                    point = uSourcePosition + rotateSource(point + uCamera) - uCamera;
                 gl_Position = uMvp * vec4(point, 1.0);
                 vUv = aUv;
                 vColor = uAnalytic != 0 ? uSharedColor : iColor;
@@ -381,16 +390,25 @@ public final class VfxInstancedModelRenderer {
                 attribute(8, 3, VfxAnalyticParticlePool.STRIDE, base + 12, 1);
             }
             GL20.glUniform1i(GL20.glGetUniformLocation(program, "uAnalytic"), resident == null ? 0 : 1);
+            GL20.glUniform1i(GL20.glGetUniformLocation(program, "uLocalSpace"),
+                    resident != null && resident.localSpace() ? 1 : 0);
             if (resident != null) {
+                var source = resident.sourceTransform();
+                var sourceRotation = source.rotation();
+                GL20.glUniform3f(GL20.glGetUniformLocation(program, "uSourcePosition"),
+                        (float) source.position().x, (float) source.position().y, (float) source.position().z);
+                GL20.glUniform4f(GL20.glGetUniformLocation(program, "uSourceRotation"),
+                        sourceRotation.x, sourceRotation.y, sourceRotation.z, sourceRotation.w);
                 var coefficients = resident.plan().coefficients(resident.age(), partialTick);
                 GL20.glUniform2f(GL20.glGetUniformLocation(program, "uMotion"),
                         (float) coefficients[0], (float) coefficients[1]);
                 GL20.glUniform3f(GL20.glGetUniformLocation(program, "uCamera"),
                         (float) camera.getPosition().x,
                         (float) camera.getPosition().y, (float) camera.getPosition().z);
+                var acceleration = resident.effectiveAcceleration();
                 GL20.glUniform3f(GL20.glGetUniformLocation(program, "uAcceleration"),
-                        (float) resident.plan().accelerationX(), (float) resident.plan().accelerationY(),
-                        (float) resident.plan().accelerationZ());
+                        (float) acceleration.x, (float) acceleration.y,
+                        (float) acceleration.z);
                 GL20.glUniform3f(GL20.glGetUniformLocation(program, "uSharedScale"),
                         (float) resident.scale().x, (float) resident.scale().y, (float) resident.scale().z);
                 GL20.glUniform4f(GL20.glGetUniformLocation(program, "uSharedColor"),

@@ -1,0 +1,88 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "Museum / Distance trail: A new spark burst appears each distance interval"
+  },
+  "parameters": {
+    "count": 24
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 230
+  },
+  "events": {
+    "drop": {
+      "type": "emit",
+      "emitter": "main"
+    }
+  },
+  "triggers": [
+    {
+      "type": "travel_distance_looping",
+      "distance": 0.65,
+      "event": "drop"
+    }
+  ],
+  "emitters": [
+    {
+      "id": "main",
+      "space": "world",
+      "emitter_lifetime": {
+        "mode": "manual"
+      },
+      "spawn_amount": {
+        "mode": "manual",
+        "amount": 5
+      },
+      "offset": [
+        0,
+        1,
+        0
+      ],
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.07
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 70
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": 0.3,
+          "acceleration": [
+            0,
+            0.07,
+            0
+          ],
+          "linear_drag": 0.6
+        }
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": [
+          0.3686274509803922,
+          0.9372549019607843,
+          1,
+          "1.0 - particle.normalized_age"
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          1
+        ]
+      }
+    }
+  ]
+}

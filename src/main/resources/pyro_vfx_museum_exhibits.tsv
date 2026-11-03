@@ -57,3 +57,11 @@ model_cutout|3D Models|Cutout item faces|model_item|5|7|Visible item silhouette 
 sprite_world_x|Sprites|World X plane|sprite_world_z|30|5|Fixed world X sprite plane seen edge-on from front and broadside from left
 sprite_world_y|Sprites|World Y plane|sprite_world_z|30|5|Horizontal world Y sprite plane seen broadside from above
 sprite_velocity|Sprites|Velocity aligned|dynamic|35|5|Moving sprite planes align along travel direction instead of camera
+source_entity_world|Attachments|Entity world trail|static|24|5|Particles stay where the moving player released them
+source_entity_local|Attachments|Entity local aura|static|24|5|Particles travel and rotate together with the player
+source_rotation|Attachments|Rotating source|static|24|5|The particle cloud rotates with a custom source
+source_block|Attachments|Block anchor|static|24|5|The effect stops after its attached block disappears
+source_custom|Attachments|Lambda source|static|24|5|A moving source is sampled from a Java callback
+source_model_part|Attachments|Model part callback|static|24|5|Head proxy callback; not automatic vanilla bone access
+source_distance|Attachments|Distance trail|static|24|5|A new spark burst appears each distance interval
+source_model_local|Attachments|Local 3D model cluster|model|24|5|Rotating model particles follow the source with GPU resident geometry

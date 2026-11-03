@@ -1,0 +1,77 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "Museum / Rotating source: The particle cloud rotates with a custom source"
+  },
+  "parameters": {
+    "count": 24
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 230
+  },
+  "emitters": [
+    {
+      "id": "main",
+      "space": "local",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 205
+      },
+      "spawn_amount": {
+        "mode": "steady",
+        "rate": 16,
+        "max_particles": 125
+      },
+      "offset": [
+        0,
+        1,
+        0
+      ],
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.15
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 70
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": 0.14,
+          "acceleration": [
+            0,
+            0.07,
+            0
+          ],
+          "linear_drag": 0.6
+        }
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": [
+          0.396078431372549,
+          0.7490196078431373,
+          1,
+          "1.0 - particle.normalized_age"
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          1
+        ]
+      }
+    }
+  ]
+}

@@ -412,7 +412,7 @@ Examples:
 }
 ```
 
-### Parsed-only trigger types
+### Distance trigger types
 
 ```text
 travel_distance
@@ -429,7 +429,10 @@ The parser accepts:
 }
 ```
 
-but the current runtime does not execute it.
+These triggers now execute on real source/emitter travel measured at game
+ticks (not render frames). `travel_distance` fires once and
+`travel_distance_looping` repeats. See [M7 transforms](M7_TRANSFORMS.md)
+for teleportation semantics, position ordering and budgets.
 
 ### Collision trigger scope
 
@@ -445,6 +448,8 @@ but the current runtime does not execute it.
   "emitter_lifetime": {},
   "spawn_amount": {},
   "offset": [0, 0, 0],
+  "emitter_rotation": [0, 0, 0],
+  "space": "world",
   "spawn_shape": {},
   "particle_lifetime": {},
   "motion": {},
@@ -462,6 +467,8 @@ particle_triggers   optional
 emitter_lifetime    optional
 spawn_amount        optional
 offset              optional
+emitter_rotation    optional, emitter-local Euler XYZ degrees
+space               optional, "world" (default) or "local"
 spawn_shape         required
 particle_lifetime   optional
 motion              optional

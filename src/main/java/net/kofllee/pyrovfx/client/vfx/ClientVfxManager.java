@@ -5,6 +5,9 @@ import net.minecraft.client.Minecraft;
 import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.phys.Vec3;
+import net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider;
+import net.kofllee.pyrovfx.vfx.resource.VfxRegistry;
+import net.minecraft.resources.ResourceLocation;
 import net.kofllee.pyrovfx.client.render.VfxGpuTelemetry;
 import org.slf4j.Logger;
 
@@ -37,16 +40,47 @@ public final class ClientVfxManager {
     }
 
     public static boolean tryPlay(VfxDefinition definition, Vec3 position, VfxPlayOptions options) {
+        return tryPlay(definition, VfxTransformProvider.fixed(position), options);
+    }
+
+    /** M7.1 transform entrypoint; effect handles and cross-mod API are added in M7.2. */
+    public static boolean tryPlay(VfxDefinition definition, VfxTransformProvider provider, VfxPlayOptions options) {
         trackWorld();
         if (!GLOBAL_BUDGET.admitInstance(INSTANCES.size())) return false;
-        INSTANCES.add(new ClientVfxInstance(definition, position, options));
-        return true;
+        if (provider == null) return false;
+        try {
+            INSTANCES.add(new ClientVfxInstance(definition, provider, options));
+            return true;
+        } catch (IllegalStateException ex) {
+            return false;
+        }
+    }
+
+    public static boolean tryPlay(ResourceLocation effectId, VfxTransformProvider provider) {
+        return tryPlay(effectId, provider, VfxPlayOptions.empty());
+    }
+
+    /** Client-only convenience for lambda/method-reference attachment without registration. */
+    public static boolean tryPlay(ResourceLocation effectId, VfxTransformProvider provider,
+                                  VfxPlayOptions options) {
+        VfxDefinition definition = VfxRegistry.get(effectId);
+        return definition != null && tryPlay(definition, provider, options);
     }
 
     public static void playSeeded(VfxDefinition definition, Vec3 position, VfxPlayOptions options, long seed) {
+        playSeeded(definition, VfxTransformProvider.fixed(position), options, seed);
+    }
+
+    public static void playSeeded(VfxDefinition definition, VfxTransformProvider provider,
+                                  VfxPlayOptions options, long seed) {
         trackWorld();
         if (!GLOBAL_BUDGET.admitInstance(INSTANCES.size())) return;
-        INSTANCES.add(new ClientVfxInstance(definition, position, options, seed));
+        if (provider == null) return;
+        try {
+            INSTANCES.add(new ClientVfxInstance(definition, provider, options, seed));
+        } catch (IllegalStateException ignored) {
+            // Invalid source at creation; a VFX effect must not hold a missing attachment.
+        }
     }
 
     public static void tick(){

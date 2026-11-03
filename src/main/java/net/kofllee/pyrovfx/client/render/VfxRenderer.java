@@ -31,7 +31,9 @@ public final class VfxRenderer {
         boolean queuedVanilla = false;
         try {
             for(ClientVfxInstance instance: ClientVfxManager.instances()){
+                var sourceTransform = instance.renderTransform(partialTick);
                 for(var emitter : instance.emitters()) {
+                    emitter.setRenderTransform(sourceTransform, partialTick);
                     for (var analytic : emitter.analyticPools()) {
                         if (analytic.liveCount() == 0) continue;
                         if (gpuFrame) VfxInstancedSpriteRenderer.flush();

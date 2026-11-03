@@ -33,6 +33,9 @@ public final class VfxAnalyticSpriteRenderer {
             layout(location=4) in float iRandom;
             uniform mat4 uMvp;
             uniform vec3 uCamera, uRight, uUp, uAcceleration;
+            uniform vec3 uSourcePosition;
+            uniform vec4 uSourceRotation;
+            uniform int uLocalSpace;
             uniform vec2 uMotion;
             uniform vec2 uScale;
             uniform float uPrevAge, uCurrentAge, uLife, uPartial;
@@ -41,9 +44,14 @@ public final class VfxAnalyticSpriteRenderer {
             uniform vec4 uUvRect;
             out vec2 vUv;
             out vec4 vFactor;
+            vec3 rotateSource(vec3 v) {
+                vec3 t = 2.0 * cross(uSourceRotation.xyz, v);
+                return v + uSourceRotation.w * t + cross(uSourceRotation.xyz, t);
+            }
             void main() {
-                vec3 p = birth - uCamera + velocity * uMotion.x
-                         + uAcceleration * uMotion.y;
+                vec3 world = birth + velocity * uMotion.x + uAcceleration * uMotion.y;
+                if (uLocalSpace != 0) world = uSourcePosition + rotateSource(world);
+                vec3 p = world - uCamera;
                 vec2 size = uScale;
                 vFactor = vec4(1.0);
                 // GPU_APPEARANCE
@@ -162,6 +170,13 @@ public final class VfxAnalyticSpriteRenderer {
                 GL20.glUniformMatrix4fv(location(activeProgram,"uMvp"),false,MATRIX);
                 GL20.glUniform3f(location(activeProgram,"uCamera"),(float)camera.getPosition().x,
                         (float)camera.getPosition().y,(float)camera.getPosition().z);
+                var source = pool.sourceTransform();
+                var sourceRotation = source.rotation();
+                GL20.glUniform1i(location(activeProgram,"uLocalSpace"), pool.localSpace() ? 1 : 0);
+                GL20.glUniform3f(location(activeProgram,"uSourcePosition"),
+                        (float) source.position().x, (float) source.position().y, (float) source.position().z);
+                GL20.glUniform4f(location(activeProgram,"uSourceRotation"),
+                        sourceRotation.x, sourceRotation.y, sourceRotation.z, sourceRotation.w);
                 var facing = pool.definition().render().facing();
                 if (facing == net.kofllee.pyrovfx.vfx.type.VfxFacingMode.WORLD_Z) {
                     RIGHT.set(1,0,0); UP.set(0,1,0);
@@ -176,8 +191,9 @@ public final class VfxAnalyticSpriteRenderer {
                 GL20.glUniform3f(location(activeProgram,"uRight"),RIGHT.x,RIGHT.y,RIGHT.z);
                 GL20.glUniform3f(location(activeProgram,"uUp"),UP.x,UP.y,UP.z);
                 var plan = pool.plan();
-                GL20.glUniform3f(location(activeProgram,"uAcceleration"),(float)plan.accelerationX(),
-                        (float)plan.accelerationY(),(float)plan.accelerationZ());
+                var acceleration = pool.effectiveAcceleration();
+                GL20.glUniform3f(location(activeProgram,"uAcceleration"),(float)acceleration.x,
+                        (float)acceleration.y,(float)acceleration.z);
                 double[] coefficients = plan.coefficients(pool.age(),partial);
                 GL20.glUniform2f(location(activeProgram,"uMotion"),(float)coefficients[0],(float)coefficients[1]);
                 GL20.glUniform2f(location(activeProgram,"uScale"),(float)pool.scale().x,(float)pool.scale().y);
