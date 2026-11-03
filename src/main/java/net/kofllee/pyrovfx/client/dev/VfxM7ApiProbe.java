@@ -2,6 +2,8 @@ package net.kofllee.pyrovfx.client.dev;
 
 import net.kofllee.pyrovfx.api.Vfx;
 import net.kofllee.pyrovfx.api.VfxHandle;
+import net.kofllee.pyrovfx.api.VfxOptions;
+import net.minecraft.client.Minecraft;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import net.kofllee.pyrovfx.vfx.transform.VfxTransform;
 import net.minecraft.resources.ResourceLocation;
@@ -30,7 +32,7 @@ final class VfxM7ApiProbe {
             throw new IllegalStateException("Unavailable provider accepted");
         if (Vfx.play(effect, origin, Map.of("unknown", 3.0)).isActive())
             throw new IllegalStateException("Unknown parameter accepted");
-        test.handle = Vfx.play(effect, origin, Map.of("stage", 5.0));
+        test.handle = Vfx.play(effect, Minecraft.getInstance().level, origin, Map.of("stage", 5.0));
         if (!test.handle.isActive() || ClientVfxManager.getActiveInstanceCount() != 1
                 || ClientVfxManager.instances().getFirst().parameters().get("stage") != 5.0)
             throw new IllegalStateException("Valid managed start or parameter override failed");
@@ -65,6 +67,11 @@ final class VfxM7ApiProbe {
             ClientVfxManager.clear();
             if (second.isActive() || second.stop())
                 throw new IllegalStateException("Clear did not invalidate live handles");
+            var attached = Vfx.play(effect, Minecraft.getInstance().player,
+                    VfxOptions.DEFAULT.withParameters(Map.of("stage", 2.0)));
+            if (!attached.isActive() || ClientVfxManager.getActiveInstanceCount() != 1
+                    || !attached.stop() || attached.isActive())
+                throw new IllegalStateException("Automatic client Entity routing failed");
         }
         if (index == 3) {
             var reference = new java.util.concurrent.atomic.AtomicReference<VfxHandle>();

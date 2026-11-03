@@ -8,6 +8,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 import java.util.Map;
@@ -19,6 +20,11 @@ public final class ClientVfxAccess {
     private static boolean ready() {
         Minecraft minecraft = Minecraft.getInstance();
         return minecraft.isSameThread() && minecraft.level != null;
+    }
+
+    /** Reject stale client worlds and calls from the integrated logical server thread. */
+    public static boolean inWorld(Level level) {
+        return ready() && level != null && level == Minecraft.getInstance().level;
     }
 
     public static long play(ResourceLocation id, VfxTransformProvider source, Map<String, Double> parameters) {

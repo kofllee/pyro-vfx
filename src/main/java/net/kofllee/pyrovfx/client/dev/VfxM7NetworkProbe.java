@@ -1,9 +1,10 @@
 package net.kofllee.pyrovfx.client.dev;
 
+import net.kofllee.pyrovfx.api.Vfx;
+import net.kofllee.pyrovfx.api.VfxHandle;
+import net.kofllee.pyrovfx.api.VfxOptions;
 import net.kofllee.pyrovfx.client.ClientVfxNetwork;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
-import net.kofllee.pyrovfx.network.ServerVfxNetwork;
-import net.kofllee.pyrovfx.network.VfxRemoteHandle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
@@ -20,7 +21,7 @@ final class VfxM7NetworkProbe {
     private final UUID player;
     private final ResourceLocation effect;
     private final Vec3 origin;
-    private final AtomicReference<VfxRemoteHandle> remote = new AtomicReference<>();
+    private final AtomicReference<VfxHandle> remote = new AtomicReference<>();
     private final AtomicReference<String> serverFailure = new AtomicReference<>();
     private boolean verified;
 
@@ -40,8 +41,8 @@ final class VfxM7NetworkProbe {
             try {
                 var player = server.getPlayerList().getPlayer(probe.player);
                 if (player == null) throw new IllegalStateException("No server player");
-                VfxRemoteHandle handle = ServerVfxNetwork.play(
-                        player.serverLevel(), effect, origin, Map.of("stage", 0.0), 96, 120);
+                VfxHandle handle = Vfx.play(effect, player.serverLevel(), origin,
+                        VfxOptions.DEFAULT.withParameters(Map.of("stage", 0.0)).withDurationTicks(120));
                 if (!handle.isActive()) throw new IllegalStateException("Remote start rejected");
                 probe.remote.set(handle);
             } catch (RuntimeException exception) {
@@ -63,7 +64,7 @@ final class VfxM7NetworkProbe {
         }
         if (index == 23) {
             server.execute(() -> {
-                VfxRemoteHandle handle = remote.get();
+                VfxHandle handle = remote.get();
                 if (handle == null || !handle.setParameter("stage", 7.0) || !handle.trigger("increment"))
                     serverFailure.set("Remote parameter or event rejected on server thread");
             });
@@ -75,7 +76,7 @@ final class VfxM7NetworkProbe {
         }
         if (index == 40) {
             server.execute(() -> {
-                VfxRemoteHandle handle = remote.get();
+                VfxHandle handle = remote.get();
                 if (handle == null || !handle.stop() || handle.stop() || handle.isActive())
                     serverFailure.set("Remote stop was not idempotent");
             });

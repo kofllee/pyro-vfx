@@ -1,9 +1,10 @@
 package net.kofllee.pyrovfx.client.dev;
 
+import net.kofllee.pyrovfx.api.Vfx;
+import net.kofllee.pyrovfx.api.VfxHandle;
+import net.kofllee.pyrovfx.api.VfxOptions;
 import net.kofllee.pyrovfx.client.ClientVfxNetwork;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
-import net.kofllee.pyrovfx.network.ServerVfxNetwork;
-import net.kofllee.pyrovfx.network.VfxRemoteHandle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
@@ -18,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Integrated server + real client prove entity/block IDs resolve, and source removal sends Stop. */
 final class VfxM7NetworkAttachmentsProbe {
     private final AtomicReference<String> failure = new AtomicReference<>();
-    private volatile VfxRemoteHandle entity, block;
+    private volatile VfxHandle entity, block;
     private boolean verified;
     private final Vec3 origin;
     private final UUID playerId;
@@ -43,8 +44,10 @@ final class VfxM7NetworkAttachmentsProbe {
                 var anchor = BlockPos.containing(origin);
                 probe.oldBlock = level.getBlockState(anchor);
                 level.setBlockAndUpdate(anchor, Blocks.STONE.defaultBlockState());
-                probe.entity = ServerVfxNetwork.play(level, effect, player, Map.of("stage", 0.0), 96, 120);
-                probe.block = ServerVfxNetwork.play(level, effect, anchor, Map.of("stage", 0.0), 96, 120);
+                VfxOptions options = VfxOptions.DEFAULT.withParameters(Map.of("stage", 0.0))
+                        .withDurationTicks(120);
+                probe.entity = Vfx.play(effect, player, options);
+                probe.block = Vfx.play(effect, level, anchor, options);
                 if (!probe.entity.isActive() || !probe.block.isActive())
                     throw new IllegalStateException("Server rejected entity or block source");
             } catch (RuntimeException ex) {
