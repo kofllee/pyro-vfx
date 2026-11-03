@@ -284,7 +284,13 @@ public final class VfxBenchHarness {
                     : new Vec3(museum.effectOrigin().getX() + 0.5,
                     museum.effectOrigin().getY() + 0.5,
                     museum.effectOrigin().getZ() + 0.5);
-            if (run.scenario.name().equals("global_budget_spike")) {
+            if (run.scenario.name().equals("m7_api_handles")) {
+                try {
+                    run.api = VfxM7ApiProbe.start(run.scenario.effect(), effectPosition);
+                } catch (Exception exception) {
+                    run.error = "Public API setup: " + exception;
+                }
+            } else if (run.scenario.name().equals("global_budget_spike")) {
                 // Heavy override remains DISABLED: exercise production global admission.
                 var request = VfxPlayOptions.builder().param("count",
                         VfxGlobalBudget.MAX_SPAWNS_PER_TICK / 2).build();
@@ -378,6 +384,13 @@ public final class VfxBenchHarness {
                 run.error = "M7 lifecycle check: " + exception;
             }
         }
+        if (run.api != null && run.error == null) {
+            try {
+                run.api.afterTick(index);
+            } catch (Exception exception) {
+                run.error = "Public API check: " + exception;
+            }
+        }
         boolean soak = run.scenario.name().equals("soak_mixed");
         if (((run.scenario.name().equals("reload_active")
                 || run.scenario.name().equals("model_reload_active")
@@ -454,6 +467,9 @@ public final class VfxBenchHarness {
         if (run.elapsedTicks >= run.scenario.warmupTicks() + run.scenario.sampleTicks()) {
             if (run.lifecycle != null && !run.lifecycle.verified() && run.error == null)
                 run.error = "M7 lifecycle teardown did not complete";
+            if (run.scenario.name().equals("m7_api_handles")
+                    && (run.api == null || !run.api.verified()) && run.error == null)
+                run.error = "M7 public API verification did not complete";
             if (run.scenario.name().equals("soak_mixed")
                     && (run.reloadCyclesCompleted != 3 || run.peakParticles < 50)) {
                 run.error = "Mixed workload did not complete all 3 reloads or produce enough particles: "
@@ -801,6 +817,7 @@ public final class VfxBenchHarness {
         boolean collisionEventObserved;
         boolean entityIsolationVerified;
         VfxM7LifecycleProbe lifecycle;
+        VfxM7ApiProbe api;
         boolean worldExitRequested;
         boolean worldExitVerified;
         net.kofllee.pyrovfx.client.vfx.ClientVfxEmitter worldExitEmitter;

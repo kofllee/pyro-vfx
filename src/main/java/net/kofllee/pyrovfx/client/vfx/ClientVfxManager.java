@@ -15,9 +15,19 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.IdentityHashMap;
+import java.util.Set;
 
 public final class ClientVfxManager {
     private static final List<ClientVfxInstance> INSTANCES = new ArrayList<>();
+    // Only publicly controlled instances need an id. Handles store this id, not a strong instance reference.
+    private static final Map<Long, ClientVfxInstance> HANDLES = new HashMap<>();
+    private static final Set<ClientVfxInstance> PENDING_STOPS = Collections.newSetFromMap(new IdentityHashMap<>());
+    private static long nextHandleId = 1;
+    private static boolean ticking;
+    private static boolean rendering;
     private static final VfxWorldIdentity WORLD_IDENTITY = new VfxWorldIdentity();
     private static final VfxGlobalBudget GLOBAL_BUDGET = new VfxGlobalBudget();
     private static final VfxAdaptiveSpawnController ADAPTIVE_SPAWNS = new VfxAdaptiveSpawnController();
@@ -67,6 +77,91 @@ public final class ClientVfxManager {
         return definition != null && tryPlay(definition, provider, options);
     }
 
+    /** Public API backing. Returns zero on rejection; never creates an instance outside a client world. */
+    public static long playManaged(ResourceLocation id, VfxTransformProvider provider, Map<String, Double> parameters) {
+        ClientLevel level = trackWorld();
+        VfxDefinition definition = id == null ? null : VfxRegistry.get(id);
+        if (level == null || definition == null || provider == null || parameters == null
+                || !GLOBAL_BUDGET.admitInstance(INSTANCES.size())) return 0;
+        VfxPlayOptions.Builder options = VfxPlayOptions.builder();
+        for (var entry : parameters.entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null
+                    || !Double.isFinite(entry.getValue()) || !definition.parameters().containsKey(entry.getKey())) {
+                LOGGER.warn("Invalid Pyro VFX parameter for {}: {}", id, entry.getKey());
+                return 0;
+            }
+            options.param(entry.getKey(), entry.getValue());
+        }
+        try {
+            ClientVfxInstance instance = new ClientVfxInstance(definition, provider, options.build());
+            long handleId = nextHandleId++;
+            instance.publicHandleId(handleId);
+            INSTANCES.add(instance);
+            HANDLES.put(handleId, instance);
+            return handleId;
+        } catch (RuntimeException ex) {
+            LOGGER.warn("Cannot start Pyro VFX effect {}: {}", id, ex.toString());
+            return 0;
+        }
+    }
+
+    public static boolean handleActive(long id) {
+        trackWorld();
+        return id != 0 && HANDLES.containsKey(id);
+    }
+
+    public static boolean stopHandle(long id) {
+        trackWorld();
+        ClientVfxInstance instance = HANDLES.remove(id);
+        if (instance == null) return false;
+        // A provider may call stop() while its instance is ticking. Remove it
+        // at the iterator's next safe point instead of modifying INSTANCES mid-loop.
+        if (ticking || rendering) PENDING_STOPS.add(instance);
+        else {
+            INSTANCES.remove(instance);
+            instance.close();
+        }
+        return true;
+    }
+
+    public static boolean setHandleParameter(long id, String name, double value) {
+        trackWorld();
+        ClientVfxInstance instance = HANDLES.get(id);
+        return instance != null && instance.trySetParameter(name, value);
+    }
+
+    public static boolean triggerHandle(long id, String event) {
+        trackWorld();
+        ClientVfxInstance instance = HANDLES.get(id);
+        return instance != null && instance.queueEvent(event);
+    }
+
+    public static boolean attachHandle(long id, VfxTransformProvider provider) {
+        trackWorld();
+        ClientVfxInstance instance = HANDLES.get(id);
+        return instance != null && instance.replaceProvider(provider);
+    }
+
+    public static boolean detachHandle(long id) {
+        trackWorld();
+        ClientVfxInstance instance = HANDLES.get(id);
+        if (instance == null) return false;
+        instance.detachProvider();
+        return true;
+    }
+
+    /** Keep render-time source callbacks from invalidating the instance iterator. */
+    public static void beginRender() { rendering = true; }
+
+    public static void endRender() {
+        rendering = false;
+        for (ClientVfxInstance instance : PENDING_STOPS) {
+            INSTANCES.remove(instance);
+            instance.close();
+        }
+        PENDING_STOPS.clear();
+    }
+
     public static void playSeeded(VfxDefinition definition, Vec3 position, VfxPlayOptions options, long seed) {
         playSeeded(definition, VfxTransformProvider.fixed(position), options, seed);
     }
@@ -89,6 +184,7 @@ public final class ClientVfxManager {
         if(level == null) {
             for (ClientVfxInstance instance : INSTANCES) instance.close();
             INSTANCES.clear();
+            HANDLES.clear();
             GLOBAL_BUDGET.reset();
             ADAPTIVE_SPAWNS.reset();
             ADAPTIVE_GPU.reset();
@@ -155,24 +251,38 @@ public final class ClientVfxManager {
         GLOBAL_BUDGET.setAdaptiveSpawnScale(scale);
         long startedNs = System.nanoTime();
         Iterator<ClientVfxInstance> iterator = INSTANCES.iterator();
-        while(iterator.hasNext()){
-            ClientVfxInstance instance = iterator.next();
+        ticking = true;
+        try {
+            while(iterator.hasNext()){
+                ClientVfxInstance instance = iterator.next();
+                if (PENDING_STOPS.remove(instance)) {
+                    instance.close();
+                    iterator.remove();
+                    continue;
+                }
 
-            try {
-                long effectStarted = System.nanoTime();
-                instance.tick(level, GLOBAL_BUDGET);
-                instance.recordCpuTime(System.nanoTime() - effectStarted);
-            } catch (Exception e) {
-                LOGGER.error("Failed to tick Pyro VFX instance: {}", instance.definition().id(), e);
-                instance.close();
-                iterator.remove();
-                continue;
-            }
+                try {
+                    long effectStarted = System.nanoTime();
+                    instance.tick(level, GLOBAL_BUDGET);
+                    instance.recordCpuTime(System.nanoTime() - effectStarted);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to tick Pyro VFX instance: {}", instance.definition().id(), e);
+                    instance.close();
+                    HANDLES.remove(instance.publicHandleId());
+                    PENDING_STOPS.remove(instance);
+                    iterator.remove();
+                    continue;
+                }
 
-            if(instance.isFinished()){
-                instance.close();
-                iterator.remove();
+                if (PENDING_STOPS.remove(instance) || instance.isFinished()) {
+                    instance.close();
+                    HANDLES.remove(instance.publicHandleId());
+                    iterator.remove();
+                }
             }
+        } finally {
+            ticking = false;
+            PENDING_STOPS.clear();
         }
         double targetMs = VfxBudgetConfig.cpuTickTargetMs();
         if (!net.neoforged.fml.loading.FMLEnvironment.production && automaticBenchmark
@@ -190,6 +300,8 @@ public final class ClientVfxManager {
         if (WORLD_IDENTITY.update(level)) {
             for (ClientVfxInstance instance : INSTANCES) instance.close();
             INSTANCES.clear();
+            HANDLES.clear();
+            PENDING_STOPS.clear();
             GLOBAL_BUDGET.reset();
             ADAPTIVE_SPAWNS.reset();
             ADAPTIVE_GPU.reset();
@@ -204,6 +316,8 @@ public final class ClientVfxManager {
     public static void clear(){
         for (ClientVfxInstance instance : INSTANCES) instance.close();
         INSTANCES.clear();
+        HANDLES.clear();
+        PENDING_STOPS.clear();
         GLOBAL_BUDGET.reset();
         ADAPTIVE_SPAWNS.reset();
         ADAPTIVE_GPU.reset();

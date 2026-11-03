@@ -15,7 +15,9 @@ import net.minecraft.world.phys.Vec3;
 import java.util.*;
 
 public final class ClientVfxInstance {
+    private static final int MAX_QUEUED_EXTERNAL_EVENTS = 128;
     private final VfxDefinition definition;
+    private long publicHandleId;
     private Vec3 position;
     private VfxTransformProvider provider;
     private VfxTransform previousTransform;
@@ -25,6 +27,7 @@ public final class ClientVfxInstance {
     private final List<VfxTravelTriggers.Hit> travelHits = new ArrayList<>();
     private final List<ClientVfxEmitter> emitters = new ArrayList<>();
     private final Map<String, ClientVfxEmitter> emittersById = new HashMap<>();
+    private final Deque<String> pendingExternalEvents = new ArrayDeque<>();
     private final Map<String, Double> parameters;
     private final int[] parameterSlots;
     private final double[] parameterValues;
@@ -253,6 +256,10 @@ public final class ClientVfxInstance {
 
         if (!sourceLost) {
             tickEffectTriggers(level, effectContext, lifetimeState);
+            while (!pendingExternalEvents.isEmpty() && budget.hasEventBudget()) {
+                VfxEventRunner.run(pendingExternalEvents.removeFirst(), definition.program().events(),
+                        emittersById, level, position, position, effectContext, eventRuntime, random);
+            }
             travelHits.clear();
             travelTriggers.advance(previousTransform.position(), currentTransform.position(),
                     (trigger, at) -> travelHits.add(new VfxTravelTriggers.Hit(trigger, at)));
@@ -387,6 +394,7 @@ public final class ClientVfxInstance {
 
     public void close() {
         provider = null;
+        pendingExternalEvents.clear();
         for (ClientVfxEmitter emitter : emitters) emitter.close();
     }
 
@@ -413,5 +421,49 @@ public final class ClientVfxInstance {
 
     public Map<String, Double> parameters() {
         return Collections.unmodifiableMap(parameters);
+    }
+
+    void publicHandleId(long id) { publicHandleId = id; }
+    long publicHandleId() { return publicHandleId; }
+
+    /** External events execute at the next game tick, under the normal event/spawn budgets. */
+    boolean queueEvent(String id) {
+        if (sourceLost || id == null || !definition.program().events().containsKey(id)
+                || pendingExternalEvents.size() >= MAX_QUEUED_EXTERNAL_EVENTS) return false;
+        pendingExternalEvents.addLast(id);
+        return true;
+    }
+
+    boolean trySetParameter(String id, double value) {
+        if (id == null || !Double.isFinite(value) || !definition.parameters().containsKey(id)) return false;
+        setParameter(id, value);
+        return true;
+    }
+
+    boolean replaceProvider(VfxTransformProvider next) {
+        if (next == null) return false;
+        VfxTransform pose;
+        try {
+            pose = next.get(1.0f);
+        } catch (RuntimeException ex) {
+            return false;
+        }
+        if (pose == null) return false;
+        provider = next;
+        previousTransform = pose;
+        currentTransform = pose;
+        position = pose.position();
+        sourceLost = false;
+        travelTriggers.reset();
+        return true;
+    }
+
+    void detachProvider() {
+        // Preserve the final sampled pose and continue the effect at that position.
+        VfxTransform pose = currentTransform;
+        provider = partialTick -> pose;
+        previousTransform = pose;
+        sourceLost = false;
+        travelTriggers.reset();
     }
 }

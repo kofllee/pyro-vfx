@@ -61,6 +61,16 @@ public final class PyroVfxGameTests {
     private PyroVfxGameTests() {}
 
     @GameTest(template = "empty")
+    public static void publicVfxApiRemainsInertOnLogicalServer(GameTestHelper helper) {
+        var handle = net.kofllee.pyrovfx.api.Vfx.play(
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/event_order"), Vec3.ZERO);
+        if (handle.isActive() || handle.stop() || handle.trigger("start")
+                || handle.setParameter("stage", 1.0) || handle.detach())
+            throw new AssertionError("Logical server must not create local client VFX");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
     public static void transformProvidersRotateOffsetsAndInterpolate(GameTestHelper helper) {
         var from = new net.kofllee.pyrovfx.vfx.transform.VfxTransform(Vec3.ZERO,
                 new org.joml.Quaternionf());

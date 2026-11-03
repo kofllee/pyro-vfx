@@ -70,6 +70,8 @@ Pyro VFX currently includes:
 - sprite UV regions and sprite-sheet animation;
 - alpha and additive blending;
 - development commands for playing and inspecting registered effects.
+- client-side integration API with per-instance effect handles, parameters,
+  queued events and runtime attachment changes.
 
 A detailed feature status is available in [docs/STATUS.md](docs/STATUS.md).
 
@@ -217,6 +219,20 @@ pyro_vfx:examples/model_spawn_shape
 
 See [docs/EXAMPLES.md](docs/EXAMPLES.md) for requirements and test commands.
 
+## Using effects from another mod
+
+```java
+VfxHandle trail = Vfx.play(effectId, projectile, Map.of("power", 1.5));
+trail.setParameter("power", 2.0);
+trail.trigger("burst");
+trail.stop();
+```
+
+`Vfx` and `VfxHandle` are in `net.kofllee.pyrovfx.api`. In M7.2 these are
+**client-thread APIs**. Server-triggered synchronized effects come in M7.3;
+server-side calls currently return an inactive handle. See
+[public API usage and lifecycle](docs/PUBLIC_API.md).
+
 ## Documentation
 
 - [Current project status](docs/STATUS.md)
@@ -233,8 +249,6 @@ See [docs/EXAMPLES.md](docs/EXAMPLES.md) for requirements and test commands.
 The current prototype does not include:
 
 - an in-game VFX editor;
-- a public integration API;
-- effect handles;
 - server-controlled attached effects (client transform providers are available);
 - networking;
 - detailed per-effect profiling (global counters and benchmark reports are available);

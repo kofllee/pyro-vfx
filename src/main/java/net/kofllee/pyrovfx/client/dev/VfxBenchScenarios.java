@@ -32,6 +32,9 @@ public final class VfxBenchScenarios {
         add(scenarios, "model_rotation", "bench/static", 1);
         add(scenarios, "model_inheritance", "bench/static", 1);
         add(scenarios, "event_order", "bench/event_order", 1);
+        scenarios.put("m7_api_handles", new Scenario("m7_api_handles",
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/event_order"),
+                0, 0x4D72_2026L, 5, 30));
         add(scenarios, "model_1k", "bench/model", 1_000);
         add(scenarios, "model_translucent_1k", "bench/model_translucent", 1_000);
         add(scenarios, "model_entity_250", "bench/model_entity", 250);

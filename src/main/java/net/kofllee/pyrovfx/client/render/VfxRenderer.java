@@ -29,6 +29,7 @@ public final class VfxRenderer {
 
         boolean gpuFrame = false;
         boolean queuedVanilla = false;
+        ClientVfxManager.beginRender();
         try {
             for(ClientVfxInstance instance: ClientVfxManager.instances()){
                 var sourceTransform = instance.renderTransform(partialTick);
@@ -138,7 +139,11 @@ public final class VfxRenderer {
                 }
                 bufferSource.endBatch();
             } finally {
-                if (telemetryFrame) VfxGpuTelemetry.end();
+                try {
+                    if (telemetryFrame) VfxGpuTelemetry.end();
+                } finally {
+                    ClientVfxManager.endRender();
+                }
             }
         }
     }

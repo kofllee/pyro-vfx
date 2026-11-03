@@ -25,6 +25,11 @@ public final class VfxTravelTriggers {
         this.onceFired = new boolean[definitions.size()];
     }
 
+    /** A new source starts a new path without re-arming one-shot events. */
+    public void reset() {
+        java.util.Arrays.fill(progress, 0.0);
+    }
+
     /** Events from all distances are delivered in the spatial order crossed. */
     public void advance(Vec3 from, Vec3 to, BiConsumer<VfxTriggerDefinition, Vec3> fire) {
         double distance = from.distanceTo(to);
