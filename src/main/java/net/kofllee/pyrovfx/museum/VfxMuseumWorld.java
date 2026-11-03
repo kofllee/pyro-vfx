@@ -49,7 +49,26 @@ public final class VfxMuseumWorld {
                             VfxMuseumCatalog.FLOOR_Y + 2,
                             VfxMuseumCatalog.ORIGIN_Z + 13.5);
                     return 1;
-                })));
+                }))
+                .then(literal("network").requires(src -> src.hasPermission(2))
+                        .then(literal("static").executes(ctx ->
+                                VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "static")))
+                        .then(literal("entity").executes(ctx ->
+                                VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "entity")))
+                        .then(literal("block").executes(ctx ->
+                                VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "block")))
+                        .then(literal("stream").executes(ctx ->
+                                VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "stream")))
+                        .then(literal("event").executes(ctx ->
+                                VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "event")))
+                        .then(literal("trigger").executes(ctx ->
+                                VfxNetworkMuseum.trigger(ctx.getSource().getPlayerOrException())))
+                        .then(literal("parameter").executes(ctx ->
+                                VfxNetworkMuseum.parameter(ctx.getSource().getPlayerOrException())))
+                        .then(literal("stop").executes(ctx ->
+                                VfxNetworkMuseum.stop(ctx.getSource().getPlayerOrException())))
+                        .then(literal("status").executes(ctx ->
+                                VfxNetworkMuseum.status(ctx.getSource().getPlayerOrException())))));
     }
 
     public static void build(ServerLevel level) {

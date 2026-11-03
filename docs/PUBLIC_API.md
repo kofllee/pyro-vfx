@@ -1,4 +1,4 @@
-# Pyro VFX public API (M7.2)
+# Pyro VFX public API (local and networked)
 
 Use `net.kofllee.pyrovfx.api.Vfx` to play a JSON-defined effect. Every successful
 call returns a `VfxHandle` for **that one instance**, without exposing the
@@ -38,6 +38,26 @@ trail.detach();  // Keep the last sampled world pose; continue playing there.
 trail.stop();
 ```
 
+## Server-controlled effects (NeoForge payloads)
+
+```java
+VfxRemoteHandle remote = Vfx.play(serverLevel, smoke, rocket,
+        Map.of("power", 1.5), 96.0, 200);
+remote.setParameter("power", 2.0);
+remote.trigger("burst");
+remote.attach(blockPos);
+remote.detach(); // freeze the last pose, retaining the current effect instance
+remote.stop();
+```
+
+The server overload explicitly takes a `ServerLevel`, an audience radius
+in blocks and a server lease duration in ticks (`-1` means explicit manual
+stop). Import `net.kofllee.pyrovfx.network.VfxRemoteHandle` for this contract.
+`Vfx.playStreamed(level, id, pose, parameters, radius, durationTicks)`
+is available for custom moving sources with explicit pose updates; Java
+Transform Providers are **not** serialized. See
+[NETWORKING.md](NETWORKING.md) for the full packet semantics and limitations.
+
 All simple `play` overloads accept `Map<String, Double>` effect parameters;
 the fixed-position + quaternion overload does too. For source-local translation
 and rotation, compose a `VfxTransformProvider` using `offset(x, y, z)`,
@@ -60,10 +80,12 @@ There are no attachment-name registries, named slots or JSON-level source IDs.
 
 ## Semantics
 
-- **Client-side only in M7.2.** Call from the Minecraft client game thread,
+- **Client-local overloads.** Call from the Minecraft client game thread,
   after a client world has loaded. Calling from a dedicated server, from the
   integrated logical server thread or off the client thread returns an inactive
-  handle / `false`; it does *not* broadcast to players. Server networking is M7.3.
+  handle / `false`; it does *not* broadcast to players. To broadcast, use
+  `Vfx.play(ServerLevel, ...)` or `Vfx.playStreamed(ServerLevel, ...)`
+  (documented in [NETWORKING.md](NETWORKING.md)).
 - `handle.isActive()` is `false` after normal expiration, explicit stop, budget
   or start rejection, world exit, or `ClientVfxManager.clear()` (used by dev
   tools). The handle stores a numeric lookup token, not an instance reference.

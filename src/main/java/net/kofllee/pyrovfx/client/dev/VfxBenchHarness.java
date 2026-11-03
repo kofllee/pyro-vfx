@@ -290,6 +290,19 @@ public final class VfxBenchHarness {
                 } catch (Exception exception) {
                     run.error = "Public API setup: " + exception;
                 }
+            } else if (run.scenario.name().equals("m7_network_sync")) {
+                try {
+                    run.network = VfxM7NetworkProbe.start(run.scenario.effect(), effectPosition);
+                } catch (Exception exception) {
+                    run.error = "Network API setup: " + exception;
+                }
+            } else if (run.scenario.name().equals("m7_network_attachments")) {
+                try {
+                    run.networkAttachments = VfxM7NetworkAttachmentsProbe.start(
+                            run.scenario.effect(), effectPosition);
+                } catch (Exception exception) {
+                    run.error = "Network attachments setup: " + exception;
+                }
             } else if (run.scenario.name().equals("global_budget_spike")) {
                 // Heavy override remains DISABLED: exercise production global admission.
                 var request = VfxPlayOptions.builder().param("count",
@@ -391,6 +404,20 @@ public final class VfxBenchHarness {
                 run.error = "Public API check: " + exception;
             }
         }
+        if (run.network != null && run.error == null) {
+            try {
+                run.network.afterTick(index);
+            } catch (Exception exception) {
+                run.error = "Network synchronization check: " + exception;
+            }
+        }
+        if (run.networkAttachments != null && run.error == null) {
+            try {
+                run.networkAttachments.afterTick(index);
+            } catch (Exception exception) {
+                run.error = "Network source tracking check: " + exception;
+            }
+        }
         boolean soak = run.scenario.name().equals("soak_mixed");
         if (((run.scenario.name().equals("reload_active")
                 || run.scenario.name().equals("model_reload_active")
@@ -470,6 +497,12 @@ public final class VfxBenchHarness {
             if (run.scenario.name().equals("m7_api_handles")
                     && (run.api == null || !run.api.verified()) && run.error == null)
                 run.error = "M7 public API verification did not complete";
+            if (run.scenario.name().equals("m7_network_sync")
+                    && (run.network == null || !run.network.verified()) && run.error == null)
+                run.error = "Network play/update/stop verification did not complete";
+            if (run.scenario.name().equals("m7_network_attachments")
+                    && (run.networkAttachments == null || !run.networkAttachments.verified()) && run.error == null)
+                run.error = "Network entity/block attachment verification did not complete";
             if (run.scenario.name().equals("soak_mixed")
                     && (run.reloadCyclesCompleted != 3 || run.peakParticles < 50)) {
                 run.error = "Mixed workload did not complete all 3 reloads or produce enough particles: "
@@ -818,6 +851,8 @@ public final class VfxBenchHarness {
         boolean entityIsolationVerified;
         VfxM7LifecycleProbe lifecycle;
         VfxM7ApiProbe api;
+        VfxM7NetworkProbe network;
+        VfxM7NetworkAttachmentsProbe networkAttachments;
         boolean worldExitRequested;
         boolean worldExitVerified;
         net.kofllee.pyrovfx.client.vfx.ClientVfxEmitter worldExitEmitter;

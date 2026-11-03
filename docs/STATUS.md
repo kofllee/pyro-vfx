@@ -44,6 +44,22 @@ and [the compatibility ledger](COMPATIBILITY_MATRIX.md). The prototype is
 ready to serve as the basis for **developing** a visual editor, not as a
 certified production-ready graphics engine. No editor work is included.
 
+## Server networking verification (3 November 2026)
+
+The public `Vfx.play(ServerLevel, ...)` entrypoint now provides networked
+per-instance controls, Entity/Block/BlockEntity attachments and fixed/explicitly
+streamed poses. NeoForge play-to-client packets send instance commands and
+source identifiers, **not particle state or Java callbacks**. Viewers are
+filtered by dimension, distance and vanilla source-chunk tracking.
+
+The latest dedicated-server regression passes **80/80 GameTests**. Two actual
+Minecraft integrated-server/client benchmarks passed:
+`m7_network_sync` (Start/Parameter/Trigger/Stop) and
+`m7_network_attachments` (Entity/Block resolution, source removal, Stop).
+Actual two-client networking, network traffic percentiles, late-joining
+animation phase consistency and adverse network conditions are **not verified**.
+See [NETWORKING.md](NETWORKING.md) for protocol, limitations and replay steps.
+
 ## Stable prototype features
 
 These systems are implemented and form the current core of the project.
@@ -353,18 +369,11 @@ Minecraft `RenderType` rendering as a compatibility fallback.
 - Visual curve editor.
 - Event timeline editor.
 - World-space shape gizmos.
-- Public integration API.
-- Stable public play-by-id API independent of client internals (the client-only M7.1 convenience exists).
-- Effect handles.
-- Stop-by-handle.
-- Serialized or server-driven attachments (client-side source providers exist).
-- Server-to-client networking.
-- Visibility radius packets.
 - Per-effect performance statistics.
 - Per-emitter performance statistics.
 - Fully cost-weighted per-render-type GPU/VRAM budgets (a global quality
   controller and per-effect quality priority are implemented).
-- Distance culling.
+- Further effect-level distance culling and LOD policy (M7.4).
 - Full quality-tier and distance-based spawn LOD (render-only size LOD is implemented).
 - Dedicated reload command.
 - In-game validation report.

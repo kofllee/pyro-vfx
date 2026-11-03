@@ -72,6 +72,13 @@ Pyro VFX currently includes:
 - development commands for playing and inspecting registered effects.
 - client-side integration API with per-instance effect handles, parameters,
   queued events and runtime attachment changes.
+- NeoForge clientbound server effect synchronization with Entity/Block sources,
+  scoped recipients, per-instance remote handles and optional streamed poses.
+
+For server-side integration and the exact networking limitations, see
+[docs/NETWORKING.md](docs/NETWORKING.md). Integrated-server packet scenarios
+and dedicated-server GameTests pass; independent multi-client testing remains
+unverified.
 
 A detailed feature status is available in [docs/STATUS.md](docs/STATUS.md).
 
