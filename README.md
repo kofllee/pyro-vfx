@@ -70,15 +70,28 @@ Pyro VFX currently includes:
 - sprite UV regions and sprite-sheet animation;
 - alpha and additive blending;
 - development commands for playing and inspecting registered effects.
-- client-side integration API with per-instance effect handles, parameters,
-  queued events and runtime attachment changes.
-- NeoForge clientbound server effect synchronization with Entity/Block sources,
-  scoped recipients, per-instance remote handles and optional streamed poses.
+- unified `Vfx.play(effect, entity)` / `Vfx.play(effect, level, position)` API
+  with one `VfxHandle` on client and logical server; parameters, events and
+  runtime attachment changes work through the same interface.
+- NeoForge clientbound effect synchronization with Entity/Block sources,
+  scoped recipients, automatic safe audience/lease defaults and optional streamed poses.
 
-For server-side integration and the exact networking limitations, see
-[docs/NETWORKING.md](docs/NETWORKING.md). Integrated-server packet scenarios
-and dedicated-server GameTests pass; independent multi-client testing remains
-unverified.
+Normal integration does not require packet or networking code:
+
+```java
+VfxHandle trail = Vfx.play(ROCKET_TRAIL, rocket);
+Vfx.play(IMPACT, level, impactPosition);
+trail.setParameter("density", 1.5);
+trail.stop();
+```
+
+Entity/BlockEntity calls find their own world. On the logical server they
+broadcast; on the client they remain local. A bare position needs a Level.
+For options, local-only providers, game-thread rules and avoiding duplicate
+calls on both sides, see [docs/PUBLIC_API.md](docs/PUBLIC_API.md).
+For the underlying protocol and exact limitations, see
+[docs/NETWORKING.md](docs/NETWORKING.md). Independent multi-client testing
+remains unverified.
 
 A detailed feature status is available in [docs/STATUS.md](docs/STATUS.md).
 

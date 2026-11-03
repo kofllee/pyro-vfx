@@ -1,135 +1,147 @@
-# Pyro VFX public API (local and networked)
+# Pyro VFX public API
 
-Use `net.kofllee.pyrovfx.api.Vfx` to play a JSON-defined effect. Every successful
-call returns a `VfxHandle` for **that one instance**, without exposing the
-internal manager, emitter or renderer.
+A consuming mod needs only `net.kofllee.pyrovfx.api.Vfx` and
+`VfxHandle` for normal playback. There is no networking registration,
+packet construction, client renderer or internal manager to access.
+
+## Normal playback — the same API on both logical sides
 
 ```java
 import net.kofllee.pyrovfx.api.Vfx;
 import net.kofllee.pyrovfx.api.VfxHandle;
-import net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider;
 
 ResourceLocation smoke = ResourceLocation.fromNamespaceAndPath("pyrotechnica", "rocket_trail");
 
-// Simple playback with built-in Minecraft sources:
-Vfx.play(smoke, hitPosition);
-Vfx.play(smoke, rocket);
-Vfx.play(smoke, blockPos);
-Vfx.play(smoke, blockEntity);
-Vfx.play(smoke, hitPosition, rotation, Map.of("power", 1.5));
+VfxHandle trail = Vfx.play(smoke, rocket);                  // Entity
+Vfx.play(smoke, blockEntity);                              // BlockEntity
+Vfx.play(smoke, level, hitPosition);                        // fixed Vec3
+Vfx.play(smoke, level, blockPos);                           // tracking block
+Vfx.play(smoke, level, new VfxTransform(hitPosition, rotation));
 
-// Vfx.at converts an entity, block or block entity into a transform provider.
-// Offsets and rotations are applied relative to the tracked source:
-VfxHandle trail = Vfx.play(smoke,
-    Vfx.at(rocket).offset(0, 1.0, -0.5).rotate(0, 90, 0),
-    Map.of("power", 1.5));
-Vfx.play(smoke, Vfx.at(blockPos).offset(0, 0.5, 0));
-
-// Already have a provider? Pass it directly. Vfx.at(provider) is unnecessary:
-VfxTransformProvider muzzleProvider = partialTick -> mechanism.getMuzzleTransform(partialTick);
-Vfx.play(smoke, muzzleProvider);
-Vfx.play(smoke, muzzleProvider.offset(0, 0, 0.5));
-
-trail.setParameter("power", 2.0);
+trail.setParameter("density", 2.0);
 trail.trigger("burst");
-trail.attach(Vfx.at(blockEntity).offset(0, 0.5, 0).rotate(0, 90, 0));
-trail.attach(muzzleProvider);
-trail.detach();  // Keep the last sampled world pose; continue playing there.
+trail.attach(otherEntity);
+trail.detach();  // freeze last position and rotation
 trail.stop();
 ```
 
-## Server-controlled effects (NeoForge payloads)
+A world-aware call on a **logical server game thread** creates a server
+effect instance and broadcasts its commands to eligible tracking players.
+On a **client game thread**, the same call creates a local effect only.
+Entity and BlockEntity already carry a Level; a plain Vec3 or BlockPos does
+not, so pass `level` explicitly. Wrong-side, stale-world and unavailable
+sources return an inactive handle instead of switching worlds or silently
+sending a packet.
+
+**Important:** this is side-aware dispatch, not duplicate suppression. If
+your mod runs the same gameplay callback on both client and server, invoking
+`Vfx.play` in both callbacks creates a local effect **and** a server-broadcast
+effect. For shared gameplay events, call it on the logical server; for
+exclusively client-visual events, call it on the client.
+
+## Optional settings
 
 ```java
-VfxRemoteHandle remote = Vfx.play(serverLevel, smoke, rocket,
-        Map.of("power", 1.5), 96.0, 200);
-remote.setParameter("power", 2.0);
-remote.trigger("burst");
-remote.attach(blockPos);
-remote.detach(); // freeze the last pose, retaining the current effect instance
-remote.stop();
+import net.kofllee.pyrovfx.api.VfxOptions;
+
+VfxHandle smoke = Vfx.play(smokeId, rocket, Map.of("density", 0.75));
+
+VfxOptions settings = VfxOptions.DEFAULT
+        .withParameters(Map.of("density", 0.75))
+        .withRadius(64)             // server audience, in blocks
+        .withDurationTicks(200);    // server lease, in ticks
+VfxHandle remoteOrLocal = Vfx.play(smokeId, rocket, settings);
 ```
 
-The server overload explicitly takes a `ServerLevel`, an audience radius
-in blocks and a server lease duration in ticks (`-1` means explicit manual
-stop). Import `net.kofllee.pyrovfx.network.VfxRemoteHandle` for this contract.
-`Vfx.playStreamed(level, id, pose, parameters, radius, durationTicks)`
-is available for custom moving sources with explicit pose updates; Java
-Transform Providers are **not** serialized. See
-[NETWORKING.md](NETWORKING.md) for the full packet semantics and limitations.
+The defaults are **96 blocks**, **1200 ticks (60 seconds)** and no initial
+parameter overrides. Local playback uses the parameter map but ignores radius
+and server lease. A server instance is automatically released after its
+lease, when its attached source is removed, or when its world unloads.
+This is a server/network bookkeeping lifetime, not a replacement for the
+effect's own JSON lifetime. `-1` is an opt-in indefinite server lease:
+call `stop()` yourself. The networking backend enforces the existing
+limits (256-block maximum radius, 10-minute maximum finite lease,
+32 parameters and 4096 live instances per dimension).
 
-All simple `play` overloads accept `Map<String, Double>` effect parameters;
-the fixed-position + quaternion overload does too. For source-local translation
-and rotation, compose a `VfxTransformProvider` using `offset(x, y, z)`,
-`offset(Vec3)`, `rotate(xDegrees, yDegrees, zDegrees)` or
-`rotate(Quaternionf)`. These methods return a new provider and may be chained;
-their order matters: `offset(...).rotate(...)` translates along the original
-source axes, whereas `rotate(...).offset(...)` rotates the offset as well.
+## Client-only custom sources and transform composition
 
-`Vfx.at(entity)`, `Vfx.at(blockPos)` and `Vfx.at(blockEntity)` each return
-a `VfxTransformProvider`; there is intentionally no `Vfx.at(provider)`.
-`Vfx.play(id, provider)` and `handle.attach(provider)` accept it directly.
-Entity offsets follow yaw/pitch. Block and block-entity sources are centered on
-the block with world-aligned axes (not automatically rotated by block facing).
-For animated model parts, supply a callback returning the actual part's
-world-space pose (see M7.1); no generic bone lookup is claimed.
-`VfxTransformProvider.get(partialTick)` returns a `VfxTransform` or `null`
-if the source becomes unavailable. An `at(...)` call made outside a valid
-client world/thread yields an unavailable provider rather than throwing.
-There are no attachment-name registries, named slots or JSON-level source IDs.
+```java
+VfxTransformProvider nozzle = Vfx.at(rocket)
+        .offset(0, 1.0, -0.5)
+        .rotate(0, 90, 0);
+VfxHandle local = Vfx.play(smoke, nozzle);
+local.attach(nozzle.offset(0, 0, 0.5));
+```
 
-## Semantics
+`Vfx.at(Entity)`, `Vfx.at(BlockPos)`, `Vfx.at(BlockEntity)`, and
+`Vfx.play(id, VfxTransformProvider)` are **client-local**. They support
+source-local offsets, rotation and animated model-part callbacks. Java
+providers (including chained `offset` / `rotate`) cannot be transmitted
+as server attachments by the existing networking protocol. Do **not**
+call `Vfx.play(id, Vfx.at(entity).offset(...))` in common gameplay code
+expecting it to broadcast; the server gets an inactive handle.
 
-- **Client-local overloads.** Call from the Minecraft client game thread,
-  after a client world has loaded. Calling from a dedicated server, from the
-  integrated logical server thread or off the client thread returns an inactive
-  handle / `false`; it does *not* broadcast to players. To broadcast, use
-  `Vfx.play(ServerLevel, ...)` or `Vfx.playStreamed(ServerLevel, ...)`
-  (documented in [NETWORKING.md](NETWORKING.md)).
-- `handle.isActive()` is `false` after normal expiration, explicit stop, budget
-  or start rejection, world exit, or `ClientVfxManager.clear()` (used by dev
-  tools). The handle stores a numeric lookup token, not an instance reference.
-- Calling `stop()` from a transform callback during an effect tick or render
-  pass is supported: the handle becomes inactive immediately, and the manager
-  releases the instance at the safe end of the current pass.
-- Missing JSON effect, invalid/missing source, unknown or non-finite start
-  parameters, or the effect-count budget limit yield an inactive handle.
-  `stop()` is idempotent: only the first successful call returns `true`.
-- `setParameter(name, value)` returns `false` for unknown names, non-finite
-  values or inactive handles. Changes affect future evaluations; expressions
-  already cached at particle birth are not retroactively changed.
-- `trigger(eventName)` returns `false` for unknown events, an unavailable
-  source, an inactive handle, or a full 128-entry event queue. Valid events run
-  **on the next client game tick**, using the same per-effect/global event and
-  spawn budgets as JSON triggers. They are not rendered or dispatched mid-frame.
-- `attach(provider)` first samples the replacement at `partialTick=1`; `false`
-  leaves the existing attachment unchanged. A successful rebind starts at the
-  new pose and resets distance-trigger spacing (without rearming one-shot
-  distance events). `detach()` freezes the last position *and rotation*,
-  rather than treating the source as lost, so emitters can continue playing.
-  Existing world-space particles remain in world space, while local-space
-  particles follow the newly selected source.
-- A provider disappearing naturally **stops new emission**, releases its
-  callback and allows surviving particles to finish (M7.1 behavior). Explicit
-  `stop()` instead closes all resources immediately. Resource reload preserves
-  instances; changing/unloading a world invalidates handles.
+For ordinary server Entity/Block attachment use the direct overload.
+For a fixed rotated server effect, pass
+`Vfx.play(id, level, new VfxTransform(position, rotation))`.
+For a server-owned moving model-part/socket pose requiring explicit
+synchronization:
+
+```java
+VfxHandle socket = Vfx.playStreamed(smoke, serverLevel, initialPose,
+        VfxOptions.DEFAULT.withRadius(64));
+socket.updatePose(currentPose);      // call as the socket moves on the server
+socket.attachStreamed(otherPose);    // switch to a new streamed anchor
+socket.stop();
+```
+
+Updates are filtered and throttled by the network layer (at most 10 Hz).
+`updatePose` / `attachStreamed` return false for a non-streaming/client
+handle. A server handle's `attach(VfxTransformProvider)` returns false,
+while `attach(Entity)`, `attach(BlockPos)`, `attach(BlockEntity)`,
+`attach(Vec3)` and `attach(VfxTransform)` work on both sides.
+`detach()` freezes the last pose without ending the instance.
+
+For old integrations, `Vfx.play(ServerLevel, id, source, parameters,
+radius, durationTicks)` and `VfxRemoteHandle` remain supported; new
+integrations need neither import.
+
+## Contract and limitations
+
+- Always use the owning logical game thread. Off-thread operations are not
+  implicitly queued onto the client/server executor.
+- A `VfxHandle` controls **one** instance. Server handles reference a
+  server lease, while local handles reference a client instance. Neither
+  stores a particle or holds its source entity/world strongly.
+- `stop()` is idempotent. Expiration, a failed start, a world unload or
+  a completed local effect makes `isActive()` false for the respective
+  owner. On a server handle `isActive()` means **server lease active**,
+  not an acknowledgment that a client successfully rendered it.
+- For client-local playback, missing effect resources, unknown parameters
+  and missing event names are rejected by the client runtime. On the
+  server, packet-safe name/value bounds are validated, but the server does
+  not load client effect definitions or know individual client budgets.
+- Client-local `stop()` is safe from a transform callback; an explicit
+  Stop closes remote client particles immediately. Natural local source
+  loss stops new emission and allows surviving particles to finish.
+- The old `Vfx.play(id, Vec3)`, `Vfx.play(id, BlockPos)`, and
+  `Vfx.play(id, Vec3, rotation, ...)` overloads remain **client-local**
+  for compatibility because they do not carry a Level.
+
+See [NETWORKING.md](NETWORKING.md) for recipients, transport, retry
+window, lifecycle and other protocol limitations.
 
 ## Verification
 
-The server GameTest `publicVfxApiRemainsInertOnLogicalServer` guards the
-dedicated/logical server path. The real Minecraft Test Harness scenario
-`m7_api_handles` checks missing effects, unavailable providers, start overrides,
-parameter updates, queued events, reattachment/detachment, idempotent stop,
-resource cleanup, stale handle invalidation and reentrant stop callbacks.
-
-Run the client check with:
-
-```powershell
-.\gradlew.bat runClientBench '-PbenchScenario=m7_api_handles' -PbenchWidth=1280 -PbenchHeight=720 --console=plain
-```
-
-Run the server checks with:
+`VfxUnifiedApiGameTests` checks automatic Entity and BlockEntity routing,
+world-aware position/block playback, unified server controls, invalid
+sources, configured lease expiry and explicit streaming. The prior
+`publicVfxApiRemainsInertOnLogicalServer` test still guards the old
+client-only position overload. Real-client Test Harness scenarios
+`m7_api_handles`, `m7_network_sync`, and `m7_network_attachments`
+exercise the new public route and the actual integrated-server packet flow.
 
 ```powershell
-.\gradlew.bat runGameTestServer --console=plain
+.\gradlew.bat build runGameTestServer --offline --console=plain
+.\gradlew.bat runClientBench '-PbenchScenario=m7_api_handles,m7_network_sync,m7_network_attachments' -PbenchWidth=1280 -PbenchHeight=720 --offline --console=plain
 ```

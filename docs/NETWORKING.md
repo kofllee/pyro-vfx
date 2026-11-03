@@ -2,37 +2,42 @@
 
 Pyro VFX networking is **server-authoritative for effect commands** and **client-owned for simulation and rendering**. It extends M7.1 Transform Providers and M7.2 Effect Handles without replacing their implementation or selecting a new render backend.
 
-## Public server API
+## Public API: networking is automatic for world-aware calls
 
 ```java
 import net.kofllee.pyrovfx.api.Vfx;
-import net.kofllee.pyrovfx.network.VfxRemoteHandle;
-import net.kofllee.pyrovfx.vfx.transform.VfxTransform;
+import net.kofllee.pyrovfx.api.VfxHandle;
+import net.kofllee.pyrovfx.api.VfxOptions;
 
 ResourceLocation smoke = ResourceLocation.fromNamespaceAndPath("pyrotechnica", "smoke_charge");
 
-// ServerLevel and server game thread are required.
-// radius is in blocks; durationTicks bounds the server lease.
-VfxRemoteHandle effect = Vfx.play(serverLevel, smoke, projectile,
-        Map.of("density", 0.75), 96.0, 200);
+VfxHandle effect = Vfx.play(smoke, projectile);
+Vfx.play(smoke, blockEntity);
+Vfx.play(smoke, level, fixedPosition); // Level + Vec3
+Vfx.play(smoke, level, blockPos);      // Level + BlockPos
 
 effect.setParameter("density", 0.3);
 effect.trigger("burst");
 effect.attach(blockPos);
-effect.detach(); // freeze the last server-observed pose
-effect.stop(); // second stop returns false
+effect.detach();
+effect.stop();
 
-// A server-side custom/moving socket publishes only its actual pose,
-// not its Java callback, fields, or internal implementation.
-VfxRemoteHandle muzzle = Vfx.playStreamed(serverLevel, smoke,
-        mechanism.getMuzzleTransform(1.0f), Map.of(), 64.0, 100);
+// Optional server audience/lease and initial parameters:
+VfxOptions options = VfxOptions.DEFAULT.withRadius(64)
+        .withDurationTicks(200).withParameters(Map.of("density", 0.75));
+VfxHandle configured = Vfx.play(smoke, projectile, options);
+
+// A custom server-owned moving socket publishes explicit poses (not Java code):
+VfxHandle muzzle = Vfx.playStreamed(smoke, serverLevel,
+        mechanism.getMuzzleTransform(1.0f), options);
 muzzle.updatePose(mechanism.getMuzzleTransform(1.0f));
-muzzle.attachStreamed(mechanism.getMuzzleTransform(1.0f));
 ```
 
-For a fixed source, pass a `Vec3` or `VfxTransform`; for a moving vanilla source, pass an `Entity`, `BlockPos`, or `BlockEntity`. These use the *same* client-side Transform Provider machinery as local effects. There are no global attachment slots, provider classes to register, or serialized lambdas.
+On the logical server, the world-aware overload broadcasts to tracking clients; on the client game thread it plays locally. A plain position requires an explicit Level. The default is **96-block radius and a finite 1200-tick server lease**. Existing explicit `Vfx.play(ServerLevel, id, ..., radius, durationTicks)` overloads and `VfxRemoteHandle` remain available for compatibility, but are not needed by ordinary mods.
 
-`Vfx.play(effectId, provider)` **remains a client-local overload**; it never implicitly sends a server packet. The `ServerLevel` overload explicitly requests remote playback. Never call the server overload from a client thread or submit a client entity as a server attachment. A rejected start returns an inactive `VfxRemoteHandle`.
+This dispatch does not deduplicate a gameplay callback invoked on both logical sides. Call shared gameplay VFX on the server once, or purely client-side visuals on the client. A `VfxHandle` is a client instance token on the client and a server lease token on the server; the latter cannot guarantee a particular client successfully displayed the effect.
+
+For a fixed source, pass a `Vec3` or `VfxTransform` with Level; for a moving vanilla source, pass an `Entity`, `BlockPos` or `BlockEntity`. Java `VfxTransformProvider`, including `Vfx.at(entity).offset(...).rotate(...)`, stays **client-local**; its callback and local offset chain cannot be transmitted under the current protocol. For such server-owned moving parts, explicitly stream their world-space pose. The old `Vfx.play(id, Vec3)` and `Vfx.play(id, BlockPos)` overloads also remain client-only because they have no Level. See [PUBLIC_API.md](PUBLIC_API.md).
 
 ## Source identities and payloads
 
@@ -61,7 +66,7 @@ An animated bone or custom Java transform remains entirely local. For networked 
 
 ## Audience, timing and traffic
 
-For each live server instance, the server checks the **same dimension**, **radius** (default is *not* implicit), and the player's **vanilla chunk-tracking view** for the source chunk. On entering the audience, a client receives one complete Start snapshot, including current parameter values; on leaving, one Stop. Stationary effects do not send a transform every tick.
+For each live server instance, the server checks the **same dimension**, **radius** (96 blocks by default for world-aware calls), and the player's **vanilla chunk-tracking view** for the source chunk. On entering the audience, a client receives one complete Start snapshot, including current parameter values; on leaving, one Stop. Stationary effects do not send a transform every tick.
 
 Entity movement uses Minecraft's existing entity synchronization. Block/BlockEntity positions use Minecraft's vanilla world updates. For streamed custom poses, updates are capped to one packet per **two server ticks (10 Hz)** and suppressed below 0.01 blocks of displacement and negligible quaternion changes. The client samples poses on game ticks, interpolating render samples without adding new particle network traffic. Very fast streamed motion may still show latency, and this is not a lock-step animation protocol.
 
@@ -87,7 +92,7 @@ Client world exit, switching dimensions, resource reload, server level unload an
 .\gradlew.bat runClientBench '-PbenchScenario=m7_network_sync,m7_network_attachments' -PbenchWidth=1280 -PbenchHeight=720 --offline --console=plain
 ```
 
-The dedicated NeoForge GameTests check network-anchor encoding, bounded decoding, server-only leases, idempotent Stop, finite duration, and removal of Entity/Block sources. The Test Harness executes actual NeoForge packets through an integrated Minecraft server and client: start, parameters, named events, stop and matching Entity/Block transforms. Benchmark JSON files (including status/error fields) are under `run/pyrovfx-benchmarks/`.
+The dedicated NeoForge GameTests check network-anchor encoding, bounded decoding, unified public API dispatch, server-only leases, idempotent Stop, finite duration, and removal of Entity/Block sources. The Test Harness executes actual NeoForge packets through an integrated Minecraft server and client via the unified Vfx.play API: start, parameters, named events, stop and matching Entity/Block transforms. Benchmark JSON files (including status/error fields) are under `run/pyrovfx-benchmarks/`.
 
 For interactive tests with 2+ independently connected clients, operator commands on a shared server are:
 

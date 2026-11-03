@@ -46,16 +46,22 @@ certified production-ready graphics engine. No editor work is included.
 
 ## Server networking verification (3 November 2026)
 
-The public `Vfx.play(ServerLevel, ...)` entrypoint now provides networked
-per-instance controls, Entity/Block/BlockEntity attachments and fixed/explicitly
-streamed poses. NeoForge play-to-client packets send instance commands and
-source identifiers, **not particle state or Java callbacks**. Viewers are
-filtered by dimension, distance and vanilla source-chunk tracking.
+The common `Vfx.play(effect, entity/blockEntity)` and
+`Vfx.play(effect, level, position/blockPos)` entrypoints now select
+client-local or logical-server broadcast by source Level. Normal calls
+return one `VfxHandle`, with optional `VfxOptions` (96-block radius,
+1200-tick bounded lease by default). Existing explicit network overloads
+remain compatible. Java provider offsets/rotations remain client-only;
+custom server poses can be explicitly streamed. NeoForge clientbound packets
+still send instance commands and source identifiers, **not particle state or
+Java callbacks**. Viewers are filtered by dimension, distance and source-chunk
+tracking.
 
-The latest dedicated-server regression passes **80/80 GameTests**. Two actual
-Minecraft integrated-server/client benchmarks passed:
-`m7_network_sync` (Start/Parameter/Trigger/Stop) and
-`m7_network_attachments` (Entity/Block resolution, source removal, Stop).
+The latest dedicated-server regression passes **83/83 GameTests**, including
+three unified-API tests. The integrated-server/client scenarios include
+`m7_api_handles` (local handles), `m7_network_sync`
+(Start/Parameter/Trigger/Stop) and `m7_network_attachments`
+(Entity/Block resolution, source removal, Stop).
 Actual two-client networking, network traffic percentiles, late-joining
 animation phase consistency and adverse network conditions are **not verified**.
 See [NETWORKING.md](NETWORKING.md) for protocol, limitations and replay steps.
