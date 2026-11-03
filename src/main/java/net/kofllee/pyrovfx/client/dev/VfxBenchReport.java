@@ -197,6 +197,20 @@ final class VfxBenchReport {
         environment.addProperty("gpuVendor", run.gpuVendor);
         environment.addProperty("gpuRenderer", run.gpuRenderer);
         environment.addProperty("openGlVersion", run.glVersion);
+        environment.addProperty("vfxRendererCompatibility",
+                net.kofllee.pyrovfx.client.render.VfxRenderCompatibility.reason());
+        var graphicsMods = new com.google.gson.JsonArray();
+        var installedMods = net.neoforged.fml.ModList.get();
+        if (installedMods != null) {
+            for (var mod : installedMods.getMods()) {
+                var modId = mod.getModId();
+                if (java.util.Set.of("sodium", "embeddium", "iris", "oculus",
+                        "neoculus", "forgeoculus", "neopoculus").contains(modId)) {
+                    graphicsMods.add(modId + "@" + mod.getVersion());
+                }
+            }
+        }
+        environment.add("graphicsMods", graphicsMods);
         environment.addProperty("width", minecraft.getWindow().getWidth());
         environment.addProperty("height", minecraft.getWindow().getHeight());
         environment.addProperty("world", minecraft.getSingleplayerServer() == null

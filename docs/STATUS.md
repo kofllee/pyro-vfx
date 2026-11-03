@@ -18,6 +18,30 @@ for simulation and rendering. World-lit alpha, translucent baked models,
 animated entity renderers, stateful expression calls, mutable parameters,
 world queries and unsupported GPU semantics retain CPU/Minecraft fallbacks.
 
+## Museum / editor-preparation verification (3 November 2026)
+
+The physical 5 × 12 museum now includes 58 distinct effects, 8 spawn
+shapes, 6 sprite facings, model source/layer variants, motion and rotation
+families, curves, expressions, events, collisions and simulation/render paths.
+All 58 have completed Minecraft 1.21.1 NeoForge real-client reports with
+nonzero particle counts on the tested RTX 4090 Laptop GPU.
+64/64 dedicated-server GameTests passed. A 600-tick mixed test with three
+resource reloads completed; this is not a full-duration soak.
+
+Six isolated NeoForge graphics profiles were tested: Sodium, Embeddium,
+Iris with shaders disabled, and Iris with Complementary, BSL and Photon.
+GPU VFX fast paths remain available when a graphics mod is installed but
+the shaderpack pipeline is inactive. Active shaderpacks use Minecraft
+RenderType fallback until Pyro's custom GL framebuffer/depth/composite
+integration is independently verified. ATM10, Craftoria, AMD/Intel GPUs,
+live in-game shaderpack switching and long-duration stability remain
+untested. The existing 80k/20k/10k client TOML overrides were preserved.
+
+See [raw reports and limitations](benchmarks/museum-final-2026-11-03/README.md)
+and [the compatibility ledger](COMPATIBILITY_MATRIX.md). The prototype is
+ready to serve as the basis for **developing** a visual editor, not as a
+certified production-ready graphics engine. No editor work is included.
+
 ## Stable prototype features
 
 These systems are implemented and form the current core of the project.

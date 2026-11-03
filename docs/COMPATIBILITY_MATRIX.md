@@ -19,8 +19,14 @@ All entries must come from an actual launch, build or headless test.
 | Ubuntu, Java 21, CI server | `./gradlew build`, then `runGameTestServer` | **Configured in CI** | A workflow is not a passing result until GitHub Actions completes successfully |
 | Intel integrated GPU, OpenGL 3.3+ | GPU instancing, shader compiler, fallback and reload | **Not verified** | Run real client and archive device/driver/GL info |
 | AMD GPU, OpenGL 3.3+ | GPU instancing, query support, fallback and reload | **Not verified** | Run real client and archive device/driver/GL info |
-| Shaderpack with Iris/Oculus | GL state restoration, alpha/additive rendering, shader reload | **Not verified** | No compatible shaderpack/mod combination installed in test workspace |
-| Sodium/Embeddium or other optimized rendering | Resource reload, custom draw, legacy fallback | **Not verified** | Verify against a real matching NeoForge build |
+| Sodium 0.8.13 NeoForge 1.21.1 | Museum custom 3D, translucent 3D, alpha smoke; GL state audit | **Verified in three short real-client runs on RTX 4090 Laptop** | GPU analytic/instancing still enabled; no full soak or modpack test |
+| Embeddium 1.0.15 NeoForge 1.21.1 | Same 3 museum effects; GL state audit | **Verified in three short real-client runs on RTX 4090 Laptop** | GPU fast paths remain enabled; not installed alongside Sodium |
+| Iris 1.8.12 + Sodium 0.6.13 without shaderpack | Same 3 museum effects | **Verified in three short real-client runs on RTX 4090 Laptop** | Iris installed but disabled shaderpack does not force slow renderer |
+| Iris 1.8.12 + Complementary Reimagined r5.9.3 | Same 3 effects, active shaderpack, screenshots | **Verified through Minecraft fallback in three short runs** | Framebuffer/compositor integration for Pyro custom GPU path not established; shaderpack reported some unrelated custom uniform warnings |
+| Iris 1.8.12 + BSL 10.1.8 | Same 3 effects, active shaderpack, screenshots | **Verified through Minecraft fallback in three short runs** | Not an in-session shaderpack toggle or long soak |
+| Iris 1.8.12 + Photon 1.4 | Same 3 effects, active shaderpack, screenshots | **Verified through Minecraft fallback in three short runs** | Not an in-session shaderpack toggle or long soak |
+| Oculus / other shaderpack loaders | Actual NeoForge compatible release | **Not verified** | No available separate tested configuration |
+| ATM10 / Craftoria large modpacks | Full client, reload and compatibility interaction | **Not verified** | Test packs were not installed; do not infer compatibility from NeoForge alone |
 | Multiplayer (dedicated server plus several clients) | No client visual simulation on server, TPS and packet behavior | **Not verified** | Requires an actual multi-client integration environment |
 | NVIDIA extension `GL_NVX_gpu_memory_info` | Device VRAM available memory | **Optional / unverified in production** | Client config disabled by default; never infer that device-wide free memory is Pyro-owned |
 | Low-feature OpenGL / unsupported GPU timing | CPU fallback and unknown-memory policy | **Logic tested, real low-feature driver unverified** | GPU fast paths use capability checks and fallback |
@@ -45,3 +51,14 @@ report with renderer/GL version, real resolution, render-state audit outcome,
 resource reload outcome, sample durations and screenshots. Do not copy the
 RTX 4090 results to other GPUs. GL timer queries are asynchronous and only
 measure Pyro draw work; they are not a whole-frame GPU profiler.
+
+The November 3 six-profile regression results are reproducible with
+`tools/verify-museum-renderer-profiles.ps1`; it installs one graphics profile
+at a time with verified Modrinth SHA-512 downloads, preserves and restores the
+client's Iris settings, and stores JSON evidence under
+`run/pyrovfx-benchmarks/museum-compatibility/`. The three museum effects are
+short targeted checks, not general shaderpack-compositor integration proof.
+Active shaderpack detection disables only raw Pyro GL paths with unresolved
+framebuffer/stage assumptions, not GPU simulation merely because Iris is
+installed. The shaderpack fallback retains correctness using Minecraft-managed
+RenderType, with a measurable performance cost.

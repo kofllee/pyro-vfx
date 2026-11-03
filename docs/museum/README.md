@@ -1,6 +1,6 @@
 # Pyro VFX Museum — repeatable Minecraft validation world
 
-This is a real Java Edition **1.21.1 NeoForge** testing gallery built from normal world blocks and 35 standalone JSON effects. The physical **5 × 7 exhibition grid** begins at **X 512, Y 140, Z 512**, with palette-coded categories, signs, illuminated platforms, view frames and connecting stone paths. It is a test environment, not a proposed visual editor.
+This is a real Java Edition **1.21.1 NeoForge** testing gallery built from normal world blocks and 58 standalone JSON effects. The physical **5 × 12 exhibition grid** begins at **X 512, Y 140, Z 512**, with palette-coded categories, signs, illuminated platforms, view frames and connecting stone paths. It is a test environment, not a proposed visual editor.
 
 ## Open or build
 
@@ -27,7 +27,7 @@ A physical COMPARE button toggles the full GPU path versus CPU simulation + Mine
 
 ## Exhibit groups
 
-Sprites, 3D Models (custom, block, item, entity), Transparency (alpha smoke, deep smoke, translucent models), Lighting, Rotation, Animations (UV, age), Expressions (random, position, velocity), Curves (Catmull/Bezier), Motion, Collisions (with/without callbacks), Events, and Backends.
+Sprites (all six facing modes), 3D Models (custom, block, item, entity), Transparency (alpha smoke, deep smoke, translucent models), Lighting, Rotation (dynamic/parametric), Animations (UV, age, steady), Expressions (random, position, velocity), Curves (step, linear, Catmull, Bezier), all eight Spawn Shapes and shell variants, Motion (static/dynamic/parametric), Collisions (sphere/box, events and expiry), Events, and Backends.
 
 All demo textures/models are existing repo assets. Each effect lives in `assets/pyro_vfx/vfx/museum/<id>.json`; all are generated from an explicit manifest (`src/main/resources/pyro_vfx_museum_exhibits.tsv`) by `python tools/generate_museum_effects.py`. Unlike benchmark fixtures, these have large **demo-only** scale multipliers and reduced spatial spread. Smoke demo billboards retain readable faces; CPU/GPU comparisons use identical effect definitions and seed.
 
@@ -52,3 +52,5 @@ For real client graphics-mod tests, use `python tools/museum_compat_profile.py s
 ## Validation gates before a visual editor
 
 The gallery tests feature semantics and profiler integration but does not certify all hardware/shaderpacks or modpacks. Record status, loaded mod versions, actual active shaderpack (not merely installed), GL state audit, screenshots, reload and soak results for each exact environment. Full compatibility status: [museum verification](../COMPATIBILITY_MATRIX.md). No editor-specific UI or data format is introduced in this phase.
+
+The [November 3 final museum report](../benchmarks/museum-final-2026-11-03/README.md) contains the actual 58/58 completed Minecraft client audit, renderer distribution, isolated compatibility profiles, budget-preservation check, limited soak and known gaps. Run `tools/verify-museum-renderer-profiles.ps1` for graphics-mod checks and `tools/export_museum_evidence.py` to archive completed real-client results.
