@@ -29,11 +29,12 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Opt-in-by-capability, vanilla-only OpenGL 3.3 sprite instancing.
+ * Opt-in-by-capability OpenGL 3.3 sprite instancing.
  *
  * The shader and buffers are completely private to the VFX pass. All altered
  * OpenGL bindings and blend/depth/cull state are captured and restored.
- * Iris/Oculus (including shader-pack toggling) take the original RenderType path.
+ * Active shaderpacks are supported by default; unsupported geometry and
+ * unavailable GL features retain their normal Minecraft RenderType fallback.
  *
  * Alpha particles are collected and depth sorted across all eligible emitters,
  * then drawn in contiguous, material-compatible instanced batches.

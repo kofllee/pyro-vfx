@@ -195,9 +195,10 @@ public final class PyroVfxGameTests {
     @GameTest(template = "empty")
     public static void installedRendererModsDoNotForceGlobalCpuFallback(GameTestHelper helper) {
         if (!net.kofllee.pyrovfx.client.render.VfxRenderCompatibility.eligible(false, false)
-                || net.kofllee.pyrovfx.client.render.VfxRenderCompatibility.eligible(false, true)
-                || net.kofllee.pyrovfx.client.render.VfxRenderCompatibility.eligible(true, false))
-            throw new AssertionError("Only active incompatible shader pipeline or explicit override may deny GPU");
+                || !net.kofllee.pyrovfx.client.render.VfxRenderCompatibility.eligible(false, true)
+                || net.kofllee.pyrovfx.client.render.VfxRenderCompatibility.eligible(true, false)
+                || net.kofllee.pyrovfx.client.render.VfxRenderCompatibility.eligible(true, true))
+            throw new AssertionError("Shaderpack presence must not deny GPU; explicit legacy override must");
         helper.succeed();
     }
 

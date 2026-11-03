@@ -84,6 +84,7 @@ neoForge {
             systemProperty 'pyrovfx.bench.allowHeavy', providers.gradleProperty('benchHeavy').orElse('false').get()
             systemProperty 'pyrovfx.bench.globalStress', providers.gradleProperty('benchGlobalStress').orElse('false').get()
             systemProperty 'pyrovfx.render.forceLegacy', providers.gradleProperty('benchLegacyRender').orElse('false').get()
+            systemProperty 'pyrovfx.bench.allowActiveShaderGpu', providers.gradleProperty('benchShaderGpuBypass').orElse('false').get()
             systemProperty 'pyrovfx.render.debugNoCulling', providers.gradleProperty('benchNoCulling').orElse('false').get()
             systemProperty 'pyrovfx.render.debugSolid', providers.gradleProperty('benchGpuDebug').orElse('false').get()
             systemProperty 'pyrovfx.render.minDiameterPx', providers.gradleProperty('benchMinDiameterPx').orElse('0.20').get()

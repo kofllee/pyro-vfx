@@ -4,12 +4,16 @@
 param(
     [string]$World = 'Pyro VFX Museum',
     [string]$Scenarios = 'museum_model_custom,museum_model_item,museum_model_translucent,museum_smoke_alpha',
-    [string]$Profiles = 'sodium,embeddium,iris,iris-complementary,iris-bsl,iris-photon'
+    [string]$Profiles = 'sodium,embeddium,iris,iris-complementary,iris-bsl,iris-photon',
+    [switch]$UnsafeShaderGpuBenchmark
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
 $archive = Join-Path $root 'run/pyrovfx-benchmarks/museum-compatibility'
+if ($UnsafeShaderGpuBenchmark) {
+    $archive = Join-Path $root 'run/pyrovfx-benchmarks/museum-compatibility-gpu-override'
+}
 New-Item -ItemType Directory -Force -Path $archive | Out-Null
 $results = [System.Collections.Generic.List[object]]::new()
 try {
@@ -26,7 +30,10 @@ try {
             & python tools/museum_compat_profile.py setup --profile $profile --shader $shader
             if ($LASTEXITCODE -ne 0) { throw "Setup returned exit $LASTEXITCODE" }
             $installed = $true
-            & powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -World $World -Scenario $Scenarios -Width 1280 -Height 720 -Uncapped -RenderStateAudit -GpuTelemetry
+            $benchArgs = @('-World', $World, '-Scenario', $Scenarios,
+                '-Width', '1280', '-Height', '720', '-Uncapped', '-RenderStateAudit', '-GpuTelemetry')
+            if ($UnsafeShaderGpuBenchmark) { $benchArgs += '-AllowShaderGpu' }
+            & powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 @benchArgs
             if ($LASTEXITCODE -ne 0) { throw "Minecraft run returned exit $LASTEXITCODE" }
             $status = 'completed'
         } catch {
@@ -49,6 +56,16 @@ try {
             if ($matching.Count -gt 0) {
                 Copy-Item $matching[0].FullName -Destination (Join-Path $dir $matching[0].Name)
                 $copied++
+                $report = Get-Content $matching[0].FullName -Raw | ConvertFrom-Json
+                if ($report.screenshot -and (Test-Path $report.screenshot)) {
+                    Copy-Item $report.screenshot -Destination (Join-Path $dir ($scenario + '.png'))
+                }
+                if ($UnsafeShaderGpuBenchmark -and $shader -ne 'none' -and
+                        ($report.status -ne 'completed' -or
+                        $report.selectedRenderer -notmatch '^GPU ')) {
+                    $status = 'incomplete'
+                    $errorMessage += "$scenario did not prove GPU rendering: $($report.selectedRenderer). "
+                }
             }
         }
         if ($status -eq 'completed' -and $copied -lt $expected) {
@@ -65,3 +82,4 @@ try {
     Pop-Location
 }
 $results | Format-Table -AutoSize
+if (@($results | Where-Object {$_.status -ne 'completed'}).Count -gt 0) { exit 1 }
