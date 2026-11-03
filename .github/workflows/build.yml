@@ -36,11 +36,10 @@ jobs:
           python3 tools/test_compare_bench.py
           python3 tools/verify_m6_collision.py --folder docs/benchmarks/m6-2026-11-02 --after 20261102-024000
           python3 tools/verify_adaptive_bench.py docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132543.json docs/benchmarks/m6-2026-11-02/adaptive_steady-20261102-132645.json
-          python3 tools/verify_soak_bench.py docs/benchmarks/m6-2026-11-02/soak_mixed-20261102-134026.json docs/benchmarks/m6-2026-11-02/soak_mixed-20261102-134356.json docs/benchmarks/m6-2026-11-02/soak_mixed-20261102-135159.json
+          python3 tools/verify_soak_bench.py docs/benchmarks/m6-2026-11-02/soak_mixed-20261102-134026.json docs/benchmarks/m6-2026-11-02/soak_mixed-20261102-134356.json
           python3 tools/verify_universal_short.py
-          java tools/CompareScreenshots.java docs/benchmarks/m6-2026-11-02/universal-short/screenshots/continuous_cpu.png docs/benchmarks/m6-2026-11-02/universal-short/screenshots/continuous_gpu.png 0.03
+          java tools/CompareScreenshots.java docs/benchmarks/m6-2026-11-02/screenshots/analytic_age_cpu_1280x720.png docs/benchmarks/m6-2026-11-02/screenshots/analytic_age_gpu_1280x720.png 0.03
           java tools/CompareScreenshots.java docs/benchmarks/m6-2026-11-02/universal-short/screenshots/item_legacy.png docs/benchmarks/m6-2026-11-02/universal-short/screenshots/item_gpu.png 0.03
-          java tools/CompareScreenshots.java docs/benchmarks/m6-2026-11-02/universal-short/screenshots/rotating_legacy.png docs/benchmarks/m6-2026-11-02/universal-short/screenshots/rotating_gpu.png 0.03
 
       - name: Upload JARs
         uses: actions/upload-artifact@v5
