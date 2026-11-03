@@ -7,31 +7,56 @@ internal manager, emitter or renderer.
 ```java
 import net.kofllee.pyrovfx.api.Vfx;
 import net.kofllee.pyrovfx.api.VfxHandle;
+import net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider;
 
 ResourceLocation smoke = ResourceLocation.fromNamespaceAndPath("pyrotechnica", "rocket_trail");
 
-// Position, entity, block, block entity, or any user-provided callback:
+// Simple playback with built-in Minecraft sources:
 Vfx.play(smoke, hitPosition);
-VfxHandle trail = Vfx.play(smoke, rocket, Map.of("power", 1.5));
+Vfx.play(smoke, rocket);
 Vfx.play(smoke, blockPos);
 Vfx.play(smoke, blockEntity);
-Vfx.play(smoke, hitPosition, rotation);
-Vfx.play(smoke, partialTick -> mechanism.getMuzzleTransform(partialTick));
+Vfx.play(smoke, hitPosition, rotation, Map.of("power", 1.5));
+
+// Vfx.at converts an entity, block or block entity into a transform provider.
+// Offsets and rotations are applied relative to the tracked source:
+VfxHandle trail = Vfx.play(smoke,
+    Vfx.at(rocket).offset(0, 1.0, -0.5).rotate(0, 90, 0),
+    Map.of("power", 1.5));
+Vfx.play(smoke, Vfx.at(blockPos).offset(0, 0.5, 0));
+
+// Already have a provider? Pass it directly. Vfx.at(provider) is unnecessary:
+VfxTransformProvider muzzleProvider = partialTick -> mechanism.getMuzzleTransform(partialTick);
+Vfx.play(smoke, muzzleProvider);
+Vfx.play(smoke, muzzleProvider.offset(0, 0, 0.5));
 
 trail.setParameter("power", 2.0);
 trail.trigger("burst");
-trail.attach(partialTick -> mechanism.getMuzzleTransform(partialTick));
+trail.attach(Vfx.at(blockEntity).offset(0, 0.5, 0).rotate(0, 90, 0));
+trail.attach(muzzleProvider);
 trail.detach();  // Keep the last sampled world pose; continue playing there.
 trail.stop();
 ```
 
-The same `Map<String, Double>` parameter overload works for position, entity,
-block, block entity and custom provider. The rotated-position overload accepts
-a quaternion. For animated model parts, supply a callback returning the actual
-part's world-space pose (see M7.1); no generic bone lookup is claimed.
-`VfxTransformProvider` is the existing functional interface; return a
-`VfxTransform` or `null` when the source becomes unavailable. There are no
-attachment-name registries, named slots, or JSON-level source identifiers.
+All simple `play` overloads accept `Map<String, Double>` effect parameters;
+the fixed-position + quaternion overload does too. For source-local translation
+and rotation, compose a `VfxTransformProvider` using `offset(x, y, z)`,
+`offset(Vec3)`, `rotate(xDegrees, yDegrees, zDegrees)` or
+`rotate(Quaternionf)`. These methods return a new provider and may be chained;
+their order matters: `offset(...).rotate(...)` translates along the original
+source axes, whereas `rotate(...).offset(...)` rotates the offset as well.
+
+`Vfx.at(entity)`, `Vfx.at(blockPos)` and `Vfx.at(blockEntity)` each return
+a `VfxTransformProvider`; there is intentionally no `Vfx.at(provider)`.
+`Vfx.play(id, provider)` and `handle.attach(provider)` accept it directly.
+Entity offsets follow yaw/pitch. Block and block-entity sources are centered on
+the block with world-aligned axes (not automatically rotated by block facing).
+For animated model parts, supply a callback returning the actual part's
+world-space pose (see M7.1); no generic bone lookup is claimed.
+`VfxTransformProvider.get(partialTick)` returns a `VfxTransform` or `null`
+if the source becomes unavailable. An `at(...)` call made outside a valid
+client world/thread yields an unavailable provider rather than throwing.
+There are no attachment-name registries, named slots or JSON-level source IDs.
 
 ## Semantics
 

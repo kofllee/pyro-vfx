@@ -20,7 +20,24 @@ import java.util.Map;
  * Server-to-client playback is introduced separately with networking.
  */
 public final class Vfx {
+    private static final VfxTransformProvider UNAVAILABLE = partialTick -> null;
+
     private Vfx() {}
+
+    /** Creates a tracking source for a client entity. No effect is started. */
+    public static VfxTransformProvider at(Entity entity) {
+        return available(client() ? ClientVfxAccess.sourceEntity(entity) : null);
+    }
+
+    /** Creates a source at the center of a client block, with world-aligned axes. */
+    public static VfxTransformProvider at(BlockPos block) {
+        return available(client() ? ClientVfxAccess.sourceBlock(block) : null);
+    }
+
+    /** Creates a tracking source for a client block entity. */
+    public static VfxTransformProvider at(BlockEntity blockEntity) {
+        return available(client() ? ClientVfxAccess.sourceBlockEntity(blockEntity) : null);
+    }
 
     public static VfxHandle play(ResourceLocation id, Vec3 worldPosition) {
         return play(id, VfxTransformProvider.fixed(worldPosition));
@@ -32,8 +49,14 @@ public final class Vfx {
 
     /** Fixed world position with a rotation applied to emitter-local offsets. */
     public static VfxHandle play(ResourceLocation id, Vec3 worldPosition, Quaternionf rotation) {
+        return play(id, worldPosition, rotation, Map.of());
+    }
+
+    /** Fixed world position and rotation with effect parameters. */
+    public static VfxHandle play(ResourceLocation id, Vec3 worldPosition, Quaternionf rotation,
+                                 Map<String, Double> parameters) {
         VfxTransform pose = new VfxTransform(worldPosition, rotation);
-        return play(id, partialTick -> pose);
+        return play(id, partialTick -> pose, parameters);
     }
 
     public static VfxHandle play(ResourceLocation id, VfxTransformProvider source) {
@@ -49,7 +72,7 @@ public final class Vfx {
     }
 
     public static VfxHandle play(ResourceLocation id, Entity entity, Map<String, Double> parameters) {
-        return new VfxHandle(client() ? ClientVfxAccess.playEntity(id, entity, parameters) : 0);
+        return play(id, at(entity), parameters);
     }
 
     public static VfxHandle play(ResourceLocation id, BlockPos block) {
@@ -57,7 +80,7 @@ public final class Vfx {
     }
 
     public static VfxHandle play(ResourceLocation id, BlockPos block, Map<String, Double> parameters) {
-        return new VfxHandle(client() ? ClientVfxAccess.playBlock(id, block, parameters) : 0);
+        return play(id, at(block), parameters);
     }
 
     public static VfxHandle play(ResourceLocation id, BlockEntity blockEntity) {
@@ -65,7 +88,7 @@ public final class Vfx {
     }
 
     public static VfxHandle play(ResourceLocation id, BlockEntity blockEntity, Map<String, Double> parameters) {
-        return new VfxHandle(client() ? ClientVfxAccess.playBlockEntity(id, blockEntity, parameters) : 0);
+        return play(id, at(blockEntity), parameters);
     }
 
     static boolean active(long id) {
@@ -89,15 +112,15 @@ public final class Vfx {
     }
 
     static boolean attach(long id, Entity entity) {
-        return client() && ClientVfxAccess.attachEntity(id, entity);
+        return attach(id, at(entity));
     }
 
     static boolean attach(long id, BlockPos block) {
-        return client() && ClientVfxAccess.attachBlock(id, block);
+        return attach(id, at(block));
     }
 
     static boolean attach(long id, BlockEntity blockEntity) {
-        return client() && ClientVfxAccess.attachBlockEntity(id, blockEntity);
+        return attach(id, at(blockEntity));
     }
 
     static boolean attach(long id, Vec3 position) {
@@ -110,5 +133,9 @@ public final class Vfx {
 
     private static boolean client() {
         return FMLEnvironment.dist == Dist.CLIENT;
+    }
+
+    private static VfxTransformProvider available(VfxTransformProvider source) {
+        return source != null ? source : UNAVAILABLE;
     }
 }

@@ -25,20 +25,21 @@ public final class ClientVfxAccess {
         return ready() ? ClientVfxManager.playManaged(id, source, parameters) : 0;
     }
 
-    public static long playEntity(ResourceLocation id, Entity entity, Map<String, Double> parameters) {
-        if (!ready() || entity == null || entity.level() != Minecraft.getInstance().level) return 0;
-        return play(id, VfxTransformProviders.entity(entity), parameters);
+    /** Null means the source cannot be captured on this client thread/world. */
+    public static VfxTransformProvider sourceEntity(Entity entity) {
+        return ready() && entity != null && entity.level() == Minecraft.getInstance().level
+                ? VfxTransformProviders.entity(entity) : null;
     }
 
-    public static long playBlock(ResourceLocation id, BlockPos block, Map<String, Double> parameters) {
-        if (!ready() || block == null) return 0;
+    public static VfxTransformProvider sourceBlock(BlockPos block) {
+        if (!ready() || block == null) return null;
         ClientLevel level = Minecraft.getInstance().level;
-        return play(id, VfxTransformProviders.block(level, block), parameters);
+        return VfxTransformProviders.block(level, block);
     }
 
-    public static long playBlockEntity(ResourceLocation id, BlockEntity entity, Map<String, Double> parameters) {
-        if (!ready() || entity == null || entity.getLevel() != Minecraft.getInstance().level) return 0;
-        return play(id, VfxTransformProviders.blockEntity(entity), parameters);
+    public static VfxTransformProvider sourceBlockEntity(BlockEntity entity) {
+        return ready() && entity != null && entity.getLevel() == Minecraft.getInstance().level
+                ? VfxTransformProviders.blockEntity(entity) : null;
     }
 
     public static boolean active(long id) {
@@ -59,21 +60,6 @@ public final class ClientVfxAccess {
 
     public static boolean attach(long id, VfxTransformProvider source) {
         return ready() && ClientVfxManager.attachHandle(id, source);
-    }
-
-    public static boolean attachEntity(long id, Entity entity) {
-        return ready() && entity != null && entity.level() == Minecraft.getInstance().level
-                && attach(id, VfxTransformProviders.entity(entity));
-    }
-
-    public static boolean attachBlock(long id, BlockPos block) {
-        return ready() && block != null
-                && attach(id, VfxTransformProviders.block(Minecraft.getInstance().level, block));
-    }
-
-    public static boolean attachBlockEntity(long id, BlockEntity entity) {
-        return ready() && entity != null && entity.getLevel() == Minecraft.getInstance().level
-                && attach(id, VfxTransformProviders.blockEntity(entity));
     }
 
     public static boolean detach(long id) {
