@@ -74,12 +74,14 @@ Pyro VFX currently includes:
   with one `VfxHandle` on client and logical server; parameters, events and
   runtime attachment changes work through the same interface.
 - NeoForge clientbound effect synchronization with Entity/Block sources,
-  scoped recipients, automatic safe audience/lease defaults and optional streamed poses.
+  networked `Vfx.at(...).offset(...).rotate(...)` chains, bounded audiences/
+  leases, and automatic or explicit streaming for custom Java transforms.
 
 Normal integration does not require packet or networking code:
 
 ```java
-VfxHandle trail = Vfx.play(ROCKET_TRAIL, rocket);
+VfxHandle trail = Vfx.play(ROCKET_TRAIL,
+        Vfx.at(rocket).offset(0, 0, -0.5).rotate(0, 90, 0));
 Vfx.play(IMPACT, level, impactPosition);
 trail.setParameter("density", 1.5);
 trail.stop();
@@ -87,8 +89,10 @@ trail.stop();
 
 Entity/BlockEntity calls find their own world. On the logical server they
 broadcast; on the client they remain local. A bare position needs a Level.
-For options, local-only providers, game-thread rules and avoiding duplicate
-calls on both sides, see [docs/PUBLIC_API.md](docs/PUBLIC_API.md).
+Built-in transform chains synchronize by vanilla source identity. Arbitrary
+server Java callbacks can be automatically streamed with `Vfx.play(id, level,
+callback)`. For options, game-thread rules and avoiding duplicate calls on
+both sides, see [docs/PUBLIC_API.md](docs/PUBLIC_API.md).
 For the underlying protocol and exact limitations, see
 [docs/NETWORKING.md](docs/NETWORKING.md). Independent multi-client testing
 remains unverified.
@@ -248,9 +252,10 @@ trail.trigger("burst");
 trail.stop();
 ```
 
-`Vfx` and `VfxHandle` are in `net.kofllee.pyrovfx.api`. In M7.2 these are
-**client-thread APIs**. Server-triggered synchronized effects come in M7.3;
-server-side calls currently return an inactive handle. See
+`Vfx` and `VfxHandle` are in `net.kofllee.pyrovfx.api`. Built-in source
+attachments work both client-side and server-side, including chained local
+translations/rotations. Custom Java callbacks can run locally or be sampled
+by the server when a Level is provided. See
 [public API usage and lifecycle](docs/PUBLIC_API.md).
 
 ## Documentation
@@ -269,8 +274,8 @@ server-side calls currently return an inactive handle. See
 The current prototype does not include:
 
 - an in-game VFX editor;
-- server-controlled attached effects (client transform providers are available);
-- networking;
+- generic named-bone network serialization (server-provided socket transforms and client-local model-part callbacks are supported instead);
+- automated verification with two independently connected real clients;
 - detailed per-effect profiling (global counters and benchmark reports are available);
 - per-render-type budgets and distance-based spawn LOD (global caps and render frustum/size LOD exist);
 - stable performance guarantees for large particle counts;

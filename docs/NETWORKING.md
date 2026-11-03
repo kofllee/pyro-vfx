@@ -37,13 +37,15 @@ On the logical server, the world-aware overload broadcasts to tracking clients; 
 
 This dispatch does not deduplicate a gameplay callback invoked on both logical sides. Call shared gameplay VFX on the server once, or purely client-side visuals on the client. A `VfxHandle` is a client instance token on the client and a server lease token on the server; the latter cannot guarantee a particular client successfully displayed the effect.
 
-For a fixed source, pass a `Vec3` or `VfxTransform` with Level; for a moving vanilla source, pass an `Entity`, `BlockPos` or `BlockEntity`. Java `VfxTransformProvider`, including `Vfx.at(entity).offset(...).rotate(...)`, stays **client-local**; its callback and local offset chain cannot be transmitted under the current protocol. For such server-owned moving parts, explicitly stream their world-space pose. The old `Vfx.play(id, Vec3)` and `Vfx.play(id, BlockPos)` overloads also remain client-only because they have no Level. See [PUBLIC_API.md](PUBLIC_API.md).
+For a fixed source, pass a `Vec3` or `VfxTransform` with Level; for a moving vanilla source, pass an `Entity`, `BlockPos` or `BlockEntity`. **Built-in provider chains now preserve their identity and local pose**, so `Vfx.play(smoke, Vfx.at(projectile).offset(0, 0, -0.5).rotate(0, 90, 0))` works from the server without custom packet code. For a block, write `Vfx.at(level, blockPos)`; the old `Vfx.at(blockPos)` shorthand without Level is client-local.
+
+Arbitrary Java callbacks cannot be serialized as code. When you supply their Level explicitly — `Vfx.play(smoke, level, partialTick -> calculatePose(partialTick))` — the logical server automatically samples them on ticks and uses the existing bounded stream protocol. Built-in sources still use vanilla synchronization and no regular pose traffic. The old `Vfx.play(id, Vec3)` and `Vfx.play(id, BlockPos)` overloads remain local because they have no Level. See [PUBLIC_API.md](PUBLIC_API.md).
 
 ## Source identities and payloads
 
 Every live remote effect has one random UUID per instance. The client maps that UUID to its existing local numeric effect handle. The network UUID is not a particle ID and is not reused across instances. Each command includes its dimension identity.
 
-The versioned `RegisterPayloadHandlersEvent` registration declares six **clientbound** NeoForge `CustomPacketPayload` types using `StreamCodec<RegistryFriendlyByteBuf, ...>`:
+The **v2** `RegisterPayloadHandlersEvent` registration declares six **clientbound** NeoForge `CustomPacketPayload` types using `StreamCodec<RegistryFriendlyByteBuf, ...>`. Version 2 extends Anchor encoding with a source-local translation and rotation. Client and server must run compatible Pyro VFX protocol versions; this is not wire-compatible with v1:
 
 | Payload | Meaning |
 |---|---|
@@ -56,19 +58,19 @@ The versioned `RegisterPayloadHandlersEvent` registration declares six **clientb
 
 Attachment `kind` is **fixed**, **entity**, **block**, **block_entity**, or **stream**. All carry a pose snapshot for startup, but client Entity/Block sources resolve the actual tracked object:
 
-- Entity: vanilla runtime entity ID plus UUID to guard against recycled numeric IDs. The client fetches the live entity in its own level and builds the ordinary Entity Transform Provider.
-- Block: immutable BlockPos, sampled only from a loaded client chunk. The built-in block provider rejects air/replacement with a different block type.
-- BlockEntity: BlockPos, resolves the actual client BlockEntity in the chunk, then uses the ordinary BlockEntity provider.
+- Entity: vanilla runtime entity ID plus UUID to guard against recycled numeric IDs, **plus composed local transform**. The client fetches the live entity in its own level, applies vanilla yaw/pitch interpolation, then composes the offset/rotation.
+- Block: immutable BlockPos **plus composed local transform**, sampled only from a loaded client chunk. The built-in block provider rejects air/replacement with a different block type.
+- BlockEntity: BlockPos **plus composed local transform**; resolves the actual client BlockEntity in the chunk and applies the same local offset/rotation.
 - Fixed: immutable position and quaternion; no ongoing synchronization.
 - Stream: initial position and quaternion, followed by explicit `updatePose` snapshots. Client keeps previous/current target poses and interpolates during render.
 
-An animated bone or custom Java transform remains entirely local. For networked animations, use a client-side mechanism/animation system which already has the relevant model transform, or explicitly stream the computed position and quaternion. The protocol does not encode Java code or arbitrary mod-owned objects.
+An animated bone or other callback implemented solely inside a client renderer is client-local because its data does not exist on the dedicated server. If the server has a world-space socket pose, a custom Java provider with an explicit Level can be **automatically sampled/streamed** with no manual `updatePose()`. The protocol never encodes Java code or arbitrary mod-owned objects.
 
 ## Audience, timing and traffic
 
-For each live server instance, the server checks the **same dimension**, **radius** (96 blocks by default for world-aware calls), and the player's **vanilla chunk-tracking view** for the source chunk. On entering the audience, a client receives one complete Start snapshot, including current parameter values; on leaving, one Stop. Stationary effects do not send a transform every tick.
+For each live server instance, the server checks the **same dimension**, **radius** from the final composed world position (96 blocks by default), and the player's **vanilla chunk-tracking view** for the *original source* chunk. This prevents sending an offset effect to a player who cannot resolve its entity/block attachment. On entering the audience, a client receives one complete Start snapshot, including current parameter values; on leaving, one Stop. Stationary effects do not send a transform every tick.
 
-Entity movement uses Minecraft's existing entity synchronization. Block/BlockEntity positions use Minecraft's vanilla world updates. For streamed custom poses, updates are capped to one packet per **two server ticks (10 Hz)** and suppressed below 0.01 blocks of displacement and negligible quaternion changes. The client samples poses on game ticks, interpolating render samples without adding new particle network traffic. Very fast streamed motion may still show latency, and this is not a lock-step animation protocol.
+Entity movement uses Minecraft's existing entity synchronization. Block/BlockEntity positions use Minecraft's vanilla world updates. Their source-local offset/rotation is sent only with Start or Rebind, not every tick. For streamed custom poses, whether automatic or explicit, updates are capped to one packet per **two server ticks (10 Hz)** and suppressed below 0.01 blocks of displacement and negligible quaternion changes. The client samples poses on game ticks, interpolating render samples without adding new particle network traffic. Very fast streamed motion may still show latency, and this is not a lock-step animation protocol.
 
 Numeric parameter maps are limited to **32** keys and names/events to **64** characters; effect leases are limited to **4,096 per dimension**, radius **256 blocks**, and maximum finite lease **10 minutes**. `durationTicks == -1` explicitly means an indefinite lease requiring a stop/source removal/world unload. On packet receipt, the client's regular effect, event and particle budgets remain authoritative and can reject playback; the server does not override local client budgets.
 
@@ -83,13 +85,13 @@ Client world exit, switching dimensions, resource reload, server level unload an
 - Start packets cannot force-load entity or block sources; missing sources time out after 80 ticks. There is no client acknowledgment/retry after that timeout.
 - Server-side block identity detects air and changed block **types**, not a same-type block being broken and replaced instantly.
 - Recipient filtering uses the **source chunk**, radial distance and dimension, not arbitrary emitter/particle bounds or camera-frustum occlusion. M7.4 will investigate more detailed distance/visibility LOD.
-- The initial tests do not establish bandwidth percentiles or correctness across independent multi-client connections, large modpacks, shaderpacks or unstable Internet connections. Do not treat an integrated-server test as a full multiplayer soak test.
+- The integrated-client tests and dedicated-server GameTests do not establish bandwidth percentiles or correctness across **two independently connected real clients**, large modpacks, shaderpacks or unstable Internet connections. Do not treat an integrated-server test as a full multiplayer soak test.
 
 ## Reproducing tests
 
 ```powershell
 .\gradlew.bat build runGameTestServer --offline --console=plain
-.\gradlew.bat runClientBench '-PbenchScenario=m7_network_sync,m7_network_attachments' -PbenchWidth=1280 -PbenchHeight=720 --offline --console=plain
+.\gradlew.bat runClientBench '-PbenchScenario=m7_network_sync,m7_network_attachments,m7_network_auto' -PbenchWidth=1280 -PbenchHeight=720 --offline --console=plain
 ```
 
 The dedicated NeoForge GameTests check network-anchor encoding, bounded decoding, unified public API dispatch, server-only leases, idempotent Stop, finite duration, and removal of Entity/Block sources. The Test Harness executes actual NeoForge packets through an integrated Minecraft server and client via the unified Vfx.play API: start, parameters, named events, stop and matching Entity/Block transforms. Benchmark JSON files (including status/error fields) are under `run/pyrovfx-benchmarks/`.
@@ -99,8 +101,11 @@ For interactive tests with 2+ independently connected clients, operator commands
 ```text
 /pyrovfxmuseum network static
 /pyrovfxmuseum network entity
+/pyrovfxmuseum network offset
+/pyrovfxmuseum network rebind
 /pyrovfxmuseum network block
 /pyrovfxmuseum network stream
+/pyrovfxmuseum network auto
 /pyrovfxmuseum network event
 /pyrovfxmuseum network trigger
 /pyrovfxmuseum network parameter
@@ -108,6 +113,8 @@ For interactive tests with 2+ independently connected clients, operator commands
 /pyrovfxmuseum network status
 ```
 
-These demos use `assets/pyro_vfx/vfx/...` museum resources and only broadcast to nearby tracking clients. The `stream` example drives an orbiting position/rotation on the logical server, with no Java callback transfer. Do not classify those scenarios as *multi-client verified* unless they have been exercised with actual separate clients.
+These demos use `assets/pyro_vfx/vfx/...` museum resources and only broadcast to nearby tracking clients. `offset` demonstrates a moving entity-local, rotated effect; `rebind` changes its local pose mid-flight; `auto` demonstrates a custom server callback that is sampled and streamed automatically; `stream` is the manual explicit pose baseline.
+
+**Two-client acceptance procedure (not yet executed):** Connect two separate Minecraft clients A and B to one dedicated server with the same Pyro VFX build. Stand in the same source-tracking area. From A, run `network offset` and walk/turn: both A and B should see the effect follow the correct local offset/rotation. Run `network rebind`: both should see the new offset/rotation without a duplicate effect. Move B outside the 72-block audience while A remains; only B should lose the effect. Return B to the audience; B should receive the current Start snapshot. Run `network auto` then `network stop`: both should see the streamed motion and then a full cleanup. Finally remove a tracked source/block and change dimension; the associated remote effect must stop/clear. Record individual-client results and packet logs before calling this verified.
 
 NeoForge API reference: https://docs.neoforged.net/docs/1.21.1/networking/payload/

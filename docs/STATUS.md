@@ -51,17 +51,23 @@ The common `Vfx.play(effect, entity/blockEntity)` and
 client-local or logical-server broadcast by source Level. Normal calls
 return one `VfxHandle`, with optional `VfxOptions` (96-block radius,
 1200-tick bounded lease by default). Existing explicit network overloads
-remain compatible. Java provider offsets/rotations remain client-only;
-custom server poses can be explicitly streamed. NeoForge clientbound packets
-still send instance commands and source identifiers, **not particle state or
-Java callbacks**. Viewers are filtered by dimension, distance and source-chunk
-tracking.
+remain compatible. Built-in `Vfx.at(Entity/BlockEntity/Level+BlockPos)`
+provider chains now preserve their source identity and composed local
+translation/rotation across NeoForge v2 payloads. Arbitrary Java providers
+with an explicit Level are automatically sampled/streamed by the server; manual
+`updatePose` remains optional for explicit streams. Packets carry instance
+commands, source IDs and local transforms, **not particle state or Java code**.
+Viewers are filtered by dimension, composed world-space distance and the
+original source chunk.
 
-The latest dedicated-server regression passes **83/83 GameTests**, including
-three unified-API tests. The integrated-server/client scenarios include
+The latest dedicated-server regression passes **86/86 GameTests**,
+including nested transform composition, v2 packet local-pose serialization,
+source cleanup and automatic server callback streaming. Integrated-client
+scenarios include
 `m7_api_handles` (local handles), `m7_network_sync`
-(Start/Parameter/Trigger/Stop) and `m7_network_attachments`
-(Entity/Block resolution, source removal, Stop).
+(Start/Parameter/Trigger/Stop), `m7_network_attachments`
+(composed Entity/Block offsets and rotations, Rebind, source removal, Stop),
+and `m7_network_auto` (automatic callback pose movement, rebind and cleanup).
 Actual two-client networking, network traffic percentiles, late-joining
 animation phase consistency and adverse network conditions are **not verified**.
 See [NETWORKING.md](NETWORKING.md) for protocol, limitations and replay steps.
