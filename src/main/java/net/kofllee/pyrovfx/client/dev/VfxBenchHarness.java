@@ -303,6 +303,12 @@ public final class VfxBenchHarness {
                 } catch (Exception exception) {
                     run.error = "Network attachments setup: " + exception;
                 }
+            } else if (run.scenario.name().equals("m7_network_auto")) {
+                try {
+                    run.networkAuto = VfxM7AutoStreamProbe.start(run.scenario.effect(), effectPosition);
+                } catch (Exception exception) {
+                    run.error = "Network auto-stream setup: " + exception;
+                }
             } else if (run.scenario.name().equals("global_budget_spike")) {
                 // Heavy override remains DISABLED: exercise production global admission.
                 var request = VfxPlayOptions.builder().param("count",
@@ -418,6 +424,13 @@ public final class VfxBenchHarness {
                 run.error = "Network source tracking check: " + exception;
             }
         }
+        if (run.networkAuto != null && run.error == null) {
+            try {
+                run.networkAuto.afterTick(index);
+            } catch (Exception exception) {
+                run.error = "Automatic network streaming check: " + exception;
+            }
+        }
         boolean soak = run.scenario.name().equals("soak_mixed");
         if (((run.scenario.name().equals("reload_active")
                 || run.scenario.name().equals("model_reload_active")
@@ -503,6 +516,9 @@ public final class VfxBenchHarness {
             if (run.scenario.name().equals("m7_network_attachments")
                     && (run.networkAttachments == null || !run.networkAttachments.verified()) && run.error == null)
                 run.error = "Network entity/block attachment verification did not complete";
+            if (run.scenario.name().equals("m7_network_auto")
+                    && (run.networkAuto == null || !run.networkAuto.verified()) && run.error == null)
+                run.error = "Automatic network callback streaming verification did not complete";
             if (run.scenario.name().equals("soak_mixed")
                     && (run.reloadCyclesCompleted != 3 || run.peakParticles < 50)) {
                 run.error = "Mixed workload did not complete all 3 reloads or produce enough particles: "
@@ -853,6 +869,7 @@ public final class VfxBenchHarness {
         VfxM7ApiProbe api;
         VfxM7NetworkProbe network;
         VfxM7NetworkAttachmentsProbe networkAttachments;
+        VfxM7AutoStreamProbe networkAuto;
         boolean worldExitRequested;
         boolean worldExitVerified;
         net.kofllee.pyrovfx.client.vfx.ClientVfxEmitter worldExitEmitter;

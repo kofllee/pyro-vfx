@@ -6,7 +6,7 @@ import org.joml.Quaternionf;
 /**
  * Samples a source pose; returns null when the source is unavailable.
  * The runtime samples at 1.0 on game ticks and at partialTick during rendering.
- * Providers must be called only on the owning client thread.
+ * Providers must be sampled on their owning game thread (client or server).
  */
 @FunctionalInterface
 public interface VfxTransformProvider {
@@ -37,7 +37,14 @@ public interface VfxTransformProvider {
         return transformed(new VfxTransform(Vec3.ZERO, localRotation));
     }
 
+    /** Apply a complete local-space pose while retaining built-in source identity. */
+    default VfxTransformProvider compose(VfxTransform local) {
+        return transformed(local);
+    }
+
     private VfxTransformProvider transformed(VfxTransform local) {
+        if (this instanceof VfxTrackedTransformProvider tracked)
+            return tracked.withLocal(local);
         return partialTick -> {
             VfxTransform parent = get(partialTick);
             return parent == null ? null : parent.compose(local);

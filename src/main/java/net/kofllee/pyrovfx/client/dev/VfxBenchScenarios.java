@@ -41,6 +41,9 @@ public final class VfxBenchScenarios {
         scenarios.put("m7_network_attachments", new Scenario("m7_network_attachments",
                 ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/event_order"),
                 0, 0x4D74_2026L, 5, 75));
+        scenarios.put("m7_network_auto", new Scenario("m7_network_auto",
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/event_order"),
+                0, 0x4D75_2026L, 5, 95));
         add(scenarios, "model_1k", "bench/model", 1_000);
         add(scenarios, "model_translucent_1k", "bench/model_translucent", 1_000);
         add(scenarios, "model_entity_250", "bench/model_entity", 250);

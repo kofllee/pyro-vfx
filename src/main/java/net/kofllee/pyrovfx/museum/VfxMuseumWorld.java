@@ -55,16 +55,22 @@ public final class VfxMuseumWorld {
                                 VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "static")))
                         .then(literal("entity").executes(ctx ->
                                 VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "entity")))
+                        .then(literal("offset").executes(ctx ->
+                                VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "offset")))
                         .then(literal("block").executes(ctx ->
                                 VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "block")))
                         .then(literal("stream").executes(ctx ->
                                 VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "stream")))
+                        .then(literal("auto").executes(ctx ->
+                                VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "auto")))
                         .then(literal("event").executes(ctx ->
                                 VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "event")))
                         .then(literal("trigger").executes(ctx ->
                                 VfxNetworkMuseum.trigger(ctx.getSource().getPlayerOrException())))
                         .then(literal("parameter").executes(ctx ->
                                 VfxNetworkMuseum.parameter(ctx.getSource().getPlayerOrException())))
+                        .then(literal("rebind").executes(ctx ->
+                                VfxNetworkMuseum.rebind(ctx.getSource().getPlayerOrException())))
                         .then(literal("stop").executes(ctx ->
                                 VfxNetworkMuseum.stop(ctx.getSource().getPlayerOrException())))
                         .then(literal("status").executes(ctx ->

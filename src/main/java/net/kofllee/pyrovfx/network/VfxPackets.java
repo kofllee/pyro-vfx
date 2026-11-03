@@ -22,7 +22,8 @@ public final class VfxPackets {
     private VfxPackets() {}
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        var packets = event.registrar("1");
+        // Anchor encoding includes a source-local pose in protocol 2.
+        var packets = event.registrar("2");
         packets.playToClient(Start.TYPE, Start.CODEC, (message, context) -> ClientHandler.start(message));
         packets.playToClient(Stop.TYPE, Stop.CODEC, (message, context) -> ClientHandler.stop(message));
         packets.playToClient(Parameter.TYPE, Parameter.CODEC, (message, context) -> ClientHandler.parameter(message));
@@ -32,19 +33,34 @@ public final class VfxPackets {
     }
 
     /** Source identity is explicit, not a serialized Strategy. */
-    public record Anchor(byte kind, int entityId, UUID entityUuid, BlockPos block, VfxTransform pose) {
+    public record Anchor(byte kind, int entityId, UUID entityUuid, BlockPos block,
+                         VfxTransform pose, VfxTransform local) {
         public static final byte FIXED = 0, ENTITY = 1, BLOCK = 2, BLOCK_ENTITY = 3, STREAM = 4;
+        private static final VfxTransform IDENTITY = VfxTransform.at(Vec3.ZERO);
         public Anchor {
-            if (kind < FIXED || kind > STREAM || entityUuid == null || block == null || pose == null)
+            if (kind < FIXED || kind > STREAM || entityUuid == null || block == null
+                    || pose == null || local == null)
                 throw new IllegalArgumentException("Invalid network VFX anchor");
         }
-        public static Anchor fixed(VfxTransform pose) { return new Anchor(FIXED, 0, new UUID(0, 0), BlockPos.ZERO, pose); }
-        public static Anchor stream(VfxTransform pose) { return new Anchor(STREAM, 0, new UUID(0, 0), BlockPos.ZERO, pose); }
+        public static Anchor fixed(VfxTransform pose) {
+            return new Anchor(FIXED, 0, new UUID(0, 0), BlockPos.ZERO, pose, IDENTITY);
+        }
+        public static Anchor stream(VfxTransform pose) {
+            return new Anchor(STREAM, 0, new UUID(0, 0), BlockPos.ZERO, pose, IDENTITY);
+        }
         public static Anchor entity(int id, UUID uuid, VfxTransform pose) {
-            return new Anchor(ENTITY, id, uuid, BlockPos.ZERO, pose);
+            return entity(id, uuid, pose, IDENTITY);
+        }
+        public static Anchor entity(int id, UUID uuid, VfxTransform pose, VfxTransform local) {
+            return new Anchor(ENTITY, id, uuid, BlockPos.ZERO, pose, local);
         }
         public static Anchor block(BlockPos pos, boolean blockEntity, VfxTransform pose) {
-            return new Anchor(blockEntity ? BLOCK_ENTITY : BLOCK, 0, new UUID(0, 0), pos.immutable(), pose);
+            return block(pos, blockEntity, pose, IDENTITY);
+        }
+        public static Anchor block(BlockPos pos, boolean blockEntity,
+                                   VfxTransform pose, VfxTransform local) {
+            return new Anchor(blockEntity ? BLOCK_ENTITY : BLOCK, 0,
+                    new UUID(0, 0), pos.immutable(), pose, local);
         }
     }
 
@@ -56,6 +72,7 @@ public final class VfxPackets {
             default -> {}
         }
         writeTransform(b, a.pose());
+        writeTransform(b, a.local());
     }
 
     static Anchor readAnchor(FriendlyByteBuf b) {
@@ -69,7 +86,7 @@ public final class VfxPackets {
             case Anchor.FIXED, Anchor.STREAM -> {}
             default -> throw new IllegalArgumentException("Unknown VFX network anchor " + kind);
         }
-        return new Anchor(kind, id, uuid, pos, readTransform(b));
+        return new Anchor(kind, id, uuid, pos, readTransform(b), readTransform(b));
     }
 
     static void writeTransform(FriendlyByteBuf b, VfxTransform t) {

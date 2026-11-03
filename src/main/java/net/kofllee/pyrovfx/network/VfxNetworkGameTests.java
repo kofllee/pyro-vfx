@@ -27,12 +27,14 @@ public final class VfxNetworkGameTests {
     public static void networkAnchorsRoundTripAndValidateBounds(GameTestHelper helper) {
         var pose = new VfxTransform(new Vec3(12.125, 64, -5.75),
                 new Quaternionf().rotationXYZ(0.1f, 0.3f, -0.2f));
+        var local = new VfxTransform(new Vec3(0.4, 0.2, -0.5),
+                new Quaternionf().rotationXYZ(-0.3f, 0.7f, 0.15f));
         var values = new VfxPackets.Anchor[] {
                 VfxPackets.Anchor.fixed(pose),
                 VfxPackets.Anchor.stream(pose),
-                VfxPackets.Anchor.entity(19, UUID.randomUUID(), pose),
-                VfxPackets.Anchor.block(new BlockPos(2, 4, 6), false, pose),
-                VfxPackets.Anchor.block(new BlockPos(2, 4, 6), true, pose)
+                VfxPackets.Anchor.entity(19, UUID.randomUUID(), pose, local),
+                VfxPackets.Anchor.block(new BlockPos(2, 4, 6), false, pose, local),
+                VfxPackets.Anchor.block(new BlockPos(2, 4, 6), true, pose, local)
         };
         FriendlyByteBuf buffer = new FriendlyByteBuf(Unpooled.buffer());
         try {
@@ -43,7 +45,9 @@ public final class VfxNetworkGameTests {
                         || !value.entityUuid().equals(decoded.entityUuid())
                         || !value.block().equals(decoded.block())
                         || value.pose().position().distanceTo(decoded.pose().position()) > 1e-8
-                        || Math.abs(value.pose().rotation().dot(decoded.pose().rotation())) < 0.99999f)
+                        || Math.abs(value.pose().rotation().dot(decoded.pose().rotation())) < 0.99999f
+                        || value.local().position().distanceTo(decoded.local().position()) > 1e-8
+                        || Math.abs(value.local().rotation().dot(decoded.local().rotation())) < 0.99999f)
                     throw new AssertionError("Network anchor lost identity/pose during serialization");
             }
             VfxPackets.writeParameters(buffer, Map.of("power", 1.5, "count", 16.0));
@@ -54,6 +58,24 @@ public final class VfxNetworkGameTests {
             try {
                 VfxPackets.readAnchor(buffer);
                 throw new AssertionError("Unknown source type must reject");
+            } catch (IllegalArgumentException expected) {
+                // Expected.
+            }
+            buffer.clear();
+            buffer.writeByte(VfxPackets.Anchor.ENTITY);
+            buffer.writeVarInt(7);
+            buffer.writeUUID(UUID.randomUUID());
+            VfxPackets.writeTransform(buffer, pose);
+            buffer.writeDouble(Double.NaN);
+            buffer.writeDouble(0);
+            buffer.writeDouble(0);
+            buffer.writeFloat(0);
+            buffer.writeFloat(0);
+            buffer.writeFloat(0);
+            buffer.writeFloat(1);
+            try {
+                VfxPackets.readAnchor(buffer);
+                throw new AssertionError("Non-finite network local offset was accepted");
             } catch (IllegalArgumentException expected) {
                 // Expected.
             }

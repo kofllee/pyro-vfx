@@ -5,42 +5,113 @@ import net.kofllee.pyrovfx.network.ServerVfxNetwork;
 import net.kofllee.pyrovfx.network.VfxRemoteHandle;
 import net.kofllee.pyrovfx.vfx.transform.VfxTransform;
 import net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider;
+import net.kofllee.pyrovfx.vfx.transform.VfxTrackedTransformProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.fml.loading.FMLEnvironment;
 import org.joml.Quaternionf;
 
+import java.lang.ref.WeakReference;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Public playback entry point. World-aware overloads dispatch by logical side:
  * server calls broadcast to tracking players; client calls play locally.
- * Position-only and Java Transform Provider overloads remain explicitly client-local.
+ * Built-in transform providers retain a serializable source identity and local pose.
+ * Arbitrary Java callbacks without a world/source identity remain client-local.
  */
 public final class Vfx {
     private static final VfxTransformProvider UNAVAILABLE = partialTick -> null;
 
     private Vfx() {}
 
-    /** Client-local provider for composing offsets/rotations; not network serializable. */
+    /** Built-in tracking provider; composing offsets and rotations preserves network identity. */
     public static VfxTransformProvider at(Entity entity) {
-        return available(client() ? ClientVfxAccess.sourceEntity(entity) : null);
+        if (entity == null || entity.isRemoved()) return UNAVAILABLE;
+        Level level = entity.level();
+        if (level instanceof ServerLevel server) {
+            WeakReference<ServerLevel> world = new WeakReference<>(server);
+            WeakReference<Entity> reference = new WeakReference<>(entity);
+            UUID uuid = entity.getUUID();
+            int entityId = entity.getId();
+            return VfxTrackedTransformProvider.entity(entity, partialTick -> {
+                ServerLevel active = world.get();
+                Entity live = reference.get();
+                if (active == null || !active.getServer().isSameThread() || live == null
+                        || live.isRemoved() || active.getEntity(uuid) != live
+                        || live.getId() != entityId) return null;
+                return new VfxTransform(live.position(), new Quaternionf().rotationYXZ(
+                        (float) Math.toRadians(-live.getYRot()),
+                        (float) Math.toRadians(live.getXRot()), 0));
+            });
+        }
+        return available(clientWorld(level)
+                ? VfxTrackedTransformProvider.entity(entity, ClientVfxAccess.sourceEntity(entity)) : null);
     }
 
-    /** Creates a source at the center of a client block, with world-aligned axes. */
+    /** Client-only shorthand; on a server use at(level, block) to identify the dimension. */
     public static VfxTransformProvider at(BlockPos block) {
-        return available(client() ? ClientVfxAccess.sourceBlock(block) : null);
+        return client() ? at(ClientVfxAccess.currentLevel(), block) : UNAVAILABLE;
     }
 
-    /** Creates a tracking source for a client block entity. */
+    /** Track a block in either logical world without force-loading its chunk. */
+    public static VfxTransformProvider at(Level level, BlockPos block) {
+        if (level == null || block == null) return UNAVAILABLE;
+        if (level instanceof ServerLevel server) {
+            if (!server.getServer().isSameThread() || !server.hasChunkAt(block)
+                    || server.getBlockState(block).isAir()) return UNAVAILABLE;
+            BlockPos pos = block.immutable();
+            Block initial = server.getBlockState(pos).getBlock();
+            WeakReference<ServerLevel> world = new WeakReference<>(server);
+            return VfxTrackedTransformProvider.block(level, pos, partialTick -> {
+                ServerLevel active = world.get();
+                if (active == null || !active.getServer().isSameThread()
+                        || !active.hasChunkAt(pos) || active.getBlockState(pos).getBlock() != initial)
+                    return null;
+                return VfxTransform.at(Vec3.atCenterOf(pos));
+            });
+        }
+        return available(clientWorld(level)
+                ? VfxTrackedTransformProvider.block(level, block, ClientVfxAccess.sourceBlock(block)) : null);
+    }
+
+    /** A fixed world-space source, useful for serializable offset/rotate chains. */
+    public static VfxTransformProvider at(Level level, Vec3 position) {
+        return position == null ? UNAVAILABLE : at(level, VfxTransform.at(position));
+    }
+
+    public static VfxTransformProvider at(Level level, VfxTransform pose) {
+        return level == null || pose == null ? UNAVAILABLE : VfxTrackedTransformProvider.fixed(level, pose);
+    }
+
+    /** A block entity can supply its world automatically, on either logical side. */
     public static VfxTransformProvider at(BlockEntity blockEntity) {
-        return available(client() ? ClientVfxAccess.sourceBlockEntity(blockEntity) : null);
+        if (blockEntity == null || blockEntity.isRemoved()) return UNAVAILABLE;
+        Level level = blockEntity.getLevel();
+        if (level instanceof ServerLevel server) {
+            WeakReference<ServerLevel> world = new WeakReference<>(server);
+            WeakReference<BlockEntity> ref = new WeakReference<>(blockEntity);
+            var pos = blockEntity.getBlockPos().immutable();
+            return VfxTrackedTransformProvider.blockEntity(blockEntity, partialTick -> {
+                ServerLevel active = world.get();
+                BlockEntity live = ref.get();
+                if (active == null || !active.getServer().isSameThread() || live == null
+                        || live.isRemoved() || !active.hasChunkAt(pos)
+                        || active.getBlockEntity(pos) != live) return null;
+                return VfxTransform.at(Vec3.atCenterOf(pos));
+            });
+        }
+        return available(clientWorld(level)
+                ? VfxTrackedTransformProvider.blockEntity(blockEntity,
+                        ClientVfxAccess.sourceBlockEntity(blockEntity)) : null);
     }
 
     public static VfxHandle play(ResourceLocation id, Vec3 worldPosition) {
@@ -64,11 +135,48 @@ public final class Vfx {
     }
 
     public static VfxHandle play(ResourceLocation id, VfxTransformProvider source) {
-        return play(id, source, Map.of());
+        return play(id, source, VfxOptions.DEFAULT);
     }
 
     public static VfxHandle play(ResourceLocation id, VfxTransformProvider source, Map<String, Double> parameters) {
-        return new VfxHandle(client() ? ClientVfxAccess.play(id, source, parameters) : 0);
+        return play(id, source, VfxOptions.DEFAULT.withParameters(parameters));
+    }
+
+    /** Automatically synchronize built-in providers; a custom lambda is client-local. */
+    public static VfxHandle play(ResourceLocation id, VfxTransformProvider source, VfxOptions options) {
+        if (source == null || options == null) return VfxHandle.inactive();
+        if (source instanceof VfxTrackedTransformProvider tracked) {
+            if (tracked.level() instanceof ServerLevel server)
+                return new VfxHandle(ServerVfxNetwork.play(server, id, tracked,
+                        options.parameters(), options.radius(), options.durationTicks()));
+            if (!clientWorld(tracked.level())) return VfxHandle.inactive();
+        }
+        return new VfxHandle(client() ? ClientVfxAccess.play(id, source, options.parameters()) : 0);
+    }
+
+    /**
+     * Supply a world for a custom Java provider. The server automatically samples it on
+     * game ticks and streams interpolated poses; built-in sources use vanilla tracking.
+     */
+    public static VfxHandle play(ResourceLocation id, Level level, VfxTransformProvider source) {
+        return play(id, level, source, VfxOptions.DEFAULT);
+    }
+
+    public static VfxHandle play(ResourceLocation id, Level level, VfxTransformProvider source,
+                                 Map<String, Double> parameters) {
+        return play(id, level, source, VfxOptions.DEFAULT.withParameters(parameters));
+    }
+
+    public static VfxHandle play(ResourceLocation id, Level level, VfxTransformProvider source,
+                                 VfxOptions options) {
+        if (level == null || source == null || options == null) return VfxHandle.inactive();
+        if (source instanceof VfxTrackedTransformProvider tracked)
+            return tracked.level() == level ? play(id, source, options) : VfxHandle.inactive();
+        if (level instanceof ServerLevel server) {
+            return new VfxHandle(ServerVfxNetwork.playAutoStreamed(server, id, source,
+                    options.parameters(), options.radius(), options.durationTicks()));
+        }
+        return clientWorld(level) ? play(id, source, options) : VfxHandle.inactive();
     }
 
     public static VfxHandle play(ResourceLocation id, Entity entity) {
@@ -82,12 +190,7 @@ public final class Vfx {
     /** Automatically broadcast on the server or play locally on the client. */
     public static VfxHandle play(ResourceLocation id, Entity entity, VfxOptions options) {
         if (entity == null || options == null || entity.isRemoved()) return VfxHandle.inactive();
-        Level level = entity.level();
-        if (level instanceof ServerLevel server) {
-            return new VfxHandle(ServerVfxNetwork.play(server, id, entity,
-                    options.parameters(), options.radius(), options.durationTicks()));
-        }
-        return clientWorld(level) ? play(id, at(entity), options.parameters()) : VfxHandle.inactive();
+        return play(id, at(entity), options);
     }
 
     public static VfxHandle play(ResourceLocation id, BlockPos block) {
@@ -109,12 +212,7 @@ public final class Vfx {
     public static VfxHandle play(ResourceLocation id, BlockEntity blockEntity, VfxOptions options) {
         if (blockEntity == null || blockEntity.isRemoved() || options == null)
             return VfxHandle.inactive();
-        Level level = blockEntity.getLevel();
-        if (level instanceof ServerLevel server) {
-            return new VfxHandle(ServerVfxNetwork.play(server, id, blockEntity,
-                    options.parameters(), options.radius(), options.durationTicks()));
-        }
-        return clientWorld(level) ? play(id, at(blockEntity), options.parameters()) : VfxHandle.inactive();
+        return play(id, at(blockEntity), options);
     }
 
     /** A fixed world-space position: a Level is needed to identify its dimension. */
@@ -157,11 +255,7 @@ public final class Vfx {
 
     public static VfxHandle play(ResourceLocation id, Level level, BlockPos pos, VfxOptions options) {
         if (pos == null || options == null) return VfxHandle.inactive();
-        if (level instanceof ServerLevel server) {
-            return new VfxHandle(ServerVfxNetwork.play(server, id, pos,
-                    options.parameters(), options.radius(), options.durationTicks()));
-        }
-        return clientWorld(level) ? play(id, at(pos), options.parameters()) : VfxHandle.inactive();
+        return play(id, at(level, pos), options);
     }
 
     /**

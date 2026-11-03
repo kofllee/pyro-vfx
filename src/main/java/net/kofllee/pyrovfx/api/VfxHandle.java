@@ -45,9 +45,9 @@ public final class VfxHandle {
         return remote != null ? remote.trigger(eventName) : id != 0 && Vfx.trigger(id, eventName);
     }
 
-    /** Arbitrary Java providers are client-local; use an Entity or explicit pose on the server. */
+    /** Built-in provider chains are networked; arbitrary callbacks remain client-local. */
     public boolean attach(VfxTransformProvider source) {
-        return remote == null && id != 0 && Vfx.attach(id, source);
+        return remote != null ? remote.attach(source) : id != 0 && Vfx.attach(id, source);
     }
 
     public boolean attach(Entity entity) {

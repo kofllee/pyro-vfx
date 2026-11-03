@@ -14,7 +14,8 @@ public final class VfxTransform {
                 || !Double.isFinite(position.x) || !Double.isFinite(position.y)
                 || !Double.isFinite(position.z)
                 || !Float.isFinite(rotation.x) || !Float.isFinite(rotation.y)
-                || !Float.isFinite(rotation.z) || !Float.isFinite(rotation.w)) {
+                || !Float.isFinite(rotation.z) || !Float.isFinite(rotation.w)
+                || rotation.lengthSquared() < 1.0e-12f) {
             throw new IllegalArgumentException("VFX transform must be finite");
         }
         this.position = position;

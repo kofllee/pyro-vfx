@@ -27,6 +27,10 @@ public final class ClientVfxAccess {
         return ready() && level != null && level == Minecraft.getInstance().level;
     }
 
+    public static Level currentLevel() {
+        return ready() ? Minecraft.getInstance().level : null;
+    }
+
     public static long play(ResourceLocation id, VfxTransformProvider source, Map<String, Double> parameters) {
         return ready() ? ClientVfxManager.playManaged(id, source, parameters) : 0;
     }

@@ -1,6 +1,7 @@
 package net.kofllee.pyrovfx.network;
 
 import net.kofllee.pyrovfx.vfx.transform.VfxTransform;
+import net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
@@ -31,6 +32,9 @@ public final class VfxRemoteHandle {
     }
     public boolean trigger(String event) { return ServerVfxNetwork.trigger(level.get(), id, event); }
     public boolean attach(Entity entity) { return ServerVfxNetwork.attach(level.get(), id, entity); }
+    public boolean attach(VfxTransformProvider provider) {
+        return ServerVfxNetwork.attach(level.get(), id, provider);
+    }
     public boolean attach(BlockPos pos) { return ServerVfxNetwork.attach(level.get(), id, pos); }
     public boolean attach(BlockEntity blockEntity) { return ServerVfxNetwork.attach(level.get(), id, blockEntity); }
     public boolean attach(VfxTransform pose) { return ServerVfxNetwork.attach(level.get(), id, pose); }

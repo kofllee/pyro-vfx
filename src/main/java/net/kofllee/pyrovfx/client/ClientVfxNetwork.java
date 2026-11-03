@@ -108,7 +108,7 @@ public final class ClientVfxNetwork {
     private static VfxTransformProvider resolve(Remote remote) {
         if (world == null) return null;
         VfxPackets.Anchor anchor = remote.anchor;
-        return switch (anchor.kind()) {
+        VfxTransformProvider source = switch (anchor.kind()) {
             case VfxPackets.Anchor.FIXED -> partial -> anchor.pose();
             case VfxPackets.Anchor.STREAM -> remote.streamedPose;
             case VfxPackets.Anchor.ENTITY -> {
@@ -133,6 +133,7 @@ public final class ClientVfxNetwork {
             }
             default -> null;
         };
+        return source == null ? null : source.compose(anchor.local());
     }
 
     public static void stop(VfxPackets.Stop message) {

@@ -1,7 +1,10 @@
 package net.kofllee.pyrovfx.network;
 
+import com.mojang.logging.LogUtils;
 import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.vfx.transform.VfxTransform;
+import net.kofllee.pyrovfx.vfx.transform.VfxTrackedTransformProvider;
+import net.kofllee.pyrovfx.vfx.transform.VfxTransformProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
@@ -17,6 +20,7 @@ import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.joml.Quaternionf;
+import org.slf4j.Logger;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -33,6 +37,7 @@ import java.util.UUID;
  */
 @EventBusSubscriber(modid = PyroVfx.MOD_ID)
 public final class ServerVfxNetwork {
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static final int MAX_LIVE = 4096;
     private static final double MAX_RADIUS = 256;
     private static final Map<ServerLevel, Map<UUID, Remote>> LEVELS = new IdentityHashMap<>();
@@ -45,6 +50,7 @@ public final class ServerVfxNetwork {
         final BlockPos blockPos;
         final Block originalBlock;
         final WeakReference<BlockEntity> originalBlockEntity;
+        final VfxTransform local;
         VfxTransform pose;
 
         private Source(byte kind, int entityId, UUID entityUuid, BlockPos blockPos,
@@ -53,7 +59,18 @@ public final class ServerVfxNetwork {
             this.blockPos = blockPos; this.originalBlock = originalBlock;
             this.originalBlockEntity = blockEntity == null ? null : new WeakReference<>(blockEntity);
             this.pose = pose;
+            this.local = VfxTransform.at(Vec3.ZERO);
         }
+
+        private Source(Source source, VfxTransform local) {
+            this.kind = source.kind; this.entityId = source.entityId; this.entityUuid = source.entityUuid;
+            this.blockPos = source.blockPos; this.originalBlock = source.originalBlock;
+            this.originalBlockEntity = source.originalBlockEntity;
+            this.pose = source.pose;
+            this.local = local;
+        }
+
+        Source withLocal(VfxTransform offset) { return new Source(this, offset); }
 
         static Source fixed(VfxTransform pose, boolean streamed) {
             return new Source(streamed ? VfxPackets.Anchor.STREAM : VfxPackets.Anchor.FIXED,
@@ -74,11 +91,12 @@ public final class ServerVfxNetwork {
 
         /** Only resolve loaded sources; never force chunks or retain removed entities. */
         VfxTransform resolve(ServerLevel level) {
-            if (kind == VfxPackets.Anchor.FIXED || kind == VfxPackets.Anchor.STREAM) return pose;
+            if (kind == VfxPackets.Anchor.FIXED || kind == VfxPackets.Anchor.STREAM)
+                return pose.compose(local);
             if (kind == VfxPackets.Anchor.ENTITY) {
                 Entity entity = level.getEntity(entityUuid);
                 return entity == null || entity.isRemoved() || entity.getId() != entityId
-                        ? null : entityPose(entity);
+                        ? null : entityPose(entity).compose(local);
             }
             if (!level.hasChunkAt(blockPos)
                     || level.getBlockState(blockPos).isAir()
@@ -88,17 +106,28 @@ public final class ServerVfxNetwork {
                 if (original == null || original.isRemoved() || level.getBlockEntity(blockPos) != original)
                     return null;
             }
-            return pose;
+            return pose.compose(local);
         }
 
         VfxPackets.Anchor anchor(VfxTransform resolved) {
             return switch (kind) {
-                case VfxPackets.Anchor.ENTITY -> VfxPackets.Anchor.entity(entityId, entityUuid, resolved);
-                case VfxPackets.Anchor.BLOCK -> VfxPackets.Anchor.block(blockPos, false, resolved);
-                case VfxPackets.Anchor.BLOCK_ENTITY -> VfxPackets.Anchor.block(blockPos, true, resolved);
+                case VfxPackets.Anchor.ENTITY -> VfxPackets.Anchor.entity(entityId, entityUuid, resolved, local);
+                case VfxPackets.Anchor.BLOCK -> VfxPackets.Anchor.block(blockPos, false, resolved, local);
+                case VfxPackets.Anchor.BLOCK_ENTITY -> VfxPackets.Anchor.block(blockPos, true, resolved, local);
                 case VfxPackets.Anchor.STREAM -> VfxPackets.Anchor.stream(resolved);
                 default -> VfxPackets.Anchor.fixed(resolved);
             };
+        }
+
+        /** Clients must track the *source* chunk to resolve a vanilla Entity/Block attachment. */
+        BlockPos trackingPos(ServerLevel level, VfxTransform resolved) {
+            if (kind == VfxPackets.Anchor.BLOCK || kind == VfxPackets.Anchor.BLOCK_ENTITY)
+                return blockPos;
+            if (kind == VfxPackets.Anchor.ENTITY) {
+                Entity entity = level.getEntity(entityUuid);
+                return entity == null ? BlockPos.containing(resolved.position()) : entity.blockPosition();
+            }
+            return BlockPos.containing(resolved.position());
         }
 
         private static VfxTransform entityPose(Entity e) {
@@ -118,6 +147,7 @@ public final class ServerVfxNetwork {
         int ticks;
         int lastPoseTick;
         VfxTransform lastSentPose;
+        VfxTransformProvider autoProvider;
 
         Remote(ResourceLocation effect, Source source, Map<String, Double> parameters,
                double radius, int maxTicks) {
@@ -135,6 +165,12 @@ public final class ServerVfxNetwork {
     /** A duration of -1 is explicitly indefinite and must be stopped by the caller. */
     private static VfxRemoteHandle create(ServerLevel level, ResourceLocation effect, Source source,
                                           Map<String, Double> parameters, double radius, int maxTicks) {
+        return create(level, effect, source, parameters, radius, maxTicks, null);
+    }
+
+    private static VfxRemoteHandle create(ServerLevel level, ResourceLocation effect, Source source,
+                                          Map<String, Double> parameters, double radius, int maxTicks,
+                                          VfxTransformProvider autoProvider) {
         if (!serverThread(level) || effect == null || source == null || parameters == null
                 || !Double.isFinite(radius) || radius <= 0 || radius > MAX_RADIUS
                 || (maxTicks != -1 && (maxTicks < 1 || maxTicks > 20 * 60 * 10))
@@ -147,6 +183,7 @@ public final class ServerVfxNetwork {
         var remotes = LEVELS.computeIfAbsent(level, ignored -> new HashMap<>());
         if (remotes.size() >= MAX_LIVE) return VfxRemoteHandle.inactive();
         Remote remote = new Remote(effect, source, parameters, radius, maxTicks);
+        remote.autoProvider = autoProvider;
         remotes.put(remote.id, remote);
         refresh(level, remote);
         return new VfxRemoteHandle(level, remote.id);
@@ -185,6 +222,39 @@ public final class ServerVfxNetwork {
         return create(level, effect, Source.block(level, block.getBlockPos(), block), parameters, radius, maxTicks);
     }
 
+    /** Structured built-in provider: preserve the root identity and local pose, not a Java callback. */
+    public static VfxRemoteHandle play(ServerLevel level, ResourceLocation effect,
+                                       VfxTrackedTransformProvider provider,
+                                       Map<String, Double> parameters, double radius, int maxTicks) {
+        Source source = sourceFrom(level, provider);
+        return create(level, effect, source, parameters, radius, maxTicks);
+    }
+
+    private static Source sourceFrom(ServerLevel level, VfxTrackedTransformProvider provider) {
+        if (!serverThread(level) || provider == null || provider.level() != level
+                || sample(provider) == null) return null;
+        Source source = switch (provider.kind()) {
+            case ENTITY -> {
+                Entity entity = provider.entity();
+                yield entity != null && !entity.isRemoved() && entity.level() == level
+                        ? Source.entity(entity) : null;
+            }
+            case BLOCK -> {
+                BlockPos pos = provider.blockPos();
+                yield pos != null && level.hasChunkAt(pos) && !level.getBlockState(pos).isAir()
+                        ? Source.block(level, pos, null) : null;
+            }
+            case BLOCK_ENTITY -> {
+                BlockEntity block = provider.blockEntity();
+                yield block != null && !block.isRemoved() && block.getLevel() == level
+                        ? Source.block(level, block.getBlockPos(), block) : null;
+            }
+            case FIXED -> provider.fixedPose() == null
+                    ? null : Source.fixed(provider.fixedPose(), false);
+        };
+        return source == null ? null : source.withLocal(provider.local());
+    }
+
     /**
      * Controlled custom source synchronization. The creator supplies snapshots explicitly;
      * Java lambdas and model-part callbacks never leave their own side.
@@ -193,6 +263,31 @@ public final class ServerVfxNetwork {
                                                Map<String, Double> parameters, double radius, int maxTicks) {
         return initial == null ? VfxRemoteHandle.inactive()
                 : create(level, effect, Source.fixed(initial, true), parameters, radius, maxTicks);
+    }
+
+    /**
+     * For truly arbitrary server Java callbacks with no vanilla source identity.
+     * Sample once per server tick and use the existing thresholded 10 Hz stream protocol.
+     */
+    public static VfxRemoteHandle playAutoStreamed(ServerLevel level, ResourceLocation effect,
+                                                   VfxTransformProvider provider,
+                                                   Map<String, Double> parameters,
+                                                   double radius, int maxTicks) {
+        if (!serverThread(level) || provider == null) return VfxRemoteHandle.inactive();
+        VfxTransform initial = sample(provider);
+        return initial == null ? VfxRemoteHandle.inactive()
+                : create(level, effect, Source.fixed(initial, true), parameters,
+                        radius, maxTicks, provider);
+    }
+
+    private static VfxTransform sample(VfxTransformProvider provider) {
+        try {
+            return provider.get(1.0f);
+        } catch (RuntimeException exception) {
+            // A faulty mod callback must not crash a dedicated server's tick loop.
+            LOGGER.warn("Server VFX source callback failed; stopping/rejecting effect", exception);
+            return null;
+        }
     }
 
     private static boolean validName(String name) { return name != null && !name.isBlank() && name.length() <= 64; }
@@ -232,6 +327,20 @@ public final class ServerVfxNetwork {
 
     public static boolean attach(ServerLevel level, UUID id, Entity entity) {
         return entity != null && entity.level() == level && rebind(level, id, Source.entity(entity));
+    }
+
+    public static boolean attach(ServerLevel level, UUID id, VfxTransformProvider provider) {
+        if (provider == null) return false;
+        if (provider instanceof VfxTrackedTransformProvider tracked) {
+            Source source = sourceFrom(level, tracked);
+            return source != null && rebind(level, id, source);
+        }
+        Remote remote = find(level, id);
+        if (remote == null) return false;
+        VfxTransform initial = sample(provider);
+        if (initial == null || !rebind(level, id, Source.fixed(initial, true))) return false;
+        remote.autoProvider = provider;
+        return true;
     }
 
     public static boolean attach(ServerLevel level, UUID id, BlockPos pos) {
@@ -281,6 +390,7 @@ public final class ServerVfxNetwork {
         VfxTransform pose = next.resolve(level);
         if (pose == null) return false;
         remote.source = next;
+        remote.autoProvider = null;
         refresh(level, remote);
         send(level, remote, new VfxPackets.Rebind(id, level.dimension().location(), next.anchor(pose)));
         return true;
@@ -303,11 +413,12 @@ public final class ServerVfxNetwork {
     private static void refresh(ServerLevel level, Remote remote) {
         VfxTransform pose = remote.source.resolve(level);
         if (pose == null) return;
-        BlockPos pos = BlockPos.containing(pose.position());
+        BlockPos sourcePos = remote.source.trackingPos(level, pose);
         Set<UUID> interested = new HashSet<>();
         for (ServerPlayer player : level.players()) {
             if (player.isRemoved() || player.position().distanceToSqr(pose.position()) > remote.radiusSq
-                    || !player.getChunkTrackingView().contains(pos.getX() >> 4, pos.getZ() >> 4)) continue;
+                    || !player.getChunkTrackingView().contains(sourcePos.getX() >> 4,
+                            sourcePos.getZ() >> 4)) continue;
             interested.add(player.getUUID());
             if (remote.viewers.add(player.getUUID())) {
                 PacketDistributor.sendToPlayer(player, new VfxPackets.Start(remote.id,
@@ -331,6 +442,15 @@ public final class ServerVfxNetwork {
             if (entries == null || entries.isEmpty()) continue;
             for (Remote remote : new ArrayList<>(entries.values())) {
                 if (!entries.containsKey(remote.id)) continue;
+                if (remote.autoProvider != null) {
+                    VfxTransform next = sample(remote.autoProvider);
+                    if (next == null) {
+                        stop(level, remote.id);
+                        continue;
+                    }
+                    stream(level, remote.id, next);
+                    if (!entries.containsKey(remote.id)) continue;
+                }
                 if ((remote.maxTicks != -1 && ++remote.ticks >= remote.maxTicks)
                         || remote.source.resolve(level) == null) {
                     stop(level, remote.id);
