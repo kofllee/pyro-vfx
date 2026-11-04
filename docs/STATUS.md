@@ -13,7 +13,7 @@
 
 ## Evidence and confidence
 
-The latest reported visibility/regression suite passed **88/88 GameTests**. A prior M7 dedicated-server suite passed **87/87**; these are different checkpoints, not a cumulative test count. Two independent localhost clients passed **8/8 acceptance checks each**, including audience exit/return, dimension changes, sockets and source removal. The physical museum currently has **66 effects**, expanding the earlier 58-effect survey.
+The latest reported visibility/regression suite passed **88/88 GameTests**. A prior M7 dedicated-server suite passed **87/87**; these are different checkpoints, not a cumulative test count. Two independent localhost clients passed **8/8 acceptance checks each**, including audience exit/return, dimension changes, sockets and source removal. The current development-only technical museum has **35 exhibits**, reduced from 66. The earlier 88/88 and 87/87 results refer to prior checkpoints, not to the redesigned gallery.
 
 On RTX 4090 Laptop hardware, short real-client checks were recorded for vanilla rendering and Sodium, Embeddium, Iris without shaders, and Iris with Complementary, BSL and Photon (shaderpacks use fallback). See [compatibility ledger](COMPATIBILITY_MATRIX.md), [network contract](NETWORKING.md), and [performance evidence](PERFORMANCE.md). These were **not rerun during repository consolidation**.
 

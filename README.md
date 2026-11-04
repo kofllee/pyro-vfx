@@ -18,7 +18,7 @@
 
 ## How it works
 
-Definitions live at `assets/<namespace>/vfx/<path>.json`; their resource location becomes the effect ID (for example `example_mod:smoke/burst`). `format` must be `pyro_vfx:1`. See the [working examples](src/main/resources/assets/pyro_vfx/vfx/examples/) and the full [format reference](docs/JSON_FORMAT.md).
+Definitions live at `assets/<namespace>/vfx/<path>.json`; their resource location becomes the effect ID (for example `example_mod:smoke/burst`). `format` must be `pyro_vfx:1`. See the [working examples](src/development/resources/assets/pyro_vfx/vfx/examples/) and the full [format reference](docs/JSON_FORMAT.md).
 
 Code in a consuming mod uses the public side-aware API:
 
@@ -45,14 +45,14 @@ On Windows:
 .\gradlew.bat runGameTestServer --no-daemon
 ```
 
-On Unix-like systems, use `./gradlew`. Output: `build/libs/`. For interactive museum and optional client benchmarks, see [Test Harness](docs/TEST_HARNESS.md). Neither Minecraft clients nor benchmark runs are needed for documentation-only changes.
+On Unix-like systems, use `./gradlew`. Output: `build/libs/`. The release uses only `src/main`; `src/development` holds the museum, GameTests, diagnostics and benchmark fixtures. Use `developmentJar verifyReleaseJar` to build the optional developer JAR and verify the release. For interactive museum and optional client benchmarks, see [Test Harness](docs/TEST_HARNESS.md). Neither Minecraft clients nor benchmark runs are needed for documentation-only changes.
 
-Client commands include `/pyrovfx list`, `/pyrovfx play <id>`, `/pyrovfx play_at <id> <pos>`, `/pyrovfx stop_all`, `/pyrovfx sockets` and `/pyrovfx backend`. Client resource reload refreshes effect definitions.
+Development-only client commands include `/pyrovfx list`, `/pyrovfx play <id>`, `/pyrovfx play_at <id> <pos>`, `/pyrovfx stop_all`, `/pyrovfx sockets` and `/pyrovfx backend`. Client resource reload refreshes effect definitions.
 
 ## Important boundaries
 
 CPU Dense/Legacy and GPU Analytic/instanced paths are selected by effect capabilities and graphics environment. Active shaderpacks use conservative Minecraft rendering fallback. GPU Compute has deliberately **not** been added; complex collision, event and stateful effects retain CPU processing. Particle admission budgets limit resource use but are not VRAM or FPS guarantees.
 
-The 66-effect museum, targeted GameTests, and two independent localhost clients provide useful development evidence, **not** proof of cross-driver, high-player-count, 4K or long-running modpack stability. Details and source measurements are in the links above.
+The 35-exhibit development-only technical museum, targeted GameTests, and two independent localhost clients provide useful development evidence, **not** proof of cross-driver, high-player-count, 4K or long-running modpack stability. Details and source measurements are in the links above.
 
 Licensed under the [MIT License](LICENSE).

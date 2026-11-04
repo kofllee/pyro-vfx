@@ -1,9 +1,9 @@
 # Included Examples
 
-Pyro VFX includes ready-to-use example definitions under:
+Pyro VFX provides development-only example definitions, excluded from the ordinary JAR, under:
 
 ```text
-src/main/resources/assets/pyro_vfx/vfx/examples/
+src/development/resources/assets/pyro_vfx/vfx/examples/
 ```
 
 ## `basic_sprite.json`

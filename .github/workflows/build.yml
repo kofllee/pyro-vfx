@@ -26,7 +26,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build
-        run: ./gradlew build --stacktrace
+        run: ./gradlew build developmentJar verifyReleaseJar --stacktrace
 
       - name: Run headless Minecraft GameTests
         run: ./gradlew runGameTestServer --no-daemon --console=plain

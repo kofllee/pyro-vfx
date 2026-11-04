@@ -1,26 +1,32 @@
-# Pyro VFX Museum
+# Pyro VFX technical museum
 
-The museum is a **real Minecraft 1.21.1 / NeoForge** world for testing effects and backend choices before authoring a visual editor. The original 5×12 gallery contains **58 distinct demo effects**; subsequent M7 transform/attachment stands bring the current manifest to **66 effects**. The initial grid begins at **X 512, Y 140, Z 512**. It is not a visual editor or an automated proof of shader compatibility.
+Development-only Minecraft 1.21.1 / NeoForge technical laboratory. The old 66-effect gallery has been reduced to **35 exhibits** in a denser 6-column layout anchored at X=512, Y=140, Z=512.
 
-## Open and use
+| Technical category | Exhibits | Coverage |
+|---|---:|---|
+| Emission | 8 | Point, filled/shell sphere, filled/shell box, line, disc, ring, cone, model and steady |
+| Motion & Rotation | 4 | Dynamic forces, parametric motion, 3D and procedural rotation |
+| Appearance & Rendering | 7 | Billboards, UV, additive and translucent materials, custom/block/item/entity meshes |
+| Curves & Expressions | 3 | Bezier, linear, step and Catmull; random, age and movement expressions |
+| Events & Collisions | 3 | Contact and expiry, child emissions, event order |
+| Transforms & Attachments | 7 | Entity Local/World, animated head socket, Block, BlockEntity, custom and moving providers, distance triggers |
+| CPU / GPU | 3 | Analytic sprites, resident model paths and CPU/legacy fallback |
+| **Total** | **35** | Related features share a stand |
 
-1. Optionally create an isolated save with `python tools/create_museum_world.py` (never overwrites an existing save), then launch `.\gradlew.bat runClientMuseum` or open the world manually.
-2. In a disposable/operator-controlled world, use `/pyrovfxmuseum build` to place the stands. This places thousands of blocks; **do not run it on a survival base**. Use `/pyrovfxmuseum visit` to travel to the entrance.
-3. At each stand, press **PLAY**, **STOP** or **COMPARE**. Comparison restarts the same effect/seed with different eligible backend paths; unsupported behavior must not be silently accelerated.
-4. Use `/pyrovfx museum list`, `/pyrovfx museum play <id>`, `/pyrovfx museum info <id>` and `/pyrovfx backend` to inspect the registered effects and routing. Development commands vary by context; the in-world stand and `/pyrovfxmuseum` commands remain part of the harness.
+## How to visit
 
-The catalog covers six sprite orientations, custom/block/item/entity models, material and lighting modes, UV and shared-age animation, event chains, curves and expressions, eight spawn shapes, motion and rotation, collision/expiry, CPU/GPU fallbacks and M7 attachment sources. Source assets are in `src/main/resources/assets/pyro_vfx/vfx/museum/`; the manifest is `src/main/resources/pyro_vfx_museum_exhibits.tsv`. `tools/generate_museum_effects.py` regenerates definitions; do not delete these files as historical benchmark noise.
+Create the dedicated save once with python tools/create_museum_world.py, then launch with **gradlew runClientMuseum**. The gallery automatically builds and teleports the player when this dedicated profile starts. Avoid running the optional build command in a survival world.
 
-## Reproducible capture
+Every exhibit runs automatically as you walk near it. At most five nearby effects are active at once, keeping load predictable. One-shot effects restart periodically; effects and backend overrides are cleaned up upon leaving the museum. The normal VFX runtime is not globally cleared.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -World 'Pyro VFX Museum' -MuseumBuild -Scenario 'museum_model_custom,museum_smoke_alpha,museum_gpu_curves' -Width 1280 -Height 720 -Uncapped -RenderStateAudit
-```
+Each stand has four physical Minecraft buttons: **REPLAY**, **PAUSE**, **SOLO** (isolates a single exhibit and toggles comparison mode) and **INFO** (opens technical details on the panel). The dark-backed, high-contrast title/status/detail panels are **minecraft:text_display** entities, not clickable text. They only update when text changes. No commands or chat messages are required for normal operation.
 
-This is **optional** and uses a real Minecraft window. The benchmark report includes backend route, FPS, frame P95/P99, CPU/GPU timing, budgets and image references; results are stored under gitignored `run/pyrovfx-benchmarks/`. Representative source JSON, [museum aggregate CSV](../benchmarks/museum-final-2026-11-03/museum-results.csv), [graphics profile evidence](../benchmarks/museum-final-2026-11-03/compatibility/profile-results.json) and [paired visual fixes](../PERFORMANCE.md) are retained in Git. Other old captures remain accessible in Git history.
+Moving effect sources are real visible animated Husk entities. Local and World Space use contrasting emitters on the same moving model. The animated head socket resolves the actual vanilla ModelPart, not an estimated camera/head transform. Block anchors and BlockEntity anchors are real copper blocks and barrels. Moving custom and travel-distance sources are visually apparent.
 
-Visual corrections include item cutout transparency, depth interaction between Pyro smoke and Minecraft clouds, neutral model tint, correct world-space camera motion and bounded self-emission. These are measured snapshot fixes, not cross-driver pixel-identity guarantees.
+## Developer files and verification
 
-`tools/museum_budget_profile.py` can inspect and explicitly apply/restore developer budget profiles; it preserves user TOML settings. `tools/museum_compat_profile.py` and `tools/verify-museum-renderer-profiles.ps1` perform isolated, reversible short graphics-profile tests. Never install client-only graphics jars on the dedicated GameTest server.
+The museum catalog and generated JSON fixtures are under **src/development/resources**. The source is **src/development/java**. Generator: **tools/generate_museum_effects.py**. Reusable attachment source definitions are kept in the development-only **vfx/fixtures/attachments** folder, not in the release.
 
-The museum supports editor preview and manual inspection, but editor state, save/reload and property controls belong to the [next phase](../ROADMAP.md). See [Test Harness](../TEST_HARNESS.md) and [Compatibility](../COMPATIBILITY_MATRIX.md) for limitations.
+Use **gradlew developmentJar verifyReleaseJar** to produce the developer variant and verify that the ordinary release JAR contains no museum, GameTests, diagnostic commands or benchmarks. GameTests are exercised through **gradlew runGameTestServer**.
+
+The historical screenshot and performance reports in docs/benchmarks remain archived; the redesign does not imply new FPS claims. See ../TEST_HARNESS.md and ../COMPATIBILITY_MATRIX.md.

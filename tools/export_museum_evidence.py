@@ -12,7 +12,7 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 source = root / "run/pyrovfx-benchmarks"
 dest = root / "docs/benchmarks/museum-final-2026-11-03"
-manifest = root / "src/main/resources/pyro_vfx_museum_exhibits.tsv"
+manifest = root / "src/development/resources/pyro_vfx_museum_exhibits.tsv"
 scenario_names = [r.split("|")[0] for r in manifest.read_text(encoding="utf-8").splitlines()
                   if r and not r.startswith("#")]
 rows = []

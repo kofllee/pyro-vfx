@@ -10,9 +10,9 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CATALOG = ROOT / "src/main/resources/pyro_vfx_museum_exhibits.tsv"
-SOURCE = ROOT / "src/main/resources/assets/pyro_vfx/vfx/bench"
-OUTPUT = ROOT / "src/main/resources/assets/pyro_vfx/vfx/museum"
+CATALOG = ROOT / "src/development/resources/pyro_vfx_museum_exhibits.tsv"
+SOURCE = ROOT / "src/development/resources/assets/pyro_vfx/vfx/bench"
+OUTPUT = ROOT / "src/development/resources/assets/pyro_vfx/vfx/museum"
 
 
 def scale_value(value, multiplier, model=False):
@@ -59,6 +59,96 @@ SHAPES = {
 }
 
 
+
+
+ATTACHMENTS = ROOT / "src/development/resources/assets/pyro_vfx/vfx/fixtures/attachments"
+
+
+def combine_technical_variants(exhibit_id, data):
+    """Each sub-emitter demonstrates a different technical capability, not a new exhibit."""
+    import copy
+    emitters = data["emitters"]
+    primary = emitters[0]
+    if exhibit_id in {"spawn_sphere", "spawn_box"}:
+        shell = copy.deepcopy(primary)
+        shell["id"] = "surface"
+        shell["offset"] = [1.45, 0, 0]
+        primary["offset"] = [-1.45, 0, 0]
+        if exhibit_id == "spawn_sphere":
+            primary["spawn_shape"] = {"type": "sphere", "radius": 0.95}
+            shell["spawn_shape"] = {"type": "sphere", "radius": 0.95, "edge_thickness": 0.04}
+        else:
+            primary["spawn_shape"] = {"type": "box", "half_extents": [0.9, 0.9, 0.9]}
+            shell["spawn_shape"] = {"type": "box", "half_extents": [0.9, 0.9, 0.9], "edge_thickness": 0.04}
+        shell["render"]["color"] = "#55DFFFEE"
+        emitters.append(shell)
+    if exhibit_id == "spawn_point":
+        primary["offset"] = [-1.25, 0, 0]
+        steady = copy.deepcopy(primary)
+        steady["id"] = "continuous"
+        steady["offset"] = [1.25, 0, 0]
+        steady["emitter_lifetime"] = {"mode":"looping","active_ticks":20,"sleep_ticks":0,"loops":0}
+        steady["spawn_amount"] = {"mode":"steady","rate":8,"max_particles":40}
+        steady["render"]["color"] = "#55DFFFEE"
+        emitters.append(steady)
+    if exhibit_id == "source_entity_local":
+        world = json.loads((ATTACHMENTS/"source_entity_world.json").read_text(encoding="utf-8"))
+        trail = world["emitters"][0]
+        trail["id"] = "world_trail"
+        trail["offset"] = [-0.45, 0.6, 0]
+        trail["spawn_amount"]["rate"] = 8
+        primary["id"] = "local_aura"
+        primary["offset"] = [0.45, 0.6, 0]
+        primary["spawn_amount"]["rate"] = 8
+        emitters.append(trail)
+    if exhibit_id == "model_custom":
+        primary["offset"] = [-2, 0, 0]
+        for name,source in (("block","model_block"),("entity","model_entity")):
+            other = json.loads((SOURCE/(source+".json")).read_text(encoding="utf-8"))["emitters"][0]
+            other = copy.deepcopy(other)
+            other["id"] = name
+            other["offset"] = [0 if name=="block" else 2, 0, 0]
+            other["spawn_amount"] = {"mode":"instant","amount":2}
+            other["render"]["scale"] = [1.1, 1.1, 1.1]
+            other["render"]["color"] = "#FFFFFFFF"
+            emitters.append(other)
+    if exhibit_id == "curve_bezier":
+        for kind,index in (("linear",0),("step",1),("catmull",2)):
+            clone = copy.deepcopy(primary)
+            clone["id"] = "curve_"+kind
+            clone["offset"] = [(-1.5 if index==0 else 1.5 if index==1 else 0),0,0]
+            data.setdefault("curves", {})["museum_"+kind] = {
+                "type": kind, "points": [[0,0.12],[0.25,0.45],[0.6,0.20],[1,0.55]]}
+            clone["render"]["scale"] = [
+                "curve.museum_"+kind+"(particle.normalized_age) * 4",
+                "curve.museum_"+kind+"(particle.normalized_age) * 4",1]
+            clone["render"]["color"] = "#55DFFFEE" if index else "#FFB65AEE"
+            emitters.append(clone)
+        primary["offset"]=[0,0,0]
+    if exhibit_id == "collision_events":
+        bounce = copy.deepcopy(primary)
+        bounce["id"] = "bounce_box"
+        bounce["offset"] = [1.0,0,0]
+        bounce["particle_triggers"] = []
+        bounce["motion"]["collision"]["collision_type"] = "box"
+        bounce["motion"]["collision"]["collision_size"] = [0.12,0.12,0.12]
+        bounce["spawn_amount"] = {"mode":"instant","amount":8}
+        bounce["render"]["color"] = "#55DFFFEE"
+        gone = copy.deepcopy(bounce)
+        gone["id"] = "expire_contact"
+        gone["offset"] = [-1.0,0,0]
+        gone["motion"]["collision"]["expire_on_contact"] = True
+        emitters.extend([bounce,gone])
+    if exhibit_id == "sprite_horizontal":
+        for name,facing,x in (("world_x","world_x",-1.25),("world_y","world_y",1.25)):
+            clone=copy.deepcopy(primary)
+            clone["id"]=name
+            clone["offset"]=[x,0,0]
+            clone["render"]["facing"]=facing
+            clone["render"]["color"]="#55DFFFCC"
+            emitters.append(clone)
+
+
 def customize_variant(exhibit_id, data):
     emitter = data["emitters"][0]
     if exhibit_id in SHAPES:
@@ -98,12 +188,12 @@ def customize_variant(exhibit_id, data):
             "direction": [0, 1, 0]}}
     if exhibit_id.startswith("curve_"):
         kind = exhibit_id.removeprefix("curve_")
-        data.setdefault("curves", {})["museum_scale"] = {
+        data.setdefault("curves", {})["museum_bezier"] = {
             "type": kind,
             "points": [[0, 0.12], [0.25, 0.45], [0.6, 0.20], [1, 0.55]]}
         emitter["render"]["scale"] = [
-            "curve.museum_scale(particle.normalized_age) * 6",
-            "curve.museum_scale(particle.normalized_age) * 6", 1]
+            "curve.museum_bezier(particle.normalized_age) * 6",
+            "curve.museum_bezier(particle.normalized_age) * 6", 1]
     if exhibit_id == "collision_box":
         emitter["motion"]["collision"]["collision_type"] = "box"
         emitter["motion"]["collision"]["collision_size"] = [0.3, 0.3, 0.3]
@@ -128,7 +218,8 @@ def generate() -> int:
         if exhibit_id in seen:
             raise ValueError(f"duplicate ID {exhibit_id}")
         seen.add(exhibit_id)
-        data = copy.deepcopy(json.loads((SOURCE / f"{fixture}.json").read_text(encoding="utf-8")))
+        source = (ATTACHMENTS / f"{exhibit_id}.json") if exhibit_id.startswith("source_") else (SOURCE / f"{fixture}.json")
+        data = copy.deepcopy(json.loads(source.read_text(encoding="utf-8")))
         data.setdefault("metadata", {})["description"] = (
             f"Museum / {category} / {title}: {description}. "
             "Read on-stand controls to replay and compare."
@@ -211,6 +302,7 @@ def generate() -> int:
                     "color": "#66CCFFFF", "scale": [0.65, 0.65, 1]}
             })
         customize_variant(exhibit_id, data)
+        combine_technical_variants(exhibit_id, data)
         output = OUTPUT / f"{exhibit_id}.json"
         output.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     for stale in OUTPUT.glob("*.json"):

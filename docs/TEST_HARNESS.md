@@ -1,16 +1,16 @@
 # Development checks, museum and reproducible measurements
 
-Pyro VFX includes real NeoForge GameTests, an interactive museum and an **opt-in** Minecraft client benchmark harness. GameTests do not establish FPS or shader compatibility; client benchmarks use an actual OpenGL context. None are required to inspect or edit documentation.
+Pyro VFX has separate `src/main` (release engine) and `src/development` (GameTests, museum, dev commands, examples and optional benchmarks) source sets. These load under one mod ID during development; no second mod is created. GameTests do not establish FPS or shader compatibility; client benchmarks use an actual OpenGL context. None are required to inspect or edit documentation.
 
 ## Default checks
 
 ```powershell
-.\gradlew.bat build
+.\gradlew.bat build developmentJar verifyReleaseJar
 .\gradlew.bat runGameTestServer --no-daemon
 python tools/test_compare_bench.py
 ```
 
-The project also runs GameTests from its CI workflow. Run them after Java changes; for documentation and retained benchmark selection, link validation and `git diff --check` are sufficient. The latest recorded run in the project documents was 88/88 GameTests; do not claim new test results without executing them.
+CI checks the release JAR for development-content leaks and runs the development GameTests. Run them after Java changes; for documentation and retained benchmark selection, link validation and `git diff --check` are sufficient. The latest recorded run in the project documents was 88/88 GameTests; do not claim new test results without executing them.
 
 ## Client and museum (opt-in)
 
