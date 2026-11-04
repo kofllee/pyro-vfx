@@ -18,6 +18,56 @@ base {
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
+// No separate mod: dev and release share identity, only main is published.
+sourceSets {
+    development {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+}
+configurations {
+    developmentImplementation.extendsFrom implementation
+    developmentRuntimeOnly.extendsFrom runtimeOnly
+}
+tasks.register('developmentJar', Jar) {
+    group = 'build'
+    description = 'Engine with development tools, not published.'
+    archiveClassifier = 'development'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    dependsOn tasks.named('developmentClasses')
+    from sourceSets.main.output
+    from sourceSets.development.output
+}
+tasks.register('verifyReleaseJar') {
+    group = 'verification'
+    dependsOn tasks.named('jar')
+    inputs.files(tasks.named('jar').flatMap { it.archiveFile })
+    doLast { task ->
+        def jarFile = task.inputs.files.singleFile
+        def zip = new java.util.zip.ZipFile(jarFile)
+        try {
+            def names = zip.entries().collect { it.name }
+            def forbidden = names.findAll { name ->
+                !name.endsWith('/') && (name.startsWith('net/kofllee/pyrovfx/client/dev/') ||
+                name.startsWith('net/kofllee/pyrovfx/dev/') ||
+                name.startsWith('net/kofllee/pyrovfx/museum/') ||
+                name.contains('GameTests.class') ||
+                name.startsWith('net/kofllee/pyrovfx/mixin/Bench') ||
+                name.startsWith('assets/pyro_vfx/vfx/bench/') ||
+                name.startsWith('assets/pyro_vfx/vfx/museum/') ||
+                name.startsWith('assets/pyro_vfx/vfx/examples/') ||
+                name.startsWith('assets/pyro_vfx/models/bench/') ||
+                name == 'pyro_vfx_museum_exhibits.tsv' ||
+                name == 'pyro_vfx.mixins.json' ||
+                name.startsWith('data/pyro_vfx/structure/'))
+            }
+            if (!forbidden.isEmpty()) throw new GradleException(
+                "Development files leaked into release jar:\n" + forbidden.join('\n'))
+            task.logger.lifecycle('Verified release jar {} ({} entries)', jarFile.name, names.size())
+        } finally { zip.close() }
+    }
+}
+
 neoForge {
     // Specify the version of NeoForge to use.
     version = project.neo_version
@@ -162,6 +212,7 @@ neoForge {
         // but multi mod projects should define one per mod
         "${mod_id}" {
             sourceSet(sourceSets.main)
+            sourceSet(sourceSets.development)
         }
     }
 }

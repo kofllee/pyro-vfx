@@ -1,0 +1,36 @@
+# id|category|title|source|count|scale_multiplier|description
+spawn_point|Emission|Point + steady|static|64|4.0|Compare one-shot point bursts and a continuous emitter
+spawn_sphere|Emission|Sphere volume / shell|static|64|4.0|Two colored samples distinguish filled spheres from hollow shells
+spawn_box|Emission|Box volume / shell|static|64|4.0|Two colored samples distinguish box volume from surface-only spawning
+spawn_line|Emission|Line emission|static|64|4.0|Particles are evenly scattered along a vertical line
+spawn_disc|Emission|Disc emission|static|64|4.0|Particles form a horizontal filled disc with no vertical spread
+spawn_ring|Emission|Ring emission|static|64|4.0|Particles form a clearly hollow horizontal annulus
+spawn_cone|Emission|Cone emission|static|64|4.0|Particles fill a cone narrowing to a visible tip
+spawn_model|Emission|Model surface|static|64|4.0|Particles sample the model cuboid volume instead of a sphere
+dynamic_motion|Motion & Rotation|Physics / drag|dynamic|40|4.0|The cloud moves according to velocity drag and gravity
+motion_parametric|Motion & Rotation|Parametric orbit|static|40|4.0|Particles follow an age-driven analytic orbit around their spawn point
+model_rotating|Motion & Rotation|3D angular velocity|model_rotating_unlit|5|4.0|Fully three-dimensional cubes rotate visibly without collapsing to planes
+rotation_parametric|Motion & Rotation|Procedural rotation|sprite_rotating|35|4.0|Sprite spin is controlled directly by age instead of angular velocity
+sprite_horizontal|Appearance & Rendering|Billboard orientation|sprite_horizontal|28|4.0|Camera, horizontal and world-plane orientations visible together
+sprite_velocity|Appearance & Rendering|Velocity facing|dynamic|35|4.0|Moving sprite planes align along travel direction instead of camera
+sprite_additive|Appearance & Rendering|Additive blending|analytic_age|48|4.0|Overlapping orange sparks become brighter where they intersect
+sprite_uv|Appearance & Rendering|Sprite UV frames|sprite_uv_instanced|36|4.0|Sprite texture frames change over time without moving the billboard
+model_custom|Appearance & Rendering|Custom / block / entity|model|5|4.0|Custom, block and entity 3D geometry; observe the depth
+model_item|Appearance & Rendering|Item meshes|model_item|5|4.0|Five item-model meshes keep their proper thickness and textures
+model_translucent|Appearance & Rendering|Translucent geometry|model_translucent|5|4.0|Transparent cubes reveal other surfaces behind them without flattening
+curve_bezier|Curves & Expressions|Bezier / linear / step|sprite_gpu_curves|40|4.0|Step, linear and Bezier profiles applied to separate particle streams
+gpu_expression|Curves & Expressions|Age / random expressions|sprite_expressions|42|4.0|Each particle gets its own color and size from birth random and age
+gpu_motion|Curves & Expressions|Motion expressions|sprite_gpu_motion_expr|42|4.0|Color and size react continuously to particle movement
+collision_events|Events & Collisions|Impact and expiry|collision|48|4.0|A collision triggers child particles; other streams bounce and expire
+self_emit|Events & Collisions|Child emission|self_emit_collision|24|4.0|Contact spawns visible child particles around the impact
+event_order|Events & Collisions|Trigger sequencing|event_order|28|4.0|A deterministic ordered sequence starts and advances in time
+source_entity_local|Transforms & Attachments|Entity local / world|static|24|4.0|Local particles follow the moving entity; world particles leave a trail
+source_model_part|Transforms & Attachments|Animated head socket|static|24|4.0|Real animated zombie head socket tracks the moving model
+source_block|Transforms & Attachments|Block anchor|static|24|4.0|The effect stops after its attached block disappears
+source_block_entity|Transforms & Attachments|BlockEntity anchor|static|24|4.0|The effect follows a physically present barrel BlockEntity
+source_custom|Transforms & Attachments|Custom moving source|static|24|4.0|A moving source is sampled from a Java callback
+source_distance|Transforms & Attachments|Travel distance|static|24|4.0|A new spark burst appears each distance interval
+source_model_local|Transforms & Attachments|Rotating local models|model|24|4.0|Rotating model particles follow the source with GPU resident geometry
+gpu_sprite|CPU / GPU|GPU analytic|analytic_age|40|4.0|GPU birth-state sparks show no difference versus CPU replay
+legacy_event|CPU / GPU|CPU legacy fallback|event_order|24|4.0|Event-driven particles use full legacy callbacks without missing triggers
+gpu_model|CPU / GPU|GPU model instancing|model_rotating_unlit|6|4.0|GPU-resident 3D cubes remain solid and rotating on every axis

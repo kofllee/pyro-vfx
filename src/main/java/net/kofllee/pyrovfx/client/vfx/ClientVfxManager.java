@@ -117,6 +117,14 @@ public final class ClientVfxManager {
         return id != 0 && HANDLES.containsKey(id);
     }
 
+    /** Read the actual backend selected for an externally managed effect. */
+    public static String backendForHandle(long id) {
+        trackWorld();
+        ClientVfxInstance instance = HANDLES.get(id);
+        return instance == null || instance.emitters().isEmpty() ? ""
+                : instance.emitters().getFirst().selectedBackend();
+    }
+
     public static boolean stopHandle(long id) {
         trackWorld();
         ClientVfxInstance instance = HANDLES.remove(id);

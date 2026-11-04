@@ -1,0 +1,138 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "Museum / Transforms & Attachments / Entity local / world: Local particles follow the moving entity; world particles leave a trail. Read on-stand controls to replay and compare."
+  },
+  "parameters": {
+    "count": 24
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 230
+  },
+  "emitters": [
+    {
+      "id": "local_aura",
+      "space": "local",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 205
+      },
+      "spawn_amount": {
+        "mode": "steady",
+        "rate": 8,
+        "max_particles": 125
+      },
+      "offset": [
+        0.45,
+        0.6,
+        0
+      ],
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.15
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 70
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": 0.14,
+          "acceleration": [
+            0,
+            0.07,
+            0
+          ],
+          "linear_drag": 0.6
+        }
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": [
+          0.9803921568627451,
+          0.8352941176470589,
+          0.37254901960784315,
+          "1.0 - particle.normalized_age"
+        ],
+        "scale": [
+          0.64,
+          0.64,
+          1
+        ]
+      }
+    },
+    {
+      "id": "world_trail",
+      "space": "world",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 205
+      },
+      "spawn_amount": {
+        "mode": "steady",
+        "rate": 8,
+        "max_particles": 125
+      },
+      "offset": [
+        -0.45,
+        0.6,
+        0
+      ],
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.15
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 70
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": 0.14,
+          "acceleration": [
+            0,
+            0.07,
+            0
+          ],
+          "linear_drag": 0.6
+        }
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": [
+          0.23529411764705882,
+          0.8117647058823529,
+          1,
+          "1.0 - particle.normalized_age"
+        ],
+        "scale": [
+          0.16,
+          0.16,
+          1
+        ]
+      }
+    }
+  ]
+}

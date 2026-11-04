@@ -1,0 +1,113 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "Museum / Emission / Box volume / shell: Two colored samples distinguish box volume from surface-only spawning. Read on-stand controls to replay and compare."
+  },
+  "parameters": {
+    "count": 64
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 160
+  },
+  "emitters": [
+    {
+      "id": "main",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "box",
+        "half_extents": [
+          0.9,
+          0.9,
+          0.9
+        ]
+      },
+      "offset": [
+        -1.45,
+        0,
+        0
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": "#D72D82FF",
+        "scale": [
+          0.4,
+          0.4,
+          1
+        ]
+      }
+    },
+    {
+      "id": "surface",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "box",
+        "half_extents": [
+          0.9,
+          0.9,
+          0.9
+        ],
+        "edge_thickness": 0.04
+      },
+      "offset": [
+        1.45,
+        0,
+        0
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": "#55DFFFEE",
+        "scale": [
+          0.4,
+          0.4,
+          1
+        ]
+      }
+    }
+  ]
+}

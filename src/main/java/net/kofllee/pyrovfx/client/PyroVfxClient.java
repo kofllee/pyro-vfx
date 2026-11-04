@@ -3,7 +3,6 @@ package net.kofllee.pyrovfx.client;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.kofllee.pyrovfx.PyroVfx;
-import net.kofllee.pyrovfx.client.dev.VfxBenchHarness;
 import net.kofllee.pyrovfx.client.render.VfxRenderer;
 import net.kofllee.pyrovfx.client.render.VfxGpuTelemetry;
 import net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer;
@@ -43,10 +42,10 @@ public final class PyroVfxClient {
 
     @SubscribeEvent
     public static void clientTick(ClientTickEvent.Post event) {
-        long start = VfxBenchHarness.beforeTick();
+        long start = VfxDevHooks.beforeTick();
         ClientVfxNetwork.tick();
         ClientVfxManager.tick();
-        VfxBenchHarness.afterTick(start);
+        VfxDevHooks.afterTick(start);
     }
 
     @SubscribeEvent
@@ -58,7 +57,7 @@ public final class PyroVfxClient {
             return;
         }
 
-        long start = VfxBenchHarness.beforeRender();
+        long start = VfxDevHooks.beforeRender();
         // AFTER_LEVEL is dispatched after LevelRenderer has unwound the
         // camera view transform. Using RenderSystem.getModelViewMatrix() here
         // without restoring the view makes camera-relative particle positions
@@ -78,7 +77,7 @@ public final class PyroVfxClient {
         } finally {
             viewStack.popMatrix();
             RenderSystem.applyModelViewMatrix();
-            VfxBenchHarness.afterRender(start);
+            VfxDevHooks.afterRender(start);
         }
     }
 
