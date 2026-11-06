@@ -148,6 +148,10 @@ final class VfxBenchReport {
                         - run.nativeInstanceUploadsAtStart);
         root.addProperty("nativeBridgeDrawCallsLastFrame",
                 net.kofllee.pyrovfx.client.render.VfxNativeGpuGeometryBridge.drawCalls());
+        root.addProperty("nativeBridgeTfGenerationCallsLastFrame",
+                net.kofllee.pyrovfx.client.render.VfxNativeGpuGeometryBridge.generationCallsThisFrame());
+        root.addProperty("nativeBridgeMaterialSubmissionsLastFrame",
+                net.kofllee.pyrovfx.client.render.VfxNativeGpuGeometryBridge.nativeSubmissionsThisFrame());
         root.addProperty("nativeBridgeInstancesLastFrame",
                 net.kofllee.pyrovfx.client.render.VfxNativeGpuGeometryBridge.instances());
         root.addProperty("nativeBridgeOutputCapacityParticles",

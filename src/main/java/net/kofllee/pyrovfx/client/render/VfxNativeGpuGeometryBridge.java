@@ -222,10 +222,67 @@ public final class VfxNativeGpuGeometryBridge {
     private static FloatBuffer lightSamples;
     private static long totalInstanceDrawCalls, totalInstanceUploadBytes;
     private static final Map<String,Integer> instanceLocations = new HashMap<>();
+    // Generation is per cohort, but native Minecraft fragment submission is per
+    // consecutive compatible material. The output stays entirely GPU-resident.
+    private static final int MIN_BATCH_CAPACITY = 1024;
+    private static BatchState pendingState;
+    private static ResourceLocation pendingTexture;
+    private static int pendingParticles;
+    private static long frameGenerationCalls, frameNativeSubmissions;
+
+    private static final class BatchState {
+        final VfxNativeSpriteBatcher.GlState gl = new VfxNativeSpriteBatcher.GlState();
+        final int program, vao, array, tfBuffer, indexedTfBuffer, drawFbo, readFbo;
+        final boolean rasterDiscard;
+        final ShaderInstance shader;
+        final int texture, lightTexture;
+        BatchState() {
+            gl.capture();
+            program = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
+            vao = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
+            array = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
+            tfBuffer = GL11.glGetInteger(GL30.GL_TRANSFORM_FEEDBACK_BUFFER_BINDING);
+            indexedTfBuffer = GL30.glGetIntegeri(GL30.GL_TRANSFORM_FEEDBACK_BUFFER_BINDING, 0);
+            drawFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+            readFbo = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
+            rasterDiscard = GL11.glIsEnabled(GL30.GL_RASTERIZER_DISCARD);
+            shader = RenderSystem.getShader();
+            texture = RenderSystem.getShaderTexture(0);
+            lightTexture = RenderSystem.getShaderTexture(2);
+        }
+        void restore() {
+            if (rasterDiscard) GL11.glEnable(GL30.GL_RASTERIZER_DISCARD);
+            else GL11.glDisable(GL30.GL_RASTERIZER_DISCARD);
+            GL30.glBindBufferBase(GL30.GL_TRANSFORM_FEEDBACK_BUFFER, 0, indexedTfBuffer);
+            GL15.glBindBuffer(GL30.GL_TRANSFORM_FEEDBACK_BUFFER, tfBuffer);
+            GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, drawFbo);
+            GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, readFbo);
+            GL20.glUseProgram(program);
+            GL30.glBindVertexArray(vao);
+            GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, array);
+            if (shader != null) RenderSystem.setShader(() -> shader);
+            RenderSystem.setShaderTexture(0, texture);
+            RenderSystem.setShaderTexture(2, lightTexture);
+            gl.restore();
+            if (Boolean.getBoolean("pyrovfx.render.stateAudit")) {
+                gl.assertRestored();
+                if (GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING) != drawFbo
+                        || GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING) != readFbo
+                        || GL30.glGetIntegeri(GL30.GL_TRANSFORM_FEEDBACK_BUFFER_BINDING,0)
+                        != indexedTfBuffer || GL11.glIsEnabled(GL30.GL_RASTERIZER_DISCARD)
+                        != rasterDiscard)
+                    throw new IllegalStateException("Batched native TF bridge leaked GL state");
+            }
+        }
+    }
+
+    public static long generationCallsThisFrame() { return frameGenerationCalls; }
+    public static long nativeSubmissionsThisFrame() { return frameNativeSubmissions; }
 
     public static void resetFrameStats() {
         frameDrawCalls = frameInstances = frameUploadedBytes = frameDatasets = 0;
         frameInstanceDrawCalls = frameInstanceUploads = 0;
+        frameGenerationCalls = frameNativeSubmissions = 0;
     }
     public static int drawCalls() { return frameDrawCalls; }
     public static int instanceDrawCalls() { return frameInstanceDrawCalls; }
@@ -247,6 +304,7 @@ public final class VfxNativeGpuGeometryBridge {
         var mc = Minecraft.getInstance();
         if (resetRequested || lastLevel != mc.level
                 || lastGeneration != VfxGpuBirthBuffers.generation()) {
+            flush();
             release();
             lastLevel = mc.level;
             lastGeneration = VfxGpuBirthBuffers.generation();
@@ -290,6 +348,11 @@ public final class VfxNativeGpuGeometryBridge {
             drawPool(pool, camera, partial, sharedLight, lightRegion);
             return true;
         } catch (RuntimeException error) {
+            // Preserve already generated earlier cohorts; the failed one
+            // still uses the established CPU fallback path when not submitted.
+            try { flush(); } catch (RuntimeException flushFailure) {
+                error.addSuppressed(flushFailure);
+            }
             unavailable = true;
             LOG.error("Native GPU geometry bridge disabled after error; using fallback for later cohorts", error);
             return submittedInCurrentCall;
@@ -299,28 +362,16 @@ public final class VfxNativeGpuGeometryBridge {
     private static void drawPool(net.kofllee.pyrovfx.client.vfx.VfxAnalyticParticlePool pool,
             Camera camera, float partial, boolean sharedLight,
             VfxAnalyticLightVolume.Region lightRegion) {
-        var mc = Minecraft.getInstance();
-        VfxNativeSpriteBatcher.GlState glState = new VfxNativeSpriteBatcher.GlState();
-        glState.capture();
-        int prevProgram = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
-        int prevVao = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
-        int prevArray = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
-        int prevTfBuffer = GL11.glGetInteger(GL30.GL_TRANSFORM_FEEDBACK_BUFFER_BINDING);
-        int prevIndexedTfBuffer = GL30.glGetIntegeri(GL30.GL_TRANSFORM_FEEDBACK_BUFFER_BINDING,0);
-        int prevDrawFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
-        int prevReadFbo = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
-        boolean previousDiscard = GL11.glIsEnabled(GL30.GL_RASTERIZER_DISCARD);
-        ShaderInstance previousShader = RenderSystem.getShader();
-        int previousTexture = RenderSystem.getShaderTexture(0);
-        int previousLightTexture = RenderSystem.getShaderTexture(2);
-        int priorActiveTexture = GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE);
-        GL13.glActiveTexture(GL13.GL_TEXTURE3);
-        int priorVolumeTexture = GL11.glGetInteger(GL12.GL_TEXTURE_BINDING_3D);
-        GL13.glActiveTexture(priorActiveTexture);
+        int n = pool.drawCount();
+        if (n == 0) return;
+        ResourceLocation texture = pool.definition().render().sprite().texture();
+        if (pendingParticles > 0 && !texture.equals(pendingTexture)) flush();
+        if (pendingState == null) {
+            pendingState = new BatchState();
+            pendingTexture = texture;
+        }
         try {
             init();
-            int n = pool.drawCount();
-            if (n == 0) return;
             if (pool.gpuBuffer() == 0
                     || pool.gpuGeneration() != VfxGpuBirthBuffers.generation()
                     || pool.dirty() || !GL15.glIsBuffer(pool.gpuBuffer())) {
@@ -343,7 +394,6 @@ public final class VfxNativeGpuGeometryBridge {
                 GL33.glVertexAttribDivisor(0, 1);
                 GL33.glVertexAttribDivisor(1, 1);
             }
-            ensureOutputCapacity(Math.min(n, MAX_BATCH));
             activeAnalyticProgram = analyticProgram(pool);
             GL20.glUseProgram(activeAnalyticProgram);
             // Same per-cohort animated appearance evaluation as the existing GPU renderer.
@@ -442,27 +492,24 @@ public final class VfxNativeGpuGeometryBridge {
                 GL20.glUniform2f(loc("uAppearanceCurrentVelocity"),
                         (float)Math.pow(plan.dragMultiplier(),currentTick),(float)current[0]);
             }
-            // GPU chunks use bounded output memory; no per-particle CPU work.
-            // Actual TF -> native draw occurs below, one ordered pair per chunk.
-            // The caller already established the camera-relative Minecraft world matrix.
-            mc.gameRenderer.lightTexture().turnOnLightLayer();
-            RenderSystem.setShader(GameRenderer::getParticleShader);
-            RenderSystem.setShaderTexture(0,pool.definition().render().sprite().texture());
-            ShaderInstance shader = RenderSystem.getShader();
-            shader.setDefaultUniforms(VertexFormat.Mode.TRIANGLES,
-                    RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix(), mc.getWindow());
-            GL11.glEnable(GL11.GL_BLEND);
-            boolean alpha = pool.definition().render().sprite().blendMode()
-                    == net.kofllee.pyrovfx.vfx.type.VfxBlendMode.ALPHA;
-            if (alpha) GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA,GL11.GL_ONE_MINUS_SRC_ALPHA,
-                    GL11.GL_ONE,GL11.GL_ONE_MINUS_SRC_ALPHA);
-            else GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA,GL11.GL_ONE,
-                    GL11.GL_ONE,GL11.GL_ONE);
-            GL11.glDisable(GL11.GL_CULL_FACE);
-            GL11.glEnable(GL11.GL_DEPTH_TEST);
-            GL11.glDepthMask(false);
+            // Each cohort keeps its own source buffer, expression program and
+            // uniforms. Only the resulting Minecraft-format vertices are
+            // appended to a compatible material batch on the GPU.
             for (int base = 0; base < n; base += MAX_BATCH) {
                 int batch = Math.min(MAX_BATCH, n - base);
+                if (pendingParticles + batch > capacity) {
+                    if (pendingParticles > 0) {
+                        int desired = Math.min(MAX_BATCH,
+                                Math.max(batch, Math.max(MIN_BATCH_CAPACITY, capacity * 2)));
+                        flush();
+                        pendingState = new BatchState();
+                        pendingTexture = texture;
+                        ensureOutputCapacity(desired);
+                    } else {
+                        ensureOutputCapacity(Math.min(MAX_BATCH,
+                                Math.max(MIN_BATCH_CAPACITY, batch)));
+                    }
+                }
                 long offset = (long)base * pool.stride();
                 GL20.glUseProgram(activeAnalyticProgram);
                 GL30.glBindVertexArray(sourceVao);
@@ -478,7 +525,9 @@ public final class VfxNativeGpuGeometryBridge {
                     GL20.glVertexAttribPointer(3,1,GL11.GL_FLOAT,false,pool.stride(),
                             offset+pool.lifetimeAttributeOffset());
                 } else GL20.glDisableVertexAttribArray(3);
-                GL30.glBindBufferBase(GL30.GL_TRANSFORM_FEEDBACK_BUFFER,0,outputVbo);
+                GL30.glBindBufferRange(GL30.GL_TRANSFORM_FEEDBACK_BUFFER,0,outputVbo,
+                        (long)pendingParticles * VERTICES_PER_PARTICLE * STRIDE,
+                        (long)batch * VERTICES_PER_PARTICLE * STRIDE);
                 GL11.glEnable(GL30.GL_RASTERIZER_DISCARD);
                 boolean begun = false;
                 try {
@@ -489,43 +538,54 @@ public final class VfxNativeGpuGeometryBridge {
                     if (begun) GL30.glEndTransformFeedback();
                     GL11.glDisable(GL30.GL_RASTERIZER_DISCARD);
                 }
-                GL30.glBindVertexArray(outputVao);
-                shader.apply(); // Minecraft/Iris owns fragment generation and composition
-                GL11.glDrawElements(GL11.GL_TRIANGLES,INDICES_PER_PARTICLE*batch,GL11.GL_UNSIGNED_INT,0L);
                 submittedInCurrentCall = true;
-                frameInstances += batch;
-                frameDrawCalls++;
-                shader.clear();
+                pendingParticles += batch;
+                frameGenerationCalls++;
             }
         } catch (Throwable e) {
             LOG.error("Native GPU geometry bridge failed",e);
             throw new RuntimeException("Native GPU geometry bridge failed",e);
-        } finally {
-            GL13.glActiveTexture(GL13.GL_TEXTURE3);
-            GL11.glBindTexture(GL12.GL_TEXTURE_3D,priorVolumeTexture);
-            GL13.glActiveTexture(priorActiveTexture);
-            if (previousDiscard) GL11.glEnable(GL30.GL_RASTERIZER_DISCARD);
-            else GL11.glDisable(GL30.GL_RASTERIZER_DISCARD);
-            GL30.glBindBufferBase(GL30.GL_TRANSFORM_FEEDBACK_BUFFER,0,prevIndexedTfBuffer);
-            GL15.glBindBuffer(GL30.GL_TRANSFORM_FEEDBACK_BUFFER,prevTfBuffer);
-            GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER,prevDrawFbo);
-            GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER,prevReadFbo);
-            GL20.glUseProgram(prevProgram);
-            GL30.glBindVertexArray(prevVao);
-            GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER,prevArray);
-            if(previousShader != null) RenderSystem.setShader(()->previousShader);
-            RenderSystem.setShaderTexture(0,previousTexture);
-            RenderSystem.setShaderTexture(2,previousLightTexture);
-            glState.restore();
-            if (Boolean.getBoolean("pyrovfx.render.stateAudit")) {
-                glState.assertRestored();
-                if (GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING) != prevDrawFbo
-                        || GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING) != prevReadFbo
-                        || GL30.glGetIntegeri(GL30.GL_TRANSFORM_FEEDBACK_BUFFER_BINDING,0)
-                        != prevIndexedTfBuffer || GL11.glIsEnabled(GL30.GL_RASTERIZER_DISCARD)
-                        != previousDiscard)
-                    throw new IllegalStateException("TF bridge leaked framebuffer/feedback state");
+        }
+    }
+
+    /** Submit all accumulated additive geometry using ONE Minecraft shader
+     * draw. The pool's shaders remain geometry-only; no custom fragment pass. */
+    public static void flush() {
+        RenderSystem.assertOnRenderThread();
+        BatchState state = pendingState;
+        if (state == null) return;
+        try {
+            if (pendingParticles > 0) {
+                var mc = Minecraft.getInstance();
+                mc.gameRenderer.lightTexture().turnOnLightLayer();
+                RenderSystem.setShader(GameRenderer::getParticleShader);
+                RenderSystem.setShaderTexture(0, pendingTexture);
+                ShaderInstance nativeShader = RenderSystem.getShader();
+                nativeShader.setDefaultUniforms(VertexFormat.Mode.TRIANGLES,
+                        RenderSystem.getModelViewMatrix(), RenderSystem.getProjectionMatrix(), mc.getWindow());
+                GL11.glEnable(GL11.GL_BLEND);
+                GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA, GL11.GL_ONE,
+                        GL11.GL_ONE, GL11.GL_ONE);
+                GL11.glDisable(GL11.GL_CULL_FACE);
+                GL11.glEnable(GL11.GL_DEPTH_TEST);
+                GL11.glDepthMask(false);
+                GL30.glBindVertexArray(outputVao);
+                nativeShader.apply();
+                try {
+                    GL11.glDrawElements(GL11.GL_TRIANGLES,
+                            INDICES_PER_PARTICLE * pendingParticles, GL11.GL_UNSIGNED_INT, 0L);
+                    frameDrawCalls++;
+                    frameNativeSubmissions++;
+                    frameInstances += pendingParticles;
+                } finally {
+                    nativeShader.clear();
+                }
             }
+        } finally {
+            pendingState = null;
+            pendingParticles = 0;
+            pendingTexture = null;
+            state.restore();
         }
     }
 
@@ -561,6 +621,9 @@ public final class VfxNativeGpuGeometryBridge {
                                           boolean rotating, boolean worldLit, boolean alpha,
                                           Camera camera) {
         RenderSystem.assertOnRenderThread();
+        // The CPU sprite batch uses the same native vertex output storage.
+        // Never overwrite geometry still awaiting its additive material draw.
+        flush();
         if (count == 0 || unavailable || Boolean.getBoolean("pyrovfx.render.forceLegacy"))
             return false;
         maintain();
@@ -727,6 +790,7 @@ public final class VfxNativeGpuGeometryBridge {
     /** Run on the render thread. The birth VBO belongs to VfxAnalyticParticlePool. */
     public static void shutdown() {
         RenderSystem.assertOnRenderThread();
+        flush();
         release();
         lastLevel = null;
         lastGeneration = -1;

@@ -40,6 +40,10 @@ frame. CPU Dense/Legacy instances upload per frame by design.
   raycasts, special cloud depth writes or always-off depth testing.
 - `VfxNativeGpuGeometryBridge`: GPU analytic sprite vertex generation and
   CPU batched sprite expansion into native Minecraft particle vertices.
+  Consecutive additive GPU cohorts with the same texture now append their
+  individually computed vertices into non-overlapping Transform Feedback
+  buffer ranges. A whole compatible run needs one Minecraft fragment draw,
+  rather than one shader apply/draw/state restore per cohort.
 - `VfxNativeSpriteBatcher`: same-mesh/material batching, cross-emitter stable
   depth sorting of CPU/Dense alpha and ordered translucent-model callbacks.
   This retains sorting when the native GL path cannot be used.
@@ -53,6 +57,14 @@ frame. CPU Dense/Legacy instances upload per frame by design.
 
 Shaders used by Transform Feedback only calculate **geometry and vertex
 attributes**. Their dummy fragment stage never draws a pixel.
+
+The bounded native batch flushes on texture change, full output capacity,
+incompatible model/CPU/fallback work, or end of the material pass. Cohort
+motion, source transforms, birth expressions, light probes, UV, and appearance
+still run with independent per-cohort uniforms on the GPU. No CPU readback
+or per-particle vertex upload is introduced; alpha depth sorting and native
+model paths are unchanged. Frame counters separately expose TF generation
+calls and final Minecraft material submissions.
 
 ## Correctness and fallback rules
 

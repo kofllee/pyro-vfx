@@ -129,11 +129,15 @@ public final class VfxRenderer {
                             queuedVanilla = false;
                         }
                         // Native Minecraft shader submission for supported GPU-resident geometry.
+                        if (analytic.model()) VfxNativeGpuGeometryBridge.flush();
                         boolean nativeDrawn = !analytic.model()
                                 && VfxNativeGpuGeometryBridge.render(analytic, camera, partialTick);
                         boolean rendered = nativeDrawn || (analytic.model()
                                 && VfxNativeModelRenderer.renderAnalytic(analytic, poseStack, camera, partialTick));
                         if (!rendered) {
+                            // A fallback/opaque model may alter depth or shared
+                            // Minecraft buffers. Submit pending additive geometry first.
+                            VfxNativeGpuGeometryBridge.flush();
                             emitter.recordRenderer("Minecraft sprite fallback (analytic GPU unavailable)");
                             analytic.renderFallback(poseStack, bufferSource, camera, partialTick);
                             queuedVanilla = true;
@@ -144,6 +148,7 @@ public final class VfxRenderer {
                         }
                     }
                     var pool = emitter.densePool();
+                    if (pool != null && pool.size() > 0) VfxNativeGpuGeometryBridge.flush();
                     if (pool != null && pool.size() > 0
                             && VfxNativeSpriteBatcher.matches(pool.definition())) {
                         // World vertex buffers must flush before raw GL draws,
@@ -219,6 +224,7 @@ public final class VfxRenderer {
                     }
 
                     if (!emitter.legacyParticles().isEmpty()) {
+                        VfxNativeGpuGeometryBridge.flush();
                         if (gpuFrame) VfxNativeSpriteBatcher.flush();
                         var legacy = emitter.legacyParticles();
                         // Alpha from Legacy particle simulation must share
@@ -306,6 +312,7 @@ public final class VfxRenderer {
             }
         } finally {
             try {
+                VfxNativeGpuGeometryBridge.flush();
                 if (gpuFrame) {
                     // Minecraft's queued translucent geometry must land before
                     // the depth-sorted Pyro alpha pass.

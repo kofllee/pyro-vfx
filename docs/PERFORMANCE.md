@@ -1,5 +1,39 @@
 # Performance and retained benchmark evidence
 
+## 6 November 2026: native GPU material batching
+
+The native bridge now accumulates consecutive additive GPU Analytic cohorts
+sharing the same texture in a bounded GPU Transform Feedback output buffer.
+Each cohort retains its own geometry-generation draw (and expression uniforms),
+but compatible output is rendered by one Minecraft ShaderInstance draw per
+material group. Incompatible materials, full batches, models and CPU/fallback
+draws retain explicit flush boundaries and GL state restoration.
+
+In a single 1280x720 museum scenario with matching effect SHA-256 and seed,
+the earlier native sample vs the optimized native sample measured:
+
+| Metric | Earlier native | Batched native |
+| --- | ---: | ---: |
+| GPU Analytic final Minecraft draws (last sampled frame) | 300 | **5** |
+| TF generation calls (last sampled frame) | about 300 | **299** |
+| Render-submission CPU median | 4.054 ms | **2.075 ms** |
+| Render-submission CPU P95 | 9.813 ms | **3.308 ms** |
+
+These are **one-run measurements**, not a controlled guarantee of FPS.
+The optimized run's renderer state audit passed. In a separately staged Iris
+1.8.12 + Complementary r5.9.3 check, the same scenario reported **2.640 ms**
+median and **5.871 ms** P95, versus the prior **4.054 ms** median and
+**9.813 ms** P95 sample. Vanilla and Iris profile checks both completed
+three museum scenarios and restored the user's original configuration.
+The 104 required GameTests and release-JAR verification passed.
+The separate 100k GPU Analytic UV stress case passed with two TF chunks,
+two native submissions and bounded 65,536-particle output capacity.
+
+Per-cohort geometry-generation draws remain; this work reduces the
+**native final material submissions** and repeated expensive state queries.
+It does not claim a reduction in all OpenGL draw calls or a universal GPU
+frame-time gain. See [native material batching evidence](benchmarks/native-material-batching-2026-11-06/README.md).
+
 This is the **current compact summary**, replacing the per-milestone performance narratives. Historical measurements below come from real Minecraft client runs on 1–3 November 2026; **no measurements were repeated during consolidation**. New 5 November client verification runs are reported separately.
 
 ## 6 November 2026 native renderer cutover
