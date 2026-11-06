@@ -1,6 +1,36 @@
 # Performance and retained benchmark evidence
 
-This is the **current compact summary**, replacing the per-milestone performance narratives. All numerical results below come from existing real Minecraft client measurements (1–3 November 2026); **no measurements were repeated during consolidation**.
+This is the **current compact summary**, replacing the per-milestone performance narratives. Historical measurements below come from real Minecraft client runs on 1–3 November 2026; **no measurements were repeated during consolidation**. New 5 November client verification runs are reported separately.
+
+## 6 November 2026 native renderer cutover
+
+The production path was converted to Transform Feedback geometry generation
+with final Minecraft ShaderInstance submission. Original custom fragment
+renderers for Analytic sprites and direct instanced sprites/models were removed.
+The 104/104 required GameTests, development compilation, release JAR checks
+and short native client validation completed. Tests cover model variants,
+GPU expressions, light probes, alpha sorting and reload.
+
+A 100k additive-analytic native sample used one 2.4 MiB birth-state upload,
+approximately 8.9 MiB bounded output/index storage and two draw calls per
+frame. Earlier matched-run single GPU timer observations were approximately
+0.17 ms native generation+draw vs 0.065 ms for the old dedicated GPU shader.
+This is a **cost regression in that sample**, not proof of a universal speedup,
+and separate full-frame/distribution measurements are still required. The
+legacy figures below describe the previous pipeline, not the new GPU renderer.
+See [Native Render Bridge](NATIVE_RENDER_BRIDGE.md).
+
+## 5 November 2026 routing and correctness checks
+
+The initial 5 November changes restore RGB/alpha blend-equation state after raw GL passes, add GPU world-plane sprite facing, remove artificial GPU Analytic rejection of LOOPING/MANUAL birth schedules and prevent delayed steady-emission bursts under capacity pressure. Dedicated GameTests passed 91/91 and `verifyReleaseJar` succeeded. Later same-day client work additionally repaired unsuccessful GL shader/VBO initialization and reduced single-birth direct-buffer minimum from 4,096 to 256 bytes.
+
+**New, separate real-client evidence:** six completed NVIDIA/vanilla scenarios at 1280×720, with GL state audit, are preserved under [5 November runtime audit](benchmarks/runtime-audit-2026-11-05/README.md). The matched `sprite_horizontal` GPU vs forced RenderType screenshots (same effect hash and seed) differed at 279 of 921,600 pixels (0.0303%); this is strong evidence for that single static scene, **not** universal visual parity. Model Analytic, rotating additive instancing and sorted alpha smoke instancing also completed and rendered visible particles. Shaderpack runs, fault-injected GL recovery and long stress tests were **not** repeated here. Frame P95/P99 are single-run observations, not proven before/after speedups; GPU timer data is not established by these reports.
+
+A second, explicitly separated set of [5 November runtime expansion results](benchmarks/runtime-expansion-2026-11-05/README.md) covers the newly implemented GPU birth-time expressions, lit sprite instancing, snapshot-free Dense model rendering, and actual Manual/Looping GPU cohorts. Its one-run GPU-vs-RenderType lit scene differs by 0.0278% of pixels; its earlier/later alpha and rotation tests have matching effect hashes and seeds but **no repeatable clean-commit before/after FPS proof**. GPU query and shaderpack compositor validation remain open.
+
+A further [runtime extension comparison](benchmarks/runtime-extensions-2026-11-05/README.md) records synchronized CPU Dense collision callbacks vs Legacy, GPU-resident age-driven motion/rotation vs Dense, and a coalesced same-tick manual-burst fixture. Repeated birth uploads fell from four event-created cohorts to two age-compatible cohorts in that specific scene; **no controlled aggregate FPS/VRAM win is claimed**. The only numeric runtime comparisons are short independent client runs, with the CPU Dense ordered-event scene slower than Legacy.
+
+The next real-client matrix and unresolved research are tracked in [Rendering and Optimization Backlog](RENDERING_AND_OPTIMIZATION_BACKLOG.md).
 
 ## Hardware and interpretation
 

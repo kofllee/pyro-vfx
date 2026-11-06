@@ -11,12 +11,12 @@ assets/<namespace>/vfx/**/*.json
   -> side-aware Vfx.play / VfxHandle
      -> client instance manager (or server instance lease + clientbound commands)
      -> Transform Provider -> Effect -> Emitters -> Particle pools
-     -> backend-capability routing -> sprite / baked-model / fallback renderer
+     -> VfxRenderMaterial pass routing -> GPU geometry bridge / Minecraft RenderType fallback
 ```
 
 - `net.kofllee.pyrovfx.vfx.definition`, `vfx.resource`, `vfx.expression`, `vfx.curve` and `vfx.type` describe and compile effects without embedding Minecraft client rendering. Numeric expressions are compiled once into dependency-classified programs; constant expressions and per-birth values are cached when safe, while dynamic dependencies retain their correct evaluation points.
 - `client.vfx` owns active instances, effect/emitter lifetime, event ordering, budgets, collision, particle pools and source sampling. Effect / emitter / particle context is not interchangeable. A particle belongs to Pyro for its whole lifetime; fallback rendering may still use Minecraft `RenderType`.
-- `client.render` consumes snapshots/interpolated transforms. Render never causes game events or particle simulation ticks. GL resources are owned by renderer caches and recreated on resource reload; world exit and source loss clean up their respective handles.
+- `client.render` consumes snapshots/interpolated transforms. Render never causes game events or particle simulation ticks. GL resources are owned by GPU birth-buffer, bridge and model caches; shader reload, world exit and source loss invalidate the appropriate handles.
 - `client.dev`, `museum` and `tools/` contain developer commands, benchmark fixtures, independent screenshot tools and the interactive museum. They are not required for normal consuming-mod effect playback.
 
 The effect parser, resource location rules and expression semantics are specified in [JSON format](JSON_FORMAT.md) and [expressions](EXPRESSIONS.md). The editor should use these same definitions and validators, not fork the execution model.
@@ -30,12 +30,12 @@ The effect parser, resource location rules and expression semantics are specifie
 | CPU Legacy | General per-particle behavior, callbacks, complex collision/events, incompatible models | Correctness and synchronous event semantics are prioritized |
 | CPU Dense (SoA) | Eligible sprite/model pools, collision without incompatible event hooks, lower allocations | Arbitrary stateful runtime logic may require Legacy |
 | GPU Analytic | Immutable birth data, supported expressions/curves and closed-form discrete motion, including eligible sprites and baked models | Stateful expressions, game-world collision and unpredictable CPU events cannot be silently moved to GPU |
-| GPU instanced rendering | Eligible additive sprites, sorted fullbright alpha sprites and baked custom/block/item models | World-lit alpha, arbitrary entity models, translucent models, unsupported facing/layers and shaderpack integration require conservative Minecraft RenderType |
+| Native GPU Geometry Bridge | GPU Analytic birth-state sprites, GPU-transformed baked models, and sorted per-frame CPU Dense/Legacy sprite batches; native final Minecraft ShaderInstance | Unsorted analytic alpha, entity/translucent models, unsupported exact lighting/appearance and incompatible GL use Minecraft RenderType; active shaderpacks do not automatically disable the native route |
 | Minecraft rendering fallback | Compatible drawing under unsupported GL/mod/shader combinations | Can cost more CPU; still Pyro-owned lifetime and simulation |
 
-The GPU Analytic route uploads compact resident birth state (24 bytes per simple sprite in the measured path) and animates from shared time/uniforms; it does **not** copy and simulate each particle on the CPU every frame. CPU source state and fallback are retained where necessary. Baked model caches avoid Java draw objects per particle. Fullbright alpha requires a stable depth sort and straight-alpha blending; it sorts particle centers, not global translucent fragments across mods.
+[Native Render Bridge](NATIVE_RENDER_BRIDGE.md) details materials, fallback and lifecycle. The GPU Analytic route uploads compact resident birth state (24 bytes per simple sprite in the measured path) and animates from shared time/uniforms. Compatible ONCE, LOOPING and MANUAL schedules remain CPU-driven while independent birth cohorts preserve particle-relative ages; it does **not** copy and simulate each particle on the CPU every frame. CPU source state and fallback are retained where necessary. Baked model caches avoid Java draw objects per particle. Fullbright alpha requires a stable depth sort and straight-alpha blending; it sorts particle centers, not global translucent fragments across mods.
 
-OpenGL 3.3 feature probing and render-state audits protect fast paths. Active Iris shaderpacks use Minecraft RenderType while unshaded Sodium/Embeddium/Iris profiles can retain fast paths. No shaderpack framebuffer replacement, weighted blended OIT or universal depth-order integration is claimed. GPU timer queries are asynchronous and measure Pyro rendering, not the whole frame.
+OpenGL 3.3 feature probing and render-state audits protect fast paths. Native rendering uses Minecraft's final ShaderInstance (including Iris where supported), not its own fragment shader or framebuffer. Active Iris shaderpacks do not automatically force fallback. This is not a guarantee of compositing parity across shaderpacks or drivers. No shaderpack framebuffer replacement, weighted blended OIT or universal depth-order integration is claimed. GPU timer queries are asynchronous and measure Pyro rendering, not the whole frame.
 
 ### Why no GPU Compute
 
