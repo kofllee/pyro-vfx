@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Transforms & Attachments / Entity local / world: Local particles follow the moving entity; world particles leave a trail. Read on-stand controls to replay and compare."
+    "description": "Museum / Transforms & Attachments / Entity local / world: Local particles follow the moving entity; world particles leave a trail. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
     "count": 24
@@ -21,33 +21,23 @@
       },
       "spawn_amount": {
         "mode": "steady",
-        "rate": 8,
-        "max_particles": 125
+        "rate": 28,
+        "max_particles": 90
       },
       "offset": [
-        0.45,
-        0.6,
+        0.48,
+        1.25,
         0
       ],
       "spawn_shape": {
         "type": "sphere",
-        "radius": 0.15
+        "radius": 0.18
       },
       "particle_lifetime": {
-        "max_age_ticks": 70
+        "max_age_ticks": 48
       },
       "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": 0.14,
-          "acceleration": [
-            0,
-            0.07,
-            0
-          ],
-          "linear_drag": 0.6
-        }
+        "mode": "static"
       },
       "rotation": {
         "mode": "none"
@@ -61,14 +51,14 @@
           "blend_mode": "additive"
         },
         "color": [
-          0.9803921568627451,
-          0.8352941176470589,
-          0.37254901960784315,
-          "1.0 - particle.normalized_age"
+          1.0,
+          0.75,
+          0.12,
+          "0.9 - particle.normalized_age * 0.7"
         ],
         "scale": [
-          0.64,
-          0.64,
+          0.34,
+          0.34,
           1
         ]
       }
@@ -82,33 +72,23 @@
       },
       "spawn_amount": {
         "mode": "steady",
-        "rate": 8,
-        "max_particles": 125
+        "rate": 28,
+        "max_particles": 90
       },
       "offset": [
-        -0.45,
-        0.6,
+        -0.48,
+        1.25,
         0
       ],
       "spawn_shape": {
         "type": "sphere",
-        "radius": 0.15
+        "radius": 0.18
       },
       "particle_lifetime": {
-        "max_age_ticks": 70
+        "max_age_ticks": 48
       },
       "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": 0.14,
-          "acceleration": [
-            0,
-            0.07,
-            0
-          ],
-          "linear_drag": 0.6
-        }
+        "mode": "static"
       },
       "rotation": {
         "mode": "none"
@@ -122,14 +102,14 @@
           "blend_mode": "additive"
         },
         "color": [
-          0.23529411764705882,
-          0.8117647058823529,
-          1,
-          "1.0 - particle.normalized_age"
+          0.12,
+          0.85,
+          1.0,
+          "0.9 - particle.normalized_age * 0.7"
         ],
         "scale": [
-          0.16,
-          0.16,
+          0.34,
+          0.34,
           1
         ]
       }

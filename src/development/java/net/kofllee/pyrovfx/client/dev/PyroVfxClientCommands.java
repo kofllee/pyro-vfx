@@ -14,7 +14,7 @@ import static net.minecraft.commands.Commands.argument;
 import static net.minecraft.commands.Commands.literal;
 import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
-import net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer;
+import net.kofllee.pyrovfx.client.render.VfxGpuBirthBuffers;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.CompoundTagArgument;
@@ -359,9 +359,9 @@ public final class PyroVfxClientCommands {
             }
         }
         player.displayClientMessage(Component.literal(
-                "GPU analytic last frame: " + VfxAnalyticSpriteRenderer.instances()
-                        + " instances, " + VfxAnalyticSpriteRenderer.drawCalls()
-                        + " draw calls, " + VfxAnalyticSpriteRenderer.uploadedBytes()
+                "GPU analytic last frame: " + net.kofllee.pyrovfx.client.render.VfxRenderer.analyticInstances()
+                        + " instances, " + net.kofllee.pyrovfx.client.render.VfxRenderer.analyticDrawCalls()
+                        + " draw calls, " + net.kofllee.pyrovfx.client.render.VfxRenderer.analyticUploadedBytes()
                         + " bytes uploaded"),false);
         return 1;
     }

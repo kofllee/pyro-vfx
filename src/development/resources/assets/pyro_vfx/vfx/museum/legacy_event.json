@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / CPU / GPU / CPU legacy fallback: Event-driven particles use full legacy callbacks without missing triggers. Read on-stand controls to replay and compare."
+    "description": "Museum / CPU / GPU / CPU legacy fallback: Event-driven particles use full legacy callbacks without missing triggers. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
     "count": 24,

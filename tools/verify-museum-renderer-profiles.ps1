@@ -3,17 +3,13 @@
 # No profiles are left installed after a successful or failed run.
 param(
     [string]$World = 'Pyro VFX Museum',
-    [string]$Scenarios = 'museum_model_custom,museum_model_item,museum_model_translucent,museum_smoke_alpha',
-    [string]$Profiles = 'sodium,embeddium,iris,iris-complementary,iris-bsl,iris-photon',
-    [switch]$UnsafeShaderGpuBenchmark
+    [string]$Scenarios = 'museum_gpu_sprite,museum_model_custom,museum_sprite_additive,museum_model_translucent',
+    [string]$Profiles = 'sodium,embeddium,iris,iris-complementary,iris-bsl,iris-photon'
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
-$archive = Join-Path $root 'run/pyrovfx-benchmarks/museum-compatibility'
-if ($UnsafeShaderGpuBenchmark) {
-    $archive = Join-Path $root 'run/pyrovfx-benchmarks/museum-compatibility-gpu-override'
-}
+$archive = Join-Path $root 'run/pyrovfx-benchmarks/museum-native-compatibility'
 New-Item -ItemType Directory -Force -Path $archive | Out-Null
 $results = [System.Collections.Generic.List[object]]::new()
 try {
@@ -32,7 +28,6 @@ try {
             $installed = $true
             $benchArgs = @('-World', $World, '-Scenario', $Scenarios,
                 '-Width', '1280', '-Height', '720', '-Uncapped', '-RenderStateAudit', '-GpuTelemetry')
-            if ($UnsafeShaderGpuBenchmark) { $benchArgs += '-AllowShaderGpu' }
             & powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 @benchArgs
             if ($LASTEXITCODE -ne 0) { throw "Minecraft run returned exit $LASTEXITCODE" }
             $status = 'completed'

@@ -23,9 +23,36 @@ public final class VfxBenchScenarios {
         add(scenarios, "sprite_100k", "bench/static", 100_000);
         add(scenarios, "sprite_1m", "bench/static", 1_000_000);
         add(scenarios, "analytic_dynamic_10k", "bench/analytic_dynamic", 10_000);
+        add(scenarios, "analytic_parametric", "bench/analytic_parametric", 1_000);
+        add(scenarios, "analytic_sprite_spin", "bench/sprite_rotating", 1_000);
+        add(scenarios, "analytic_velocity", "bench/analytic_velocity", 1_000);
+        add(scenarios, "analytic_world_lit", "bench/analytic_world_lit", 1_000);
+        add(scenarios, "analytic_moving_light", "bench/analytic_moving_light", 1_000);
+        add(scenarios, "analytic_moving_unlit", "bench/analytic_moving_unlit", 1_000);
+        add(scenarios, "analytic_model_surface", "bench/analytic_model_surface", 1_000);
+        add(scenarios, "analytic_random_life", "bench/analytic_random_life", 1_000);
+        add(scenarios, "analytic_random_uv", "bench/analytic_random_uv", 1_000);
+        add(scenarios, "alpha_mixed", "bench/alpha_mixed", 0);
+        add(scenarios, "alpha_world_overlap", "bench/alpha_mixed", 0);
+        add(scenarios, "alpha_world_glass", "bench/alpha_mixed", 0);
+        add(scenarios, "alpha_tinted_partial", "bench/alpha_tinted_split", 0);
+        add(scenarios, "alpha_tinted_clear", "bench/alpha_tinted_split", 0);
+        add(scenarios, "alpha_tinted_clouds", "bench/alpha_tinted_clouds", 0);
+        add(scenarios, "alpha_tinted_clouds_clear", "bench/alpha_tinted_clouds", 0);
+        add(scenarios, "alpha_cloud_layer_partial", "bench/alpha_tinted_split", 0);
+        add(scenarios, "alpha_cloud_layer_clear", "bench/alpha_tinted_split", 0);
+        add(scenarios, "alpha_world_water", "bench/alpha_mixed", 0);
+        add(scenarios, "alpha_visibility_clear", "bench/alpha_water_visibility", 0);
+        add(scenarios, "alpha_visibility_water", "bench/alpha_water_visibility", 0);
+        add(scenarios, "alpha_visibility_control", "bench/alpha_water_visibility", 0);
+        add(scenarios, "alpha_particle_in_water", "bench/alpha_water_visibility", 0);
+        add(scenarios, "alpha_camera_and_particle_in_water", "bench/alpha_water_visibility", 0);
+        add(scenarios, "alpha_mixed_water_media", "bench/alpha_water_visibility", 0);
+        add(scenarios, "alpha_mixed_underwater_view", "bench/alpha_water_visibility", 0);
         add(scenarios, "dynamic_1k", "bench/dynamic", 1_000);
         add(scenarios, "collision_1k", "bench/collision", 1_000);
         add(scenarios, "collision_10k", "bench/collision", 10_000);
+        add(scenarios, "collision_ordered", "bench/collision_ordered", 64);
         add(scenarios, "collision_no_events", "bench/collision_no_events", 1_000);
         add(scenarios, "collision_no_events_10k", "bench/collision_no_events", 10_000);
         add(scenarios, "self_emit_collision", "bench/self_emit_collision", 1);
@@ -51,6 +78,7 @@ public final class VfxBenchScenarios {
                 ResourceLocation.fromNamespaceAndPath("pyro_vfx", "museum/source_custom"),
                 0, 0x4D77_2026L, 5, 125));
         add(scenarios, "model_1k", "bench/model", 1_000);
+        add(scenarios, "model_shared_color", "bench/model_shared_color", 1_000);
         add(scenarios, "model_translucent_1k", "bench/model_translucent", 1_000);
         add(scenarios, "model_entity_250", "bench/model_entity", 250);
         add(scenarios, "model_entity_1k", "bench/model_entity", 1_000);
@@ -91,9 +119,13 @@ public final class VfxBenchScenarios {
         add(scenarios, "sprite_alpha_smoke_100k", "bench/sprite_alpha_smoke", 100_000);
         add(scenarios, "analytic_uv_1k", "bench/analytic_uv", 1_000);
         add(scenarios, "analytic_uv_10k", "bench/analytic_uv", 10_000);
+        add(scenarios, "analytic_uv_100k", "bench/analytic_uv", 100_000);
         add(scenarios, "analytic_age_1k", "bench/analytic_age", 1_000);
         add(scenarios, "analytic_age_10k", "bench/analytic_age", 10_000);
         add(scenarios, "analytic_steady", "bench/analytic_steady", 0);
+        add(scenarios, "analytic_looping", "bench/analytic_looping", 0);
+        add(scenarios, "analytic_manual", "bench/analytic_manual", 0);
+        add(scenarios, "analytic_coalesced", "bench/analytic_coalesced", 0);
         add(scenarios, "adaptive_steady", "bench/adaptive_steady", 0);
         int soakTicks = Math.clamp(Integer.getInteger("pyrovfx.bench.soakTicks", 600), 300, 36_000);
         scenarios.put("soak_mixed", new Scenario("soak_mixed",

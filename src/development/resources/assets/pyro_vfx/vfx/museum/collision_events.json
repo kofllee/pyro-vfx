@@ -2,10 +2,10 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Events & Collisions / Impact and expiry: A collision triggers child particles; other streams bounce and expire. Read on-stand controls to replay and compare."
+    "description": "Museum / Events & Collisions / Fall / bounce / vanish: Three separate drop lanes: blue stops, yellow rebounds, red vanishes on impact. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
-    "count": 48,
+    "count": 9,
     "hit": 0
   },
   "events": {
@@ -21,7 +21,7 @@
   },
   "emitters": [
     {
-      "id": "main",
+      "id": "fall_stop",
       "particle_triggers": [
         {
           "type": "on_collision",
@@ -34,28 +34,28 @@
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": "param.count"
+        "amount": 3
       },
       "spawn_shape": {
         "type": "sphere",
-        "radius": 1.0
+        "radius": 0.09
       },
       "offset": [
-        0,
-        4,
+        -3.0,
+        2.35,
         0
       ],
       "particle_lifetime": {
-        "max_age_ticks": 140
+        "max_age_ticks": 108
       },
       "motion": {
         "mode": "dynamic",
         "dynamic": {
           "direction": "down",
-          "speed": 1,
+          "speed": 0,
           "acceleration": [
             0,
-            -8,
+            -10.0,
             0
           ],
           "linear_drag": 0
@@ -64,12 +64,12 @@
           "collide": true,
           "collision_type": "sphere",
           "collision_size": [
-            0.05,
-            0.05,
-            0.05
+            0.12,
+            0.12,
+            0.12
           ],
-          "collision_drag": 1,
-          "bounciness": 0.2,
+          "collision_drag": 0.05,
+          "bounciness": 0.0,
           "expire_on_contact": false
         }
       },
@@ -84,16 +84,16 @@
           "texture": "minecraft:textures/particle/generic_0.png",
           "blend_mode": "additive"
         },
-        "color": "#FFBB66FF",
+        "color": "#77D5FFFF",
         "scale": [
-          0.4,
-          0.4,
+          0.42,
+          0.42,
           1
         ]
       }
     },
     {
-      "id": "bounce_box",
+      "id": "bounce",
       "particle_triggers": [],
       "emitter_lifetime": {
         "mode": "once",
@@ -101,42 +101,42 @@
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": 8
+        "amount": 3
       },
       "spawn_shape": {
         "type": "sphere",
-        "radius": 1.0
+        "radius": 0.09
       },
       "offset": [
-        1.0,
-        0,
+        0.0,
+        2.35,
         0
       ],
       "particle_lifetime": {
-        "max_age_ticks": 140
+        "max_age_ticks": 108
       },
       "motion": {
         "mode": "dynamic",
         "dynamic": {
           "direction": "down",
-          "speed": 1,
+          "speed": 0,
           "acceleration": [
             0,
-            -8,
+            -10.0,
             0
           ],
           "linear_drag": 0
         },
         "collision": {
           "collide": true,
-          "collision_type": "box",
+          "collision_type": "sphere",
           "collision_size": [
             0.12,
             0.12,
             0.12
           ],
-          "collision_drag": 1,
-          "bounciness": 0.2,
+          "collision_drag": 0.05,
+          "bounciness": 0.78,
           "expire_on_contact": false
         }
       },
@@ -151,10 +151,10 @@
           "texture": "minecraft:textures/particle/generic_0.png",
           "blend_mode": "additive"
         },
-        "color": "#55DFFFEE",
+        "color": "#FFCA51FF",
         "scale": [
-          0.4,
-          0.4,
+          0.42,
+          0.42,
           1
         ]
       }
@@ -168,42 +168,42 @@
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": 8
+        "amount": 3
       },
       "spawn_shape": {
         "type": "sphere",
-        "radius": 1.0
+        "radius": 0.09
       },
       "offset": [
-        -1.0,
-        0,
+        3.0,
+        2.35,
         0
       ],
       "particle_lifetime": {
-        "max_age_ticks": 140
+        "max_age_ticks": 108
       },
       "motion": {
         "mode": "dynamic",
         "dynamic": {
           "direction": "down",
-          "speed": 1,
+          "speed": 0,
           "acceleration": [
             0,
-            -8,
+            -10.0,
             0
           ],
           "linear_drag": 0
         },
         "collision": {
           "collide": true,
-          "collision_type": "box",
+          "collision_type": "sphere",
           "collision_size": [
             0.12,
             0.12,
             0.12
           ],
-          "collision_drag": 1,
-          "bounciness": 0.2,
+          "collision_drag": 0.05,
+          "bounciness": 0.0,
           "expire_on_contact": true
         }
       },
@@ -218,10 +218,10 @@
           "texture": "minecraft:textures/particle/generic_0.png",
           "blend_mode": "additive"
         },
-        "color": "#55DFFFEE",
+        "color": "#FF7777FF",
         "scale": [
-          0.4,
-          0.4,
+          0.42,
+          0.42,
           1
         ]
       }

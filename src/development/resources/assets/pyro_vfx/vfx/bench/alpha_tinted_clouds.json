@@ -1,0 +1,19 @@
+{
+  "format":"pyro_vfx:1",
+  "metadata":{"author":"Pyro VFX","description":"Near-opaque alpha billboard aligned with vanilla clouds, partially viewed through tinted glass"},
+  "parameters":{"count":1},
+  "lifetime":{"mode":"once","active_ticks":160},
+  "emitters":[{
+    "id":"cloud_overlap_target",
+    "emitter_lifetime":{"mode":"once","active_ticks":1},
+    "spawn_amount":{"mode":"instant","amount":"param.count"},
+    "spawn_shape":{"type":"point"},
+    "offset":[0,6,2],
+    "particle_lifetime":{"max_age_ticks":145},
+    "motion":{"mode":"static"},
+    "rotation":{"mode":"none"},
+    "render":{"type":"sprite","facing":"camera","environment_lighting":false,
+      "sprite":{"texture":"minecraft:textures/block/white_concrete.png","blend_mode":"alpha"},
+      "color":[1,0.23,0.04,0.98],"scale":[12,12,1]}
+  }]
+}

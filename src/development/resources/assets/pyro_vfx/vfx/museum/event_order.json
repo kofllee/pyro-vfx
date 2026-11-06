@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Events & Collisions / Trigger sequencing: A deterministic ordered sequence starts and advances in time. Read on-stand controls to replay and compare."
+    "description": "Museum / Events & Collisions / Trigger sequencing: A deterministic ordered sequence starts and advances in time. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
     "count": 28,
@@ -10,7 +10,7 @@
   },
   "lifetime": {
     "mode": "once",
-    "active_ticks": 160
+    "active_ticks": 135
   },
   "events": {
     "initialize": {
@@ -23,11 +23,37 @@
       "param": "stage",
       "value": "param.stage + 1"
     },
+    "show_one": {
+      "type": "emit",
+      "emitter": "step_one"
+    },
+    "show_two": {
+      "type": "emit",
+      "emitter": "step_two"
+    },
+    "show_three": {
+      "type": "emit",
+      "emitter": "step_three"
+    },
     "start": {
       "type": "sequence",
       "events": [
         "initialize",
-        "increment"
+        "show_one"
+      ]
+    },
+    "advance_two": {
+      "type": "sequence",
+      "events": [
+        "increment",
+        "show_two"
+      ]
+    },
+    "advance_three": {
+      "type": "sequence",
+      "events": [
+        "increment",
+        "show_three"
       ]
     }
   },
@@ -35,24 +61,34 @@
     {
       "type": "on_creation",
       "event": "start"
+    },
+    {
+      "type": "timeline",
+      "time_ticks": 30,
+      "event": "advance_two"
+    },
+    {
+      "type": "timeline",
+      "time_ticks": 60,
+      "event": "advance_three"
     }
   ],
   "emitters": [
     {
-      "id": "main",
+      "id": "step_one",
       "emitter_lifetime": {
-        "mode": "once",
-        "active_ticks": 1
+        "mode": "manual"
       },
       "spawn_amount": {
-        "mode": "instant",
-        "amount": "param.count"
+        "mode": "manual",
+        "amount": 10
       },
       "spawn_shape": {
-        "type": "point"
+        "type": "sphere",
+        "radius": 0.3
       },
       "particle_lifetime": {
-        "max_age_ticks": 140
+        "max_age_ticks": 100
       },
       "motion": {
         "mode": "static"
@@ -65,13 +101,98 @@
           "texture": "minecraft:textures/particle/generic_0.png",
           "blend_mode": "additive"
         },
-        "color": "#FFFFFFFF",
+        "color": "#FF6666FF",
         "scale": [
-          0.4,
-          0.4,
+          0.5,
+          0.5,
           1
         ]
-      }
+      },
+      "offset": [
+        -2.7,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step_two",
+      "emitter_lifetime": {
+        "mode": "manual"
+      },
+      "spawn_amount": {
+        "mode": "manual",
+        "amount": 10
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.3
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 100
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": "#FFD45AFF",
+        "scale": [
+          0.5,
+          0.5,
+          1
+        ]
+      },
+      "offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "step_three",
+      "emitter_lifetime": {
+        "mode": "manual"
+      },
+      "spawn_amount": {
+        "mode": "manual",
+        "amount": 10
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.3
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 100
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": "#5DEBFFFF",
+        "scale": [
+          0.5,
+          0.5,
+          1
+        ]
+      },
+      "offset": [
+        2.7,
+        0,
+        0
+      ]
     }
   ]
 }

@@ -1,0 +1,20 @@
+{
+  "format":"pyro_vfx:1",
+  "metadata":{"author":"Pyro VFX","description":"GPU-resident moving light probes over an exact bounded block volume"},
+  "parameters":{"count":1000},
+  "lifetime":{"mode":"once","active_ticks":160},
+  "emitters":[{
+    "id":"main",
+    "emitter_lifetime":{"mode":"once","active_ticks":1},
+    "spawn_amount":{"mode":"instant","amount":"param.count"},
+    "spawn_shape":{"type":"sphere","radius":2},
+    "particle_lifetime":{"max_age_ticks":140},
+    "motion":{"mode":"dynamic","dynamic":{
+      "direction":"outward","speed":0.45,"acceleration":[0,-0.05,0],"linear_drag":0.3
+    }},
+    "rotation":{"mode":"none"},
+    "render":{"type":"sprite","facing":"camera","environment_lighting":false,
+      "sprite":{"texture":"minecraft:textures/particle/generic_0.png","blend_mode":"additive"},
+      "color":"#FFAA33FF","scale":[0.16,0.16,1]}
+  }]
+}

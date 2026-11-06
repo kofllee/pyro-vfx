@@ -113,6 +113,39 @@ public final class VfxNetworkGameTests {
             } catch (IllegalArgumentException expected) {
                 // Expected.
             }
+            var mutable = new java.util.HashMap<>(Map.of("power", 3.0));
+            var snapshot = new VfxPackets.Start(UUID.randomUUID(),
+                    ResourceLocation.withDefaultNamespace("overworld"),
+                    ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/event_order"),
+                    VfxPackets.Anchor.fixed(pose), mutable);
+            mutable.put("power", 999.0);
+            if (!snapshot.parameters().equals(Map.of("power", 3.0)))
+                throw new AssertionError("Queued network start observed a later mutable parameter update");
+            try {
+                snapshot.parameters().put("injected", 5.0);
+                throw new AssertionError("Start packet parameter snapshot is mutable");
+            } catch (UnsupportedOperationException expected) {
+                // Expected.
+            }
+            try {
+                new VfxPackets.Start(UUID.randomUUID(),
+                        ResourceLocation.withDefaultNamespace("overworld"),
+                        ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/event_order"),
+                        VfxPackets.Anchor.fixed(pose), Map.of("bad", Double.NaN));
+                throw new AssertionError("Non-finite parameters bypassed Start validation");
+            } catch (IllegalArgumentException expected) {
+                // Expected.
+            }
+            buffer.clear();
+            buffer.writeVarInt(1);
+            buffer.writeUtf("", 64);
+            buffer.writeDouble(2.0);
+            try {
+                VfxPackets.readParameters(buffer);
+                throw new AssertionError("Blank network parameter name was accepted");
+            } catch (IllegalArgumentException expected) {
+                // Expected.
+            }
         } finally {
             buffer.release();
         }
@@ -154,7 +187,9 @@ public final class VfxNetworkGameTests {
         if (!handle.isActive() || ServerVfxNetwork.liveCount(level) != before + 1)
             throw new AssertionError("Server-side VFX lifetime start failed");
         helper.runAfterDelay(5, () -> {
-            if (handle.isActive() || ServerVfxNetwork.liveCount(level) != before)
+            // Other GameTests share this ServerLevel and may change its total
+            // effect count before the delayed callback. Inspect this UUID.
+            if (handle.isActive())
                 throw new AssertionError("Server VFX lease must expire without connected clients");
             helper.succeed();
         });

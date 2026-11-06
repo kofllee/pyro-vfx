@@ -7,7 +7,8 @@ import net.kofllee.pyrovfx.client.vfx.sampling.VfxModelSpawnShapeSampler;
 import net.kofllee.pyrovfx.client.vfx.VfxPlayOptions;
 import net.kofllee.pyrovfx.client.vfx.VfxRuntimeBudget;
 import net.kofllee.pyrovfx.client.vfx.VfxGlobalBudget;
-import net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer;
+import net.kofllee.pyrovfx.client.vfx.VfxBudgetConfig;
+import net.kofllee.pyrovfx.client.render.VfxGpuBirthBuffers;
 import net.kofllee.pyrovfx.vfx.definition.VfxDefinition;
 import net.kofllee.pyrovfx.vfx.resource.VfxRegistry;
 import net.minecraft.client.Minecraft;
@@ -111,6 +112,11 @@ public final class VfxBenchHarness {
 
         ClientVfxManager.clear();
         Run run = new Run(scenario, definition);
+        run.stageEarlyBaseline = net.kofllee.pyrovfx.client.render.VfxRenderer.totalEarlyPasses();
+        run.stageLateBaseline = net.kofllee.pyrovfx.client.render.VfxRenderer.totalLatePasses();
+        run.stageMixedBaseline = net.kofllee.pyrovfx.client.render.VfxRenderer.totalMixedFrames();
+        run.nativeInstanceDrawsAtStart = net.kofllee.pyrovfx.client.render.VfxNativeGpuGeometryBridge.totalInstanceDrawCalls();
+        run.nativeInstanceUploadsAtStart = net.kofllee.pyrovfx.client.render.VfxNativeGpuGeometryBridge.totalInstanceUploadBytes();
         int expectedWidth = Integer.getInteger("pyrovfx.bench.expectedWidth", -1);
         int expectedHeight = Integer.getInteger("pyrovfx.bench.expectedHeight", -1);
         if (expectedWidth > 0 && expectedHeight > 0
@@ -171,15 +177,179 @@ public final class VfxBenchHarness {
                     }
                 }
             }
+            boolean glassForeground = scenario.name().equals("alpha_world_overlap")
+                    || scenario.name().equals("alpha_world_glass");
+            boolean waterForeground = scenario.name().equals("alpha_world_overlap")
+                    || scenario.name().equals("alpha_world_water")
+                    || scenario.name().equals("alpha_visibility_water")
+                    || scenario.name().equals("alpha_visibility_control");
+            if (glassForeground) {
+                // A complete, camera-facing glass plane in front of ALL three
+                // effect layers (nearest sprite center is at z=-1.5).
+                for (int x = -4; x <= 4; x++)
+                    for (int y = 137; y <= 146; y++)
+                        placeBenchmarkBlock(run, player.serverLevel(),
+                                new BlockPos(x, y, -5), Blocks.GLASS.defaultBlockState());
+            }
+            if (scenario.name().equals("alpha_tinted_partial")
+                    || scenario.name().equals("alpha_tinted_clouds")
+                    || scenario.name().equals("alpha_cloud_layer_partial")) {
+                // A single 12-block-wide quad crosses the tinted-glass
+                // boundary. Its center is NOT behind glass, so classifying
+                // the whole emitter by one origin ray gives an invalid pass.
+                for (int x = -5; x <= -1; x++)
+                    for (int y = scenario.name().startsWith("alpha_cloud_layer") ? 177 : 137;
+                            y <= (scenario.name().startsWith("alpha_cloud_layer") ? 206 : 160); y++)
+                        placeBenchmarkBlock(run, player.serverLevel(),
+                                new BlockPos(x, y, -5),
+                                Blocks.TINTED_GLASS.defaultBlockState());
+                Vec3 testEye = CAMERA.add(0,
+                        (scenario.name().startsWith("alpha_cloud_layer") ? 40 : 0) + 1.62, 0);
+                Vec3 targetCenter = ORIGIN.add(0,
+                        scenario.name().startsWith("alpha_cloud_layer") ? 49 : 2, 2);
+                Vec3 targetLeft = targetCenter.add(-6, 0, 0);
+                double rayFraction = (-4.5 - testEye.z) / (targetCenter.z - testEye.z);
+                BlockPos centerBlock = BlockPos.containing(testEye.lerp(targetCenter, rayFraction));
+                BlockPos leftBlock = BlockPos.containing(testEye.lerp(targetLeft, rayFraction));
+                if (player.serverLevel().getBlockState(centerBlock).is(Blocks.TINTED_GLASS)
+                        || !player.serverLevel().getBlockState(leftBlock).is(Blocks.TINTED_GLASS))
+                    run.error = "Tinted partial fixture needs a clear center ray and occluded left corner: "
+                            + centerBlock + " / " + leftBlock;
+            }
+            if (waterForeground) {
+                // Old fixture had ONE water source behind a glass wall and
+                // off the actual line of sight. This is a closed 7x7 source
+                // wall between the camera (z=-12) and all effects (z>=-1.5).
+                // Glass front/back and perimeter prevent water spreading into
+                // the benchmark save; every original block is restored.
+                for (int x = -3; x <= 3; x++)
+                    for (int y = 138; y <= 144; y++) {
+                        placeBenchmarkBlock(run, player.serverLevel(),
+                                new BlockPos(x, y, -8), Blocks.GLASS.defaultBlockState());
+                        placeBenchmarkBlock(run, player.serverLevel(),
+                                new BlockPos(x, y, -6), Blocks.GLASS.defaultBlockState());
+                    }
+                for (int z = -8; z <= -6; z++)
+                    for (int y = 137; y <= 145; y++)
+                        for (int x = -4; x <= 4; x++)
+                            if (x == -4 || x == 4 || y == 137 || y == 145)
+                                placeBenchmarkBlock(run, player.serverLevel(),
+                                        new BlockPos(x, y, z), Blocks.GLASS.defaultBlockState());
+                for (int x = -3; x <= 3; x++)
+                    for (int y = 138; y <= 144; y++)
+                        placeBenchmarkBlock(run, player.serverLevel(),
+                                new BlockPos(x, y, -7), Blocks.WATER.defaultBlockState());
+
+                // Assert geometry, not just "a water block exists somewhere".
+                // Both rays from the actual camera eye to the foreground and
+                // background sprite centers must traverse WATER at z=-6.5.
+                Vec3 cameraEye = CAMERA.add(0, 1.62, 0);
+                run.waterForegroundVerified = true;
+                Vec3[] targets = scenario.name().startsWith("alpha_visibility_")
+                        ? new Vec3[]{
+                            ORIGIN.add(-1.75, 1.5, -2),
+                            ORIGIN.add(1.75, 1.5, 2)}
+                        : new Vec3[]{
+                            new Vec3(ORIGIN.x, ORIGIN.y, -1.5),
+                            new Vec3(ORIGIN.x, ORIGIN.y, 2.5)};
+                for (Vec3 target : targets) {
+                    double fraction = (-6.5 - cameraEye.z) / (target.z - cameraEye.z);
+                    BlockPos rayBlock = BlockPos.containing(cameraEye.lerp(target, fraction));
+                    if (!player.serverLevel().getBlockState(rayBlock).is(Blocks.WATER)) {
+                        run.waterForegroundVerified = false;
+                        run.error = "Water foreground does not intersect camera-to-effect ray at " + rayBlock;
+                        break;
+                    }
+                }
+            }
+            if (scenario.name().equals("alpha_particle_in_water")
+                    || scenario.name().equals("alpha_camera_and_particle_in_water")) {
+                boolean cameraSubmerged = scenario.name().equals("alpha_camera_and_particle_in_water");
+                // Unlike the old foreground-wall test, the ACTUAL sprite
+                // birth positions are submerged. In the second case the
+                // camera eye and both sprites occupy the same continuous
+                // water body. Glass walls are placed first to avoid flow.
+                int nearZ = cameraSubmerged ? -15 : -5;
+                int farZ = 5;
+                for (int x = -5; x <= 5; x++)
+                    for (int y = 138; y <= 146; y++)
+                        for (int z = nearZ; z <= farZ; z++)
+                            if (x == -5 || x == 5 || y == 138 || y == 146
+                                    || z == nearZ || z == farZ)
+                                placeBenchmarkBlock(run, player.serverLevel(),
+                                        new BlockPos(x, y, z), Blocks.GLASS.defaultBlockState());
+                for (int x = -4; x <= 4; x++)
+                    for (int y = 139; y <= 145; y++)
+                        for (int z = nearZ + 1; z < farZ; z++)
+                            placeBenchmarkBlock(run, player.serverLevel(),
+                                    new BlockPos(x, y, z), Blocks.WATER.defaultBlockState());
+                Vec3[] submerged = new Vec3[]{
+                        ORIGIN.add(-1.75, 1.5, -2),
+                        ORIGIN.add(1.75, 1.5, 2)};
+                for (Vec3 position : submerged) {
+                    if (!player.serverLevel().getFluidState(BlockPos.containing(position))
+                            .is(net.minecraft.tags.FluidTags.WATER))
+                        run.error = "Particle center not submerged: " + position;
+                }
+                boolean cameraInWater = player.serverLevel().getFluidState(
+                        BlockPos.containing(CAMERA.add(0, 1.62, 0)))
+                        .is(net.minecraft.tags.FluidTags.WATER);
+                if (cameraInWater != cameraSubmerged)
+                    run.error = "Camera medium mismatch: expectedWater=" + cameraSubmerged;
+            }
+            if (scenario.name().equals("alpha_mixed_water_media")
+                    || scenario.name().equals("alpha_mixed_underwater_view")) {
+                boolean cameraWet = scenario.name().equals("alpha_mixed_underwater_view");
+                // Only the red emitter is submerged; yellow remains in air.
+                // Both emitters are in one effect instance, so the renderer
+                // must submit early AND late groups, not globally choose one.
+                sealedWaterTank(run, player.serverLevel(),
+                        -4, cameraWet ? 4 : -2,
+                        cameraWet ? -14 : -4, 0);
+                Vec3 red = ORIGIN.add(-1.75, 1.5, -2);
+                Vec3 yellow = ORIGIN.add(1.75, 1.5, 2);
+                var level = player.serverLevel();
+                if (!level.getFluidState(BlockPos.containing(red)).is(net.minecraft.tags.FluidTags.WATER)
+                        || level.getFluidState(BlockPos.containing(yellow))
+                        .is(net.minecraft.tags.FluidTags.WATER))
+                    run.error = "Mixed media fixture must contain wet red and dry yellow particles";
+                if (level.getFluidState(BlockPos.containing(CAMERA.add(0, 1.62, 0)))
+                        .is(net.minecraft.tags.FluidTags.WATER) != cameraWet)
+                    run.error = "Mixed media camera state does not match requested test";
+            }
             player.setGameMode(GameType.SPECTATOR);
             var museumExhibit = museumExhibit(scenario.name());
-            Vec3 camera = museumExhibit == null ? CAMERA
+            Vec3 camera = scenario.name().startsWith("alpha_cloud_layer")
+                    ? CAMERA.add(0, 40, 0) : museumExhibit == null ? CAMERA
                     : museumCamera(scenario.name(), museumExhibit);
             player.teleportTo(camera.x, camera.y, camera.z);
             player.setYRot(museumYaw(scenario.name(), museumExhibit != null));
-            player.setXRot(museumExhibit == null ? 14 : 8);
+            player.setXRot(scenario.name().startsWith("alpha_cloud_layer") ? -24 : museumExhibit == null ? 14 : 8);
         });
         return "Started " + name + " (seed=" + scenario.seed() + "). Results: run/pyrovfx-benchmarks/";
+    }
+
+    private static void placeBenchmarkBlock(Run run,
+            net.minecraft.server.level.ServerLevel level, BlockPos pos, BlockState state) {
+        run.originalBlocks.putIfAbsent(pos, level.getBlockState(pos));
+        level.setBlockAndUpdate(pos, state);
+    }
+
+    private static void sealedWaterTank(Run run,
+            net.minecraft.server.level.ServerLevel level,
+            int x0, int x1, int z0, int z1) {
+        for (int x = x0 - 1; x <= x1 + 1; x++)
+            for (int y = 138; y <= 146; y++)
+                for (int z = z0 - 1; z <= z1 + 1; z++)
+                    if (x == x0 - 1 || x == x1 + 1 || y == 138 || y == 146
+                            || z == z0 - 1 || z == z1 + 1)
+                        placeBenchmarkBlock(run, level, new BlockPos(x, y, z),
+                                Blocks.GLASS.defaultBlockState());
+        for (int x = x0; x <= x1; x++)
+            for (int y = 139; y <= 145; y++)
+                for (int z = z0; z <= z1; z++)
+                    placeBenchmarkBlock(run, level, new BlockPos(x, y, z),
+                            Blocks.WATER.defaultBlockState());
     }
 
     public static long beforeTick() {
@@ -279,8 +449,11 @@ public final class VfxBenchHarness {
             long start = System.nanoTime();
             VfxPlayOptions options = run.scenario.particles() > 0
                     ? VfxPlayOptions.builder().param("count", run.scenario.particles()).build()
+                    : run.scenario.name().equals("alpha_visibility_control")
+                    ? VfxPlayOptions.builder().param("count", 0).build()
                     : VfxPlayOptions.empty();
-            Vec3 effectPosition = museum == null ? ORIGIN
+            Vec3 effectPosition = run.scenario.name().startsWith("alpha_cloud_layer")
+                    ? ORIGIN.add(0, 43, 0) : museum == null ? ORIGIN
                     : new Vec3(museum.effectOrigin().getX() + 0.5,
                     museum.effectOrigin().getY() + 0.5,
                     museum.effectOrigin().getZ() + 0.5);
@@ -322,9 +495,10 @@ public final class VfxBenchHarness {
                     run.error = "Late viewer setup: " + exception;
                 }
             } else if (run.scenario.name().equals("global_budget_spike")) {
-                // Heavy override remains DISABLED: exercise production global admission.
-                var request = VfxPlayOptions.builder().param("count",
-                        VfxGlobalBudget.MAX_SPAWNS_PER_TICK / 2).build();
+                // Three independent requests for 20k particles. Do not
+                // derive the requested amount from a mutable global limit:
+                // changing the config must not silently change this fixture.
+                var request = VfxPlayOptions.builder().param("count", 20_000).build();
                 for (int i = 0; i < 3; i++) {
                     ClientVfxManager.playSeeded(run.definition, ORIGIN, request, run.scenario.seed() + i);
                 }
@@ -525,6 +699,9 @@ public final class VfxBenchHarness {
                 if (instance.parameters().getOrDefault("hit", 0.0) > 0.5) {
                     run.collisionEventObserved = true;
                 }
+                if (run.scenario.name().equals("collision_ordered"))
+                    run.collisionOrderedHitCount = instance.parameters()
+                            .getOrDefault("hit", 0.0);
             }
         }
         if (run.scenario.name().equals("self_emit_collision")) {
@@ -541,6 +718,16 @@ public final class VfxBenchHarness {
             }
         }
         if (run.elapsedTicks >= run.scenario.warmupTicks() + run.scenario.sampleTicks()) {
+            String transparencyScenario = run.scenario.name();
+            // The material contract is independent of neighboring glass, water,
+            // cloud blocks or the observer's location. All alpha test fixtures
+            // contain alpha-only emitters (including translucent models).
+            // Validate this stable stage routing; the screenshots are separate
+            // visual evidence of world-compositor intersection limitations.
+            if (transparencyScenario.startsWith("alpha_")
+                    && !net.kofllee.pyrovfx.client.render.VfxRenderer.lastWorldStage()
+                            .equals("after_level"))
+                run.error = "Alpha material was routed outside the shared after-world pass";
             if (run.lifecycle != null && !run.lifecycle.verified() && run.error == null)
                 run.error = "M7 lifecycle teardown did not complete";
             if (run.scenario.name().equals("m7_api_handles")
@@ -570,11 +757,17 @@ public final class VfxBenchHarness {
                 run.error = "Async runtime GPU query did not produce a real completed sample";
             }
             if (Boolean.getBoolean("pyrovfx.bench.requireGpuAnalytic")) {
-                boolean steady = run.scenario.name().equals("analytic_steady");
-                if ((steady ? run.maxAnalyticInstances <= 0
-                        || run.analyticDatasetUploads < 10
+                boolean repeatedBirths = run.scenario.name().equals("analytic_steady")
+                        || run.scenario.name().equals("analytic_looping")
+                        || run.scenario.name().equals("analytic_manual");
+                int requiredUploads = run.scenario.name().equals("analytic_steady") ? 10 : 5;
+                if ((repeatedBirths ? run.maxAnalyticInstances <= 0
+                        || run.analyticDatasetUploads < requiredUploads
                         || run.analyticDrawCalls < run.scenario.sampleTicks()
-                        : run.maxAnalyticInstances != run.scenario.particles())
+                        : run.scenario.name().equals("analytic_coalesced")
+                            ? run.maxAnalyticInstances != 256
+                                || run.analyticDatasetUploads != 2
+                            : run.maxAnalyticInstances != run.scenario.particles())
                         || run.analyticDatasetUploads == 0
                         || run.analyticDrawCalls == 0) {
                     run.error = "GPU analytic backend failed to render expected particle count: "
@@ -592,39 +785,53 @@ public final class VfxBenchHarness {
                 if ((name.equals("sprite_1k") || name.equals("sprite_10k")
                         || name.equals("sprite_uv_instanced") || name.equals("sprite_world_z")
                         || name.equals("sprite_horizontal")
+                        || name.equals("sprite_lit_fallback") || name.equals("dynamic_1k")
                         || name.equals("sprite_rotating_1k") || name.equals("sprite_rotating_10k"))
-                        && net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.drawCalls() == 0
-                        && net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer.drawCalls() == 0) {
+                        && net.kofllee.pyrovfx.client.render.VfxNativeSpriteBatcher.drawCalls() == 0
+                        && net.kofllee.pyrovfx.client.render.VfxRenderer.analyticDrawCalls() == 0) {
                     run.error = "Expected actual sprite GPU instancing, got no draws: " + name;
                 }
                 if ((name.equals("model_1k") || name.equals("model_reload_active"))
-                        && net.kofllee.pyrovfx.client.render.VfxInstancedModelRenderer.lastDrawCalls() == 0) {
+                        && net.kofllee.pyrovfx.client.render.VfxNativeModelRenderer.lastDrawCalls() == 0) {
                     run.error = "Expected actual model GPU instancing, got no draws: " + name;
                 }
-                if ((name.equals("dynamic_1k") || name.equals("sprite_lit_fallback"))
-                        && net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.drawCalls() != 0) {
-                    run.error = "Alpha or world-lit sprite bypassed required RenderType fallback";
-                }
                 if (name.equals("sprite_frustum")
-                        && (net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.culledParticles() == 0
-                            || net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.submittedParticles() == 0)) {
+                        && (net.kofllee.pyrovfx.client.render.VfxNativeSpriteBatcher.culledParticles() == 0
+                            || net.kofllee.pyrovfx.client.render.VfxNativeSpriteBatcher.submittedParticles() == 0)) {
                     run.error = "GPU frustum test did not both cull and render visible particles";
                 }
                 if (name.equals("sprite_lod")
-                        && net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.subpixelCulledParticles() == 0) {
+                        && net.kofllee.pyrovfx.client.render.VfxNativeSpriteBatcher.subpixelCulledParticles() == 0) {
                     run.error = "Subpixel GPU LOD failed to discard tiny distant sprites";
                 }
             }
-            if (run.scenario.name().equals("budget_spike")
-                    && run.peakParticles != VfxRuntimeBudget.MAX_ACTIVE_PARTICLES) {
-                run.error = "Shared spawn budget expected " + VfxRuntimeBudget.MAX_ACTIVE_PARTICLES
-                        + " active particles, observed " + run.peakParticles;
+            if (run.scenario.name().equals("budget_spike")) {
+                boolean heavy = Boolean.getBoolean("pyrovfx.bench.allowHeavy");
+                int admitted = heavy ? 40_000 : Math.min(40_000, Math.min(
+                        Math.min(VfxBudgetConfig.effectParticles(), VfxBudgetConfig.effectSpawns()),
+                        Math.min(Math.min(VfxBudgetConfig.globalParticles(), VfxBudgetConfig.globalSpawns()),
+                                VfxBudgetConfig.classLimit(net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.GPU_ANALYTIC))));
+                if (run.peakParticles != admitted)
+                    run.error = "Shared spawn budget expected " + admitted
+                            + " active particles, observed " + run.peakParticles;
             }
             if (run.scenario.name().equals("global_budget_spike")) {
                 var global = ClientVfxManager.globalBudget();
-                if (run.peakParticles != net.kofllee.pyrovfx.client.vfx.VfxGlobalBudget.MAX_SPAWNS_PER_TICK
-                        || global.admittedSpawns() != VfxGlobalBudget.MAX_SPAWNS_PER_TICK
-                        || global.rejectedSpawns() != VfxGlobalBudget.MAX_SPAWNS_PER_TICK / 2
+                boolean heavy = Boolean.getBoolean("pyrovfx.bench.allowHeavy");
+                String backend = ClientVfxManager.instances().isEmpty() ? ""
+                        : ClientVfxManager.instances().getFirst()
+                                .emitters().getFirst().selectedBackend();
+                int perEffect = heavy ? 20_000 : Math.min(20_000,
+                        Math.min(VfxBudgetConfig.effectParticles(), VfxBudgetConfig.effectSpawns()));
+                int admitted = heavy ? 60_000 : Math.min(3 * perEffect, Math.min(
+                        Math.min(VfxBudgetConfig.globalParticles(), VfxBudgetConfig.globalSpawns()),
+                        VfxBudgetConfig.classLimit(
+                                backend.equals("cpu_dense")
+                                        ? net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.CPU_BASIC
+                                        : net.kofllee.pyrovfx.client.vfx.VfxParticleCostClass.GPU_ANALYTIC)));
+                if (run.peakParticles != admitted
+                        || global.admittedSpawns() != admitted
+                        || global.rejectedSpawns() != 60_000 - admitted
                         || ClientVfxManager.getActiveInstanceCount() != 3) {
                     run.error = "Global stress admission mismatch: peak=" + run.peakParticles
                             + " admitted=" + global.admittedSpawns()
@@ -644,6 +851,13 @@ public final class VfxBenchHarness {
             if (run.scenario.name().equals("self_emit_collision") && !run.collisionEventObserved) {
                 run.error = "Self-emission scenario never delivered on_collision";
             }
+            if (run.scenario.name().equals("self_emit_collision")
+                    && ClientVfxManager.globalBudget().admittedSpawns() <= 1)
+                run.error = "Self-emission did not create a subsequent particle";
+            if (run.scenario.name().equals("collision_ordered")
+                    && run.collisionOrderedHitCount != run.collisionContacts)
+                run.error = "Immediate collision set_param lost ordering: hits="
+                        + run.collisionOrderedHitCount + " contacts=" + run.collisionContacts;
             run.finishedTick = true;
         }
         int screenshotTick = run.scenario.warmupTicks()
@@ -717,12 +931,12 @@ public final class VfxBenchHarness {
                 run.error = "Head-motion screenshot capture failed: " + exception;
             }
         }
-        run.analyticUploadBytes += VfxAnalyticSpriteRenderer.uploadedBytes();
-        run.analyticDatasetUploads += VfxAnalyticSpriteRenderer.uploadedDatasets();
-        run.analyticDrawCalls += VfxAnalyticSpriteRenderer.drawCalls();
+        run.analyticUploadBytes += net.kofllee.pyrovfx.client.render.VfxRenderer.analyticUploadedBytes();
+        run.analyticDatasetUploads += net.kofllee.pyrovfx.client.render.VfxRenderer.analyticDatasetUploads();
+        run.analyticDrawCalls += net.kofllee.pyrovfx.client.render.VfxRenderer.analyticDrawCalls();
         run.analyticSkippedCohorts += net.kofllee.pyrovfx.client.render.VfxRenderer.culledAnalyticCohorts();
         run.analyticSkippedParticles += net.kofllee.pyrovfx.client.render.VfxRenderer.culledAnalyticParticles();
-        run.maxAnalyticInstances = Math.max(run.maxAnalyticInstances, VfxAnalyticSpriteRenderer.instances());
+        run.maxAnalyticInstances = Math.max(run.maxAnalyticInstances, net.kofllee.pyrovfx.client.render.VfxRenderer.analyticInstances());
         if (Boolean.getBoolean("pyrovfx.bench.gpuTelemetry")) {
             run.runtimeGpuSamples = net.kofllee.pyrovfx.client.render.VfxGpuTelemetry.sampleCount();
             run.runtimeGpuLastMs = net.kofllee.pyrovfx.client.render.VfxGpuTelemetry.latestSampleNs() / 1_000_000.0;
@@ -876,6 +1090,9 @@ public final class VfxBenchHarness {
         long lastFrameNs;
         boolean spawned;
         boolean finishedTick;
+        boolean waterForegroundVerified;
+        long stageEarlyBaseline, stageLateBaseline, stageMixedBaseline;
+        long nativeInstanceDrawsAtStart, nativeInstanceUploadsAtStart;
         String gpuVendor;
         String gpuRenderer;
         String glVersion;
@@ -910,6 +1127,7 @@ public final class VfxBenchHarness {
         double peakAdaptiveCpuEmaMs;
         int adaptiveConstrainedTickSamples;
         boolean collisionEventObserved;
+        double collisionOrderedHitCount;
         boolean entityIsolationVerified;
         VfxM7LifecycleProbe lifecycle;
         VfxM7ApiProbe api;

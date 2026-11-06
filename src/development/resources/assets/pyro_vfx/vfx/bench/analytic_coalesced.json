@@ -1,0 +1,28 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {"author": "Pyro VFX", "description": "Three same-tick manual GPU births coalesce, later timeline birth remains separate"},
+  "lifetime": {"mode": "once", "active_ticks": 150},
+  "events": {"burst": {"type": "emit", "emitter": "main"}},
+  "triggers": [
+    {"type": "on_creation", "event": "burst"},
+    {"type": "on_creation", "event": "burst"},
+    {"type": "on_creation", "event": "burst"},
+    {"type": "timeline", "time_ticks": 15, "event": "burst"}
+  ],
+  "emitters": [{
+    "id": "main",
+    "emitter_lifetime": {"mode": "manual"},
+    "spawn_amount": {"mode": "manual", "amount": 64},
+    "spawn_shape": {"type": "sphere", "radius": 1.5},
+    "particle_lifetime": {"max_age_ticks": 55},
+    "motion": {"mode": "dynamic", "dynamic": {
+      "direction": "outward", "speed": 0.7,
+      "acceleration": [0,-0.1,0], "linear_drag": 0.2
+    }},
+    "rotation": {"mode": "none"},
+    "render": {"type": "sprite", "facing": "camera", "environment_lighting": false,
+      "sprite": {"texture": "minecraft:textures/particle/generic_0.png", "blend_mode": "additive"},
+      "color": [0.95,0.6,0.25,"1.0-particle.normalized_age"],
+      "scale": [0.15,0.15,1]}
+  }]
+}

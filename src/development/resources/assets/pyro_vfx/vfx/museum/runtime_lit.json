@@ -1,0 +1,60 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "Museum / CPU / GPU / NEW GPU lit sprites: World-lit particles use GPU sprite instancing with CPU Dense simulation and Minecraft lightmap. Use the stand's INFO button for technical details and comparison labels."
+  },
+  "parameters": {
+    "count": 56
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 160
+  },
+  "emitters": [
+    {
+      "id": "main",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 1.55
+      },
+      "offset": [
+        0,
+        0,
+        0
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": true,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": "#FFAA33FF",
+        "scale": [
+          0.54,
+          0.54,
+          1
+        ]
+      }
+    }
+  ]
+}

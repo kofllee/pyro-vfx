@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Events & Collisions / Child emission: Contact spawns visible child particles around the impact. Read on-stand controls to replay and compare."
+    "description": "Museum / Events & Collisions / Child emission: Contact spawns visible child particles around the impact. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
     "count": 24,

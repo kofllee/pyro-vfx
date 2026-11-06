@@ -2,37 +2,85 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Appearance & Rendering / Billboard orientation: Camera, horizontal and world-plane orientations visible together. Read on-stand controls to replay and compare."
+    "description": "Museum / Appearance & Rendering / Billboard orientation: Camera, horizontal and world-plane orientations visible together. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
     "count": 28
   },
   "lifetime": {
-    "mode": "once",
-    "active_ticks": 160
+    "mode": "looping",
+    "active_ticks": 120,
+    "sleep_ticks": 0,
+    "loops": 0
   },
   "emitters": [
     {
-      "id": "main",
+      "id": "camera",
       "emitter_lifetime": {
-        "mode": "once",
-        "active_ticks": 1
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 111,
+        "loops": 0
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": "param.count"
+        "amount": 1
       },
       "spawn_shape": {
-        "type": "sphere",
-        "radius": 1.55
+        "type": "point"
       },
       "offset": [
-        0,
+        -3.3,
         0,
         0
       ],
       "particle_lifetime": {
-        "max_age_ticks": 140
+        "max_age_ticks": 112
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": "#FFC661CC",
+        "scale": [
+          1.25,
+          1.25,
+          1
+        ]
+      }
+    },
+    {
+      "id": "horizontal",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 111,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 1
+      },
+      "spawn_shape": {
+        "type": "point"
+      },
+      "offset": [
+        -1.1,
+        0,
+        0
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 112
       },
       "motion": {
         "mode": "static"
@@ -46,12 +94,12 @@
         "environment_lighting": false,
         "sprite": {
           "texture": "minecraft:textures/particle/generic_0.png",
-          "blend_mode": "additive"
+          "blend_mode": "alpha"
         },
-        "color": "#FFAA33FF",
+        "color": "#56C8ECCC",
         "scale": [
-          0.72,
-          0.72,
+          1.25,
+          1.25,
           1
         ]
       }
@@ -59,24 +107,25 @@
     {
       "id": "world_x",
       "emitter_lifetime": {
-        "mode": "once",
-        "active_ticks": 1
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 111,
+        "loops": 0
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": "param.count"
+        "amount": 1
       },
       "spawn_shape": {
-        "type": "sphere",
-        "radius": 1.55
+        "type": "point"
       },
       "offset": [
-        -1.25,
+        1.1,
         0,
         0
       ],
       "particle_lifetime": {
-        "max_age_ticks": 140
+        "max_age_ticks": 112
       },
       "motion": {
         "mode": "static"
@@ -90,12 +139,12 @@
         "environment_lighting": false,
         "sprite": {
           "texture": "minecraft:textures/particle/generic_0.png",
-          "blend_mode": "additive"
+          "blend_mode": "alpha"
         },
-        "color": "#55DFFFCC",
+        "color": "#EC74D6CC",
         "scale": [
-          0.72,
-          0.72,
+          1.25,
+          1.25,
           1
         ]
       }
@@ -103,24 +152,25 @@
     {
       "id": "world_y",
       "emitter_lifetime": {
-        "mode": "once",
-        "active_ticks": 1
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 111,
+        "loops": 0
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": "param.count"
+        "amount": 1
       },
       "spawn_shape": {
-        "type": "sphere",
-        "radius": 1.55
+        "type": "point"
       },
       "offset": [
-        1.25,
-        0,
+        3.3,
+        -0.12,
         0
       ],
       "particle_lifetime": {
-        "max_age_ticks": 140
+        "max_age_ticks": 112
       },
       "motion": {
         "mode": "static"
@@ -134,12 +184,12 @@
         "environment_lighting": false,
         "sprite": {
           "texture": "minecraft:textures/particle/generic_0.png",
-          "blend_mode": "additive"
+          "blend_mode": "alpha"
         },
-        "color": "#55DFFFCC",
+        "color": "#9AD668CC",
         "scale": [
-          0.72,
-          0.72,
+          1.25,
+          1.25,
           1
         ]
       }

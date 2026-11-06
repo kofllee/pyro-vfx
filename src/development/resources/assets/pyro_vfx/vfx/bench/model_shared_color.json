@@ -1,0 +1,24 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {"author":"Pyro VFX", "description":"Shared-age tinted solid model using resident GPU motion"},
+  "parameters": {"count":1000},
+  "lifetime": {"mode":"once", "active_ticks":160},
+  "emitters": [{
+    "id":"main",
+    "emitter_lifetime":{"mode":"once","active_ticks":1},
+    "spawn_amount":{"mode":"instant","amount":"param.count"},
+    "spawn_shape":{"type":"sphere","radius":3},
+    "particle_lifetime":{"max_age_ticks":140},
+    "motion":{"mode":"dynamic","dynamic":{
+      "direction":"outward","speed":0.25,
+      "acceleration":[0,-0.1,0],"linear_drag":0.1
+    }},
+    "rotation":{"mode":"none"},
+    "render":{"type":"model","environment_lighting":false,
+      "model":{"source":"custom","model":"pyro_vfx:vfx/ember_cube",
+        "render_layer":"solid"},
+      "color":["0.3 + 0.65*particle.normalized_age",
+               "0.85 - 0.5*particle.normalized_age",0.75,1],
+      "scale":[0.15,0.15,0.15]}
+  }]
+}

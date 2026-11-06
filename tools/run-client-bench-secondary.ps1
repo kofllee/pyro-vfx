@@ -11,10 +11,10 @@ param(
     [switch]$ForceLegacyCpu,
     [switch]$ForceLegacyRender,
     [switch]$DisableCulling,
-    [switch]$AllowShaderGpu,
     [switch]$RequireGpuInstancing,
     [switch]$ForceLegacyModels,
     [switch]$Heavy,
+    [switch]$GlobalStress,
     [switch]$GpuTelemetry,
     [switch]$ProbeVram,
     [int]$SoakTicks = 600,
@@ -26,6 +26,23 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# Reject misspelled scenarios before opening a Minecraft window. Otherwise
+# the auto-run harness remains idle indefinitely waiting for an unknown test.
+$scenarioSource = Get-Content (Join-Path $PSScriptRoot '../src/development/java/net/kofllee/pyrovfx/client/dev/VfxBenchScenarios.java') -Raw
+$museumManifest = Join-Path $PSScriptRoot '../src/development/resources/pyro_vfx_museum_exhibits.tsv'
+$museumIds = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+Get-Content $museumManifest | Where-Object { $_ -and -not $_.StartsWith('#') } |
+    ForEach-Object { [void]$museumIds.Add(($_ -split '\|',2)[0]) }
+$scenarioNames = @($Scenario -split ',' | ForEach-Object { $_.Trim() })
+foreach ($scenarioName in $scenarioNames) {
+    if ([string]::IsNullOrWhiteSpace($scenarioName) -or
+            ($scenarioName -like 'museum_*' -and
+             -not $museumIds.Contains($scenarioName.Substring(7))) -or
+            ($scenarioName -notlike 'museum_*' -and
+             -not $scenarioSource.Contains('"' + $scenarioName + '"'))) {
+        throw "Unknown benchmark scenario '$scenarioName'; check VfxBenchScenarios before opening Minecraft."
+    }
+}
 Add-Type -AssemblyName System.Windows.Forms
 $secondary = @([System.Windows.Forms.Screen]::AllScreens | Where-Object { -not $_.Primary })
 if ($secondary.Count -lt 1) { throw 'No secondary monitor; benchmark aborted to protect the active desktop.' }
@@ -33,28 +50,26 @@ if ($Width -gt $secondary[0].Bounds.Width -or $Height -gt $secondary[0].Bounds.H
     throw "Benchmark window ${Width}x${Height} does not fit secondary display $($secondary[0].Bounds)."
 }
 
-# The temporary Java/GLFW focus on first window creation is a Windows behavior.
-# Watchdog immediately pushes only the new Minecraft HWND behind other windows,
-# and restores the application that was foreground before launch.
+# The benchmark must NEVER move, activate or change the z-order of unrelated
+# windows (notably Chrome tabs whose title may contain "Minecraft").
+# Identify only a Java-owned GLFW window; never restore focus across virtual
+# desktops, since that can activate a browser on a different Windows desktop.
 Add-Type -TypeDefinition @'
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
 public static class PyroBenchDesktop {
     public delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr param);
     [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc cb, IntPtr param);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr hwnd, StringBuilder text, int len);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr hwnd, StringBuilder text, int len);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
-    [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int w, int h, uint flags);
     [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hwnd, int index);
     [DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr hwnd, int index, int value);
-    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, IntPtr pid);
-    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
-    [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint first, uint second, bool attach);
-    [DllImport("user32.dll")] private static extern void SwitchToThisWindow(IntPtr hwnd, bool altTab);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
     public static string Title(IntPtr hwnd) {
         var title = new StringBuilder(512);
         GetWindowText(hwnd, title, title.Capacity);
@@ -65,8 +80,25 @@ public static class PyroBenchDesktop {
         EnumWindows((hwnd, param) => {
             var title = new StringBuilder(512);
             GetWindowText(hwnd, title, title.Capacity);
-            if (title.ToString().IndexOf("Minecraft", StringComparison.OrdinalIgnoreCase) >= 0)
-                handles.Add(hwnd.ToInt64());
+            if (title.ToString().IndexOf("Minecraft", StringComparison.OrdinalIgnoreCase) < 0)
+                return true;
+            var className = new StringBuilder(128);
+            GetClassName(hwnd, className, className.Capacity);
+            if (!className.ToString().StartsWith("GLFW", StringComparison.OrdinalIgnoreCase))
+                return true;
+            uint pid;
+            GetWindowThreadProcessId(hwnd, out pid);
+            if (pid == 0) return true;
+            try {
+                using (var process = Process.GetProcessById((int)pid)) {
+                    var name = process.ProcessName;
+                    if (name.Equals("java", StringComparison.OrdinalIgnoreCase)
+                            || name.Equals("javaw", StringComparison.OrdinalIgnoreCase))
+                        handles.Add(hwnd.ToInt64());
+                }
+            } catch (ArgumentException) {
+                // The window closed during enumeration.
+            }
             return true;
         }, IntPtr.Zero);
         return handles.ToArray();
@@ -81,24 +113,6 @@ public static class PyroBenchDesktop {
         SetWindowLong(hwnd, GWL_EXSTYLE, style | WS_EX_NOACTIVATE);
         SetWindowPos(hwnd, new IntPtr(1), 0, 0, 0, 0,
             SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE | SWP_FRAMECHANGED);
-    }
-    public static bool RestoreForeground(IntPtr previous, IntPtr benchmark) {
-        if (previous == IntPtr.Zero || previous == benchmark || !IsWindow(previous)) return false;
-        if (GetForegroundWindow() != benchmark) return GetForegroundWindow() == previous;
-        uint thread = GetCurrentThreadId();
-        uint foregroundThread = GetWindowThreadProcessId(benchmark, IntPtr.Zero);
-        bool attached = thread != foregroundThread && AttachThreadInput(thread, foregroundThread, true);
-        bool success;
-        try {
-            success = SetForegroundWindow(previous);
-            if (!success) {
-                SwitchToThisWindow(previous, true);
-                success = GetForegroundWindow() == previous;
-            }
-        } finally {
-            if (attached) AttachThreadInput(thread, foregroundThread, false);
-        }
-        return success;
     }
 }
 '@
@@ -121,10 +135,10 @@ $args = @('runClientBench',
     "-PbenchLegacyCpu=$($ForceLegacyCpu.IsPresent.ToString().ToLowerInvariant())",
     "-PbenchLegacyRender=$($ForceLegacyRender.IsPresent.ToString().ToLowerInvariant())",
     "-PbenchNoCulling=$($DisableCulling.IsPresent.ToString().ToLowerInvariant())",
-    "-PbenchShaderGpuBypass=$($AllowShaderGpu.IsPresent.ToString().ToLowerInvariant())",
     "-PbenchRequireGpuInstancing=$($RequireGpuInstancing.IsPresent.ToString().ToLowerInvariant())",
     "-PbenchModelForceLegacy=$($ForceLegacyModels.IsPresent.ToString().ToLowerInvariant())",
     "-PbenchHeavy=$($Heavy.IsPresent.ToString().ToLowerInvariant())",
+    "-PbenchGlobalStress=$($GlobalStress.IsPresent.ToString().ToLowerInvariant())",
     "-PbenchGpuTelemetry=$($GpuTelemetry.IsPresent.ToString().ToLowerInvariant())",
     "-PbenchVramProbe=$($ProbeVram.IsPresent.ToString().ToLowerInvariant())",
     "-PbenchSoakTicks=$SoakTicks",
@@ -151,8 +165,6 @@ foreach ($handle in [PyroBenchDesktop]::MinecraftWindows()) { [void]$existing.Ad
 $process = [System.Diagnostics.Process]::Start($psi)
 if ($null -eq $process) { throw 'Failed to launch Gradle process.' }
 $seen = [System.Collections.Generic.HashSet[long]]::new()
-$focusAttempts = 0
-$focusRestores = 0
 try {
     while (-not $process.HasExited) {
         foreach ($handle in [PyroBenchDesktop]::MinecraftWindows()) {
@@ -160,17 +172,11 @@ try {
             if ($seen.Add($handle)) {
                 [PyroBenchDesktop]::PushBehind([IntPtr]::new($handle))
             }
-            if ([PyroBenchDesktop]::GetForegroundWindow().ToInt64() -eq $handle) {
-                $focusAttempts++
-                if ([PyroBenchDesktop]::RestoreForeground($foregroundBefore, [IntPtr]::new($handle))) {
-                    $focusRestores++
-                }
-            }
         }
         Start-Sleep -Milliseconds 50
     }
     $process.WaitForExit()
-    Write-Output "Window focus: before='$foregroundTitle', Minecraft windows=$($seen.Count), restore attempts=$focusAttempts, successes=$focusRestores, after='$([PyroBenchDesktop]::Title([PyroBenchDesktop]::GetForegroundWindow()))'"
+    Write-Output "Window focus (never manipulated): before='$foregroundTitle', Java/GLFW Minecraft windows=$($seen.Count), after='$([PyroBenchDesktop]::Title([PyroBenchDesktop]::GetForegroundWindow()))'"
     Write-Output "Secondary-screen benchmark exit=$($process.ExitCode); log=$log"
     if (Test-Path $log) {
         Get-Content $log -Tail 18

@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Curves & Expressions / Bezier / linear / step: Step, linear and Bezier profiles applied to separate particle streams. Read on-stand controls to replay and compare."
+    "description": "Museum / Curves & Expressions / Bezier / linear / step: Four side-by-side groups show Bezier, linear, step and Catmull curves. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
     "count": 40
@@ -20,27 +20,16 @@
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": "param.count"
+        "amount": 1
       },
       "spawn_shape": {
-        "type": "sphere",
-        "radius": 1.55
+        "type": "point"
       },
       "particle_lifetime": {
         "max_age_ticks": 140
       },
       "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": 0.2,
-          "acceleration": [
-            0,
-            -0.06,
-            0
-          ],
-          "linear_drag": 0.2
-        }
+        "mode": "static"
       },
       "rotation": {
         "mode": "none"
@@ -53,12 +42,7 @@
           "texture": "minecraft:textures/particle/generic_0.png",
           "blend_mode": "additive"
         },
-        "color": [
-          "0.5 + particle.random * 0.5",
-          "0.2 + particle.normalized_age * 0.7",
-          0.7,
-          "curve.alpha(particle.normalized_age) * (0.6 + particle.random * 0.4)"
-        ],
+        "color": "#D72D82FF",
         "scale": [
           "curve.museum_bezier(particle.normalized_age) * 6",
           "curve.museum_bezier(particle.normalized_age) * 6",
@@ -66,7 +50,7 @@
         ]
       },
       "offset": [
-        0,
+        -3.0,
         0,
         0
       ]
@@ -79,27 +63,16 @@
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": "param.count"
+        "amount": 1
       },
       "spawn_shape": {
-        "type": "sphere",
-        "radius": 1.55
+        "type": "point"
       },
       "particle_lifetime": {
         "max_age_ticks": 140
       },
       "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": 0.2,
-          "acceleration": [
-            0,
-            -0.06,
-            0
-          ],
-          "linear_drag": 0.2
-        }
+        "mode": "static"
       },
       "rotation": {
         "mode": "none"
@@ -120,7 +93,7 @@
         ]
       },
       "offset": [
-        -1.5,
+        -1.0,
         0,
         0
       ]
@@ -133,27 +106,16 @@
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": "param.count"
+        "amount": 1
       },
       "spawn_shape": {
-        "type": "sphere",
-        "radius": 1.55
+        "type": "point"
       },
       "particle_lifetime": {
         "max_age_ticks": 140
       },
       "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": 0.2,
-          "acceleration": [
-            0,
-            -0.06,
-            0
-          ],
-          "linear_drag": 0.2
-        }
+        "mode": "static"
       },
       "rotation": {
         "mode": "none"
@@ -174,7 +136,7 @@
         ]
       },
       "offset": [
-        1.5,
+        1.0,
         0,
         0
       ]
@@ -187,27 +149,16 @@
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": "param.count"
+        "amount": 1
       },
       "spawn_shape": {
-        "type": "sphere",
-        "radius": 1.55
+        "type": "point"
       },
       "particle_lifetime": {
         "max_age_ticks": 140
       },
       "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": 0.2,
-          "acceleration": [
-            0,
-            -0.06,
-            0
-          ],
-          "linear_drag": 0.2
-        }
+        "mode": "static"
       },
       "rotation": {
         "mode": "none"
@@ -220,7 +171,7 @@
           "texture": "minecraft:textures/particle/generic_0.png",
           "blend_mode": "additive"
         },
-        "color": "#55DFFFEE",
+        "color": "#B98EFFEE",
         "scale": [
           "curve.museum_catmull(particle.normalized_age) * 4",
           "curve.museum_catmull(particle.normalized_age) * 4",
@@ -228,7 +179,7 @@
         ]
       },
       "offset": [
-        0,
+        3.0,
         0,
         0
       ]

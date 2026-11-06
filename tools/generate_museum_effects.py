@@ -116,15 +116,19 @@ def combine_technical_variants(exhibit_id, data):
         for kind,index in (("linear",0),("step",1),("catmull",2)):
             clone = copy.deepcopy(primary)
             clone["id"] = "curve_"+kind
-            clone["offset"] = [(-1.5 if index==0 else 1.5 if index==1 else 0),0,0]
+            clone["offset"] = [(-1.0 if index==0 else 1.0 if index==1 else 3.0),0,0]
             data.setdefault("curves", {})["museum_"+kind] = {
                 "type": kind, "points": [[0,0.12],[0.25,0.45],[0.6,0.20],[1,0.55]]}
             clone["render"]["scale"] = [
                 "curve.museum_"+kind+"(particle.normalized_age) * 4",
                 "curve.museum_"+kind+"(particle.normalized_age) * 4",1]
-            clone["render"]["color"] = "#55DFFFEE" if index else "#FFB65AEE"
+            clone["render"]["color"] = {"linear":"#FFB65AEE", "step":"#55DFFFEE",
+                                        "catmull":"#B98EFFEE"}[kind]
+            clone["spawn_shape"] = {"type":"point"}
             emitters.append(clone)
-        primary["offset"]=[0,0,0]
+        primary["offset"]=[-3.0,0,0]
+        primary["spawn_shape"] = {"type":"point"}
+        primary["render"]["color"] = "#D72D82FF"
     if exhibit_id == "collision_events":
         bounce = copy.deepcopy(primary)
         bounce["id"] = "bounce_box"
@@ -208,6 +212,296 @@ def customize_variant(exhibit_id, data):
         emitter["render"]["model"]["render_layer"] = "cutout"
 
 
+
+def improve_presentation(exhibit_id, data):
+    """Museum-only framing: keep the tested mechanic prominent and visually isolated."""
+    emitters = data["emitters"]
+    primary = emitters[0]
+    if exhibit_id == "sprite_additive":
+        # No motion: blend mode is the only changing variable, compared side by side.
+        primary["id"] = "alpha"
+        primary["offset"] = [-1.6, 0, 0]
+        primary["spawn_shape"] = {"type": "sphere", "radius": 0.6}
+        primary["motion"] = {"mode": "static"}
+        primary["particle_lifetime"] = {"max_age_ticks": 140}
+        primary["render"]["scale"] = [0.44, 0.44, 1]
+        primary["render"]["color"] = [1, 0.62, 0.2, 0.45]
+        primary["render"]["sprite"]["blend_mode"] = "alpha"
+        additive = copy.deepcopy(primary)
+        additive["id"] = "additive"
+        additive["offset"] = [1.6, 0, 0]
+        additive["render"]["sprite"]["blend_mode"] = "additive"
+        emitters.append(additive)
+
+    if exhibit_id == "source_entity_local":
+        # A visible double marker: the amber source-following orbit versus a cyan world trail.
+        for emitter in emitters:
+            emitter["render"]["scale"] = [0.34, 0.34, 1]
+            emitter["render"]["color"] = (
+                [1.0, 0.75, 0.12, "0.9 - particle.normalized_age * 0.7"]
+                if emitter["id"] == "local_aura" else
+                [0.12, 0.85, 1.0, "0.9 - particle.normalized_age * 0.7"])
+            emitter["render"]["sprite"]["blend_mode"] = "additive"
+            emitter["spawn_shape"]["radius"] = 0.18
+            emitter["offset"] = ([0.48, 1.25, 0] if emitter["id"] == "local_aura"
+                                 else [-0.48, 1.25, 0])
+            emitter["spawn_amount"]["rate"] = 28
+            emitter["spawn_amount"]["max_particles"] = 90
+            emitter["particle_lifetime"]["max_age_ticks"] = 48
+            emitter["motion"] = {"mode": "static"}
+
+    if exhibit_id == "source_model_part":
+        # The model-part provider already points at the head; don't offset one block higher.
+        primary["offset"] = [0, 0.16, 0]
+        primary["render"]["color"] = [1, 0.76, 0.2, "1.0 - particle.normalized_age"]
+        primary["render"]["scale"] = [0.34, 0.34, 1]
+        primary["spawn_amount"]["rate"] = 32
+        primary["particle_lifetime"]["max_age_ticks"] = 55
+
+    if exhibit_id in {"source_block", "source_block_entity"}:
+        # The previous 1.12-block additive tiles hid their barrel and the rest
+        # of the scene despite low alpha. Keep a small halo around the anchor.
+        primary["offset"] = [0, 1.1, 0]
+        primary["render"]["scale"] = [0.22, 0.22, 1]
+        primary["spawn_amount"]["rate"] = 20
+        primary["spawn_amount"]["max_particles"] = 72
+        primary["render"]["color"] = [0.95, 0.3, 0.88,
+                                      "0.65 * (1.0 - particle.normalized_age)"]
+        primary["spawn_shape"]["radius"] = 0.3
+
+    if exhibit_id == "model_custom":
+        # A geometry comparison needs stable, separated specimens, not flying cubes.
+        for emitter, x, amount in zip(emitters, [-2.4, 0, 2.4], [1, 1, 1]):
+            emitter["offset"] = [x, 0, 0]
+            emitter["spawn_shape"] = {"type": "sphere", "radius": 0.1}
+            emitter["motion"] = {"mode": "static"}
+            emitter["spawn_amount"] = {"mode":"instant", "amount":amount}
+            emitter["render"]["scale"] = [1.15, 1.15, 1.15]
+
+    if exhibit_id == "model_item":
+        # Five fixed, non-overlapping item model specimens.
+        emitters.clear()
+        samples = [
+            ("ingot", "minecraft:iron_ingot", -3.6),
+            ("diamond", "minecraft:diamond", -1.8),
+            ("stick", "minecraft:stick", 0),
+            ("sword", "minecraft:iron_sword", 1.8),
+            ("apple", "minecraft:apple", 3.6),
+        ]
+        for name, item, x in samples:
+            emitter = copy.deepcopy(primary)
+            emitter["id"] = name
+            emitter["render"]["model"]["model"] = item
+            emitter["offset"] = [x, 0, 0]
+            emitter["spawn_amount"] = {"mode": "instant", "amount": 1}
+            emitter["spawn_shape"] = {"type": "point"}
+            emitter["motion"] = {"mode": "static"}
+            emitter["render"]["scale"] = [0.85, 0.85, 0.85]
+            emitters.append(emitter)
+
+    if exhibit_id == "model_translucent":
+        # Translucent cubes are self-overdrawing six faces already; do not
+        # superimpose five different cubes at the same position.
+        primary["spawn_amount"] = {"mode": "instant", "amount": 1}
+        primary["spawn_shape"] = {"type": "point"}
+        primary["motion"] = {"mode": "static"}
+        primary["render"]["scale"] = [1.75, 1.75, 1.75]
+
+    if exhibit_id in {"model_rotating", "gpu_model"}:
+        # Preserve model source/render backend, isolate three specimens.
+        emitters.clear()
+        for i,x in enumerate((-2.5, 0, 2.5)):
+            emitter = copy.deepcopy(primary)
+            emitter["id"] = f"model_{i+1}"
+            emitter["offset"] = [x, 0, 0]
+            emitter["spawn_amount"] = {"mode":"instant", "amount": 1}
+            emitter["spawn_shape"] = {"type": "point"}
+            emitter["render"]["scale"] = [0.75, 0.75, 0.75]
+            emitters.append(emitter)
+
+    if exhibit_id == "source_model_local":
+        # A small ring of rotating cubes at chest height, not a random pile
+        # of 24 large cubes occupying the Husk's body.
+        primary["offset"] = [0, 1.25, 0]
+        primary["spawn_amount"] = {"mode": "instant", "amount": 6}
+        primary["spawn_shape"] = {
+            "type": "ring", "radius": 1.15, "inner_radius": 1.1,
+            "axis": [0, 1, 0]
+        }
+        primary["render"]["scale"] = [0.34, 0.34, 0.34]
+        # A lightweight visual probe confirms that this same moving source
+        # can also drive sprites if the resident model renderer misbehaves.
+        guide = copy.deepcopy(emitters[0])
+        guide["id"] = "entity_position_marker"
+        guide["render"] = {
+            "type": "sprite", "facing": "camera",
+            "environment_lighting": False,
+            "sprite": {
+                "texture": "minecraft:textures/particle/generic_0.png",
+                "blend_mode": "alpha"
+            },
+            "color": "#55EECCFF", "scale": [0.24, 0.24, 1]
+        }
+        guide["offset"] = [0, 1.9, 0]
+        guide["spawn_shape"] = {"type": "point"}
+        guide["spawn_amount"] = {"mode": "steady", "rate": 20,
+                                 "max_particles": 40}
+        guide["emitter_lifetime"] = {"mode": "once", "active_ticks": 160}
+        guide["particle_lifetime"] = {"max_age_ticks": 35}
+        guide["rotation"] = {"mode": "none"}
+        emitters.append(guide)
+
+    if exhibit_id == "collision_events":
+        # Three independent drop lanes directly above matching physical
+        # landing pads. Same gravity and spawn height: only collision behavior
+        # changes. The bench stress fixture remains untouched.
+        original = copy.deepcopy(primary)
+        emitters.clear()
+        for name, x, color, bounce, expire in (
+            ("fall_stop", -3.0, "#77D5FFFF", 0.0, False),
+            ("bounce", 0.0, "#FFCA51FF", 0.78, False),
+            ("expire_contact", 3.0, "#FF7777FF", 0.0, True),
+        ):
+            emitter = copy.deepcopy(original)
+            emitter["id"] = name
+            emitter["offset"] = [x, 2.35, 0]
+            emitter["spawn_shape"] = {"type": "sphere", "radius": 0.09}
+            emitter["spawn_amount"] = {"mode": "instant", "amount": 3}
+            emitter["particle_lifetime"] = {"max_age_ticks": 108}
+            emitter["motion"]["dynamic"]["direction"] = "down"
+            emitter["motion"]["dynamic"]["speed"] = 0
+            emitter["motion"]["dynamic"]["acceleration"] = [0, -10.0, 0]
+            emitter["motion"]["dynamic"]["linear_drag"] = 0
+            emitter["motion"]["collision"] = {
+                "collide": True, "collision_type": "sphere",
+                "collision_size": [0.12, 0.12, 0.12],
+                "collision_drag": 0.05, "bounciness": bounce,
+                "expire_on_contact": expire
+            }
+            emitter["render"]["color"] = color
+            emitter["render"]["scale"] = [0.42, 0.42, 1]
+            # Keep on_collision only on one lane to still exercise ordered events.
+            emitter["particle_triggers"] = (original.get("particle_triggers", [])
+                                            if name == "fall_stop" else [])
+            emitters.append(emitter)
+
+    if exhibit_id == "sprite_horizontal":
+        # Four distinct fixed samples; zero spread means billboard tilt can be
+        # judged by walking around each plane instead of deciphering a cloud.
+        primary["id"] = "camera"
+        templates = [("camera", "camera", -3.3, "#FFC661CC"),
+                     ("horizontal", "camera_horizontal", -1.1, "#56C8ECCC"),
+                     ("world_x", "world_x", 1.1, "#EC74D6CC"),
+                     ("world_y", "world_y", 3.3, "#9AD668CC")]
+        emitters.clear()
+        for name, facing, x, color in templates:
+            emitter = copy.deepcopy(primary)
+            emitter["id"] = name
+            emitter["offset"] = [x, -0.12 if name == "world_y" else 0, 0]
+            emitter["render"]["facing"] = facing
+            emitter["render"]["sprite"]["blend_mode"] = "alpha"
+            emitter["render"]["color"] = color
+            emitter["render"]["scale"] = [1.25, 1.25, 1]
+            emitter["particle_lifetime"] = {"max_age_ticks": 112}
+            emitter["spawn_amount"] = {"mode": "instant", "amount": 1}
+            emitter["spawn_shape"] = {"type": "point"}
+            emitter["motion"] = {"mode": "static"}
+            emitters.append(emitter)
+
+    if exhibit_id == "curve_bezier":
+        # Only scale varies with age: no drifting spark cloud to confuse the comparison.
+        for emitter in emitters:
+            emitter["motion"] = {"mode": "static"}
+            emitter["spawn_amount"] = {"mode": "instant", "amount": 1}
+            emitter["spawn_shape"] = {"type": "point"}
+            emitter["render"]["sprite"]["blend_mode"] = "additive"
+
+    if exhibit_id == "gpu_sprite":
+        # Keep a real CPU Dense path as shared dynamic rotations and
+        # birth-time shapes become GPU eligible. A mutable appearance param
+        # requires CPU evaluation, while its default matches the same color.
+        primary["id"] = "gpu_resident"
+        primary["offset"] = [-2.2, 0, 0]
+        primary["spawn_shape"] = {"type": "sphere", "radius": 0.65}
+        primary["motion"]["dynamic"]["speed"] = 0.2
+        primary["motion"]["dynamic"]["acceleration"] = [0, 0, 0]
+        primary["render"]["scale"] = [0.34, 0.34, 1]
+        primary["render"]["color"] = "#FFBB66EE"
+        cpu = copy.deepcopy(primary)
+        cpu["id"] = "cpu_dense"
+        cpu["offset"] = [2.2, 0, 0]
+        data["parameters"]["cpuRadius"] = 0.65
+        data["parameters"]["cpuAlpha"] = 238 / 255
+        cpu["spawn_shape"]["radius"] = "param.cpuRadius"
+        cpu["render"]["color"] = [85 / 255, 223 / 255, 1.0, "param.cpuAlpha"]
+        emitters.append(cpu)
+
+    if exhibit_id == "event_order":
+        # Preserve the semantics of an ordered event graph, but make each
+        # step observable: 1 -> 2 -> 3 with a flash at 0/30/60 ticks.
+        data["parameters"]["stage"] = 0
+        data["lifetime"] = {"mode": "once", "active_ticks": 135}
+        data["events"] = {
+            "initialize": {"type": "set_param", "param": "stage", "value": 1},
+            "increment": {"type": "set_param", "param": "stage",
+                          "value": "param.stage + 1"},
+            "show_one": {"type": "emit", "emitter": "step_one"},
+            "show_two": {"type": "emit", "emitter": "step_two"},
+            "show_three": {"type": "emit", "emitter": "step_three"},
+            "start": {"type": "sequence", "events": ["initialize", "show_one"]},
+            "advance_two": {"type": "sequence", "events": ["increment", "show_two"]},
+            "advance_three": {"type": "sequence", "events": ["increment", "show_three"]},
+        }
+        data["triggers"] = [
+            {"type": "on_creation", "event": "start"},
+            {"type": "timeline", "time_ticks": 30, "event": "advance_two"},
+            {"type": "timeline", "time_ticks": 60, "event": "advance_three"},
+        ]
+        emitters.clear()
+        for name, x, color in [("step_one", -2.7, "#FF6666FF"),
+                               ("step_two", 0, "#FFD45AFF"),
+                               ("step_three", 2.7, "#5DEBFFFF")]:
+            emitter = copy.deepcopy(primary)
+            emitter["id"] = name
+            emitter["offset"] = [x, 0, 0]
+            emitter["emitter_lifetime"] = {"mode": "manual"}
+            emitter["spawn_amount"] = {"mode": "manual", "amount": 10}
+            emitter["spawn_shape"] = {"type": "sphere", "radius": 0.3}
+            emitter["particle_lifetime"] = {"max_age_ticks": 100}
+            emitter["motion"] = {"mode": "static"}
+            emitter["render"]["scale"] = [0.5, 0.5, 1]
+            emitter["render"]["color"] = color
+            emitters.append(emitter)
+
+    # Free-running effect+emitter clocks give seamless steady demonstrations.
+    # Timeline/event-order specimens need real once-only lifecycle events and are
+    # immediately restarted by the museum controller upon completion instead.
+    looping_showcases = {
+        "spawn_point", "spawn_sphere", "spawn_box", "spawn_line", "spawn_disc",
+        "spawn_ring", "spawn_cone", "spawn_model", "dynamic_motion",
+        "motion_parametric", "rotation_parametric", "sprite_horizontal",
+        "sprite_velocity", "sprite_additive", "model_custom", "model_translucent",
+    }
+    # GPU-analytic / attachment / event-timeline examples retain their original
+    # backend eligibility and exact lifetime semantics. The museum controller
+    # replays those on the first tick after completion.
+    if exhibit_id in looping_showcases:
+        data["lifetime"] = {
+            "mode": "looping", "active_ticks": 120, "sleep_ticks": 0, "loops": 0}
+        for emitter in emitters:
+            lifetime = emitter.get("emitter_lifetime", {})
+            if lifetime.get("mode") == "manual":
+                continue
+            if emitter.get("spawn_amount", {}).get("mode") == "instant":
+                cadence = 46 if exhibit_id in {"collision_events", "self_emit", "dynamic_motion"} else 112
+                emitter["emitter_lifetime"] = {
+                    "mode": "looping", "active_ticks": 1,
+                    "sleep_ticks": cadence - 1, "loops": 0}
+            else:
+                emitter["emitter_lifetime"] = {
+                    "mode": "looping", "active_ticks": 120,
+                    "sleep_ticks": 0, "loops": 0}
+
 def generate() -> int:
     OUTPUT.mkdir(parents=True, exist_ok=True)
     seen = set()
@@ -222,7 +516,7 @@ def generate() -> int:
         data = copy.deepcopy(json.loads(source.read_text(encoding="utf-8")))
         data.setdefault("metadata", {})["description"] = (
             f"Museum / {category} / {title}: {description}. "
-            "Read on-stand controls to replay and compare."
+            "Use the stand's INFO button for technical details and comparison labels."
         )
         count = int(count)
         size = float(size)
@@ -277,7 +571,7 @@ def generate() -> int:
                 if isinstance(shape.get("height"), (int, float)):
                     shape["height"] = min(float(shape["height"]), 2.5)
             # Avoid sky-high presentation beams in the museum.
-        if exhibit_id == "self_emit":
+        if exhibit_id in {"self_emit", "runtime_self_emit"}:
             # The historical M0 stress fixture deliberately emits back into
             # the same colliding emitter: 24 -> 576 -> 13,824 contacts.
             # Keep that fixture unchanged, but make the interactive demo a
@@ -301,8 +595,14 @@ def generate() -> int:
                                "blend_mode": "additive"},
                     "color": "#66CCFFFF", "scale": [0.65, 0.65, 1]}
             })
+        if exhibit_id == "runtime_self_emit":
+            data["lifetime"]["active_ticks"] = 75
+        if exhibit_id == "runtime_coalesced":
+            data["lifetime"]["active_ticks"] = 72
+            data["emitters"][0]["particle_lifetime"]["max_age_ticks"] = 60
         customize_variant(exhibit_id, data)
         combine_technical_variants(exhibit_id, data)
+        improve_presentation(exhibit_id, data)
         output = OUTPUT / f"{exhibit_id}.json"
         output.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     for stale in OUTPUT.glob("*.json"):

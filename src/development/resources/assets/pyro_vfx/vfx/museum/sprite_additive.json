@@ -2,21 +2,25 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Appearance & Rendering / Additive blending: Overlapping orange sparks become brighter where they intersect. Read on-stand controls to replay and compare."
+    "description": "Museum / Appearance & Rendering / Additive blending: Same static particle cloud: compare alpha on the left with bright additive overlap on the right. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
     "count": 48
   },
   "lifetime": {
-    "mode": "once",
-    "active_ticks": 160
+    "mode": "looping",
+    "active_ticks": 120,
+    "sleep_ticks": 0,
+    "loops": 0
   },
   "emitters": [
     {
-      "id": "main",
+      "id": "alpha",
       "emitter_lifetime": {
-        "mode": "once",
-        "active_ticks": 1
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 111,
+        "loops": 0
       },
       "spawn_amount": {
         "mode": "instant",
@@ -24,23 +28,64 @@
       },
       "spawn_shape": {
         "type": "sphere",
-        "radius": 1.55
+        "radius": 0.6
       },
       "particle_lifetime": {
         "max_age_ticks": 140
       },
       "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": 0.75,
-          "acceleration": [
-            0,
-            -1.0,
-            0
-          ],
-          "linear_drag": 0.6
-        }
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": [
+          1,
+          0.62,
+          0.2,
+          0.45
+        ],
+        "scale": [
+          0.44,
+          0.44,
+          1
+        ]
+      },
+      "offset": [
+        -1.6,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "additive",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 111,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.6
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "static"
       },
       "rotation": {
         "mode": "none"
@@ -54,17 +99,22 @@
           "blend_mode": "additive"
         },
         "color": [
-          1.0,
-          0.7,
-          0.3,
-          "1.0 - 0.7 * particle.normalized_age"
+          1,
+          0.62,
+          0.2,
+          0.45
         ],
         "scale": [
-          "(0.12 + 0.25 * particle.normalized_age) * 4",
-          "(0.12 + 0.25 * particle.normalized_age) * 4",
+          0.44,
+          0.44,
           1
         ]
-      }
+      },
+      "offset": [
+        1.6,
+        0,
+        0
+      ]
     }
   ]
 }

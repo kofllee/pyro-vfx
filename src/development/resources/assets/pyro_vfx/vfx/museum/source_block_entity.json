@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Transforms & Attachments / BlockEntity anchor: The effect follows a physically present barrel BlockEntity. Read on-stand controls to replay and compare."
+    "description": "Museum / Transforms & Attachments / BlockEntity anchor: The effect follows a physically present barrel BlockEntity. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
     "count": 24
@@ -21,17 +21,17 @@
       },
       "spawn_amount": {
         "mode": "steady",
-        "rate": 32,
-        "max_particles": 140
+        "rate": 20,
+        "max_particles": 72
       },
       "offset": [
         0,
-        2,
+        1.1,
         0
       ],
       "spawn_shape": {
         "type": "sphere",
-        "radius": 0.22
+        "radius": 0.3
       },
       "particle_lifetime": {
         "max_age_ticks": 70
@@ -61,14 +61,14 @@
           "blend_mode": "additive"
         },
         "color": [
-          1,
-          0.27,
-          0.9,
-          "1.0 - particle.normalized_age"
+          0.95,
+          0.3,
+          0.88,
+          "0.65 * (1.0 - particle.normalized_age)"
         ],
         "scale": [
-          1.12,
-          1.12,
+          0.22,
+          0.22,
           1
         ]
       }

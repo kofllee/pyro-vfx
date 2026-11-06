@@ -2,21 +2,25 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Appearance & Rendering / Velocity facing: Moving sprite planes align along travel direction instead of camera. Read on-stand controls to replay and compare."
+    "description": "Museum / Appearance & Rendering / Velocity facing: Moving sprite planes align along travel direction instead of camera. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
     "count": 35
   },
   "lifetime": {
-    "mode": "once",
-    "active_ticks": 160
+    "mode": "looping",
+    "active_ticks": 120,
+    "sleep_ticks": 0,
+    "loops": 0
   },
   "emitters": [
     {
       "id": "main",
       "emitter_lifetime": {
-        "mode": "once",
-        "active_ticks": 1
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 111,
+        "loops": 0
       },
       "spawn_amount": {
         "mode": "instant",

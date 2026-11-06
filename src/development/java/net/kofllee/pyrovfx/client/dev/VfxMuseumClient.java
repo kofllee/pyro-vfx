@@ -16,6 +16,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.monster.Husk;
 import net.minecraft.world.phys.AABB;
@@ -27,6 +28,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import org.joml.Quaternionf;
 
 import java.util.*;
@@ -34,7 +36,7 @@ import java.util.*;
 import static net.minecraft.commands.Commands.literal;
 import static net.minecraft.commands.Commands.argument;
 
-/** In-world technical lab: physical controls, proximity activation and local TextDisplay updates. */
+/** In-world technical lab: physical controls, persistent playback and local TextDisplay updates. */
 @EventBusSubscriber(modid = PyroVfx.MOD_ID, value = Dist.CLIENT)
 public final class VfxMuseumClient {
     private static final String[] FLAGS = {
@@ -42,17 +44,22 @@ public final class VfxMuseumClient {
             "pyrovfx.model.forceLegacy", "pyrovfx.cpu.forceLegacy"
     };
     private static final Map<String, String> ORIGINAL_FLAGS = new HashMap<>();
-    private static final Map<BlockPos, Boolean> PREVIOUS_BUTTONS = new HashMap<>();
     private static final Map<String, Long> HANDLES = new HashMap<>();
-    private static final Map<String, Long> NEXT_REPLAY = new HashMap<>();
+    private static final Map<Integer, Long> TRANSPARENCY_HANDLES = new HashMap<>();
+    private static final Set<String> PREVIEW_EFFECTS = Set.of(
+            "analytic_moving_light", "analytic_random_life", "analytic_random_uv",
+            "analytic_model_surface", "analytic_velocity", "analytic_world_lit",
+            "model_shared_color");
+    private static long previewHandle;
     private static final Map<String, String> DISPLAYED = new HashMap<>();
-    private static final Set<String> PAUSED = new HashSet<>();
-    private static final int MAX_ACTIVE = 5;
-    private static final int ACTIVATION_RADIUS = 27;
+    private static final Set<String> ENABLED = new HashSet<>();
+    private static final Map<BlockPos, Boolean> POWERED_BUTTONS = new HashMap<>();
+    private static final Map<BlockPos, Long> LAST_PRESS = new HashMap<>();
+
     public enum Mode { AUTO, CPU, LEGACY }
     private static Mode mode = Mode.AUTO;
     private static ClientLevel observedLevel;
-    private static boolean museumAutoStarted, visiting, lastCompareWasCpu;
+    private static boolean museumAutoStarted, visiting, initializedEnabled;
     private static String selected = "", solo = "", lastExhibit = "";
 
     private VfxMuseumClient() {}
@@ -62,6 +69,24 @@ public final class VfxMuseumClient {
         root.then(literal("list").executes(ctx -> list()));
         root.then(literal("stop").executes(ctx -> stop()));
         root.then(literal("status").executes(ctx -> status()));
+        root.then(literal("preview")
+                .then(literal("stop").executes(ctx -> {
+                    stopPreview();
+                    return 1;
+                }))
+                .then(argument("id", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            for (var id : PREVIEW_EFFECTS)
+                                if (id.startsWith(builder.getRemaining())) builder.suggest(id);
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> preview(StringArgumentType.getString(ctx, "id")))));
+        root.then(literal("all")
+                .then(literal("on").executes(ctx -> global(VfxMuseumCatalog.GlobalAction.ALL_ON)))
+                .then(literal("off").executes(ctx -> global(VfxMuseumCatalog.GlobalAction.ALL_OFF))));
+        root.then(literal("solo").then(argument("id", StringArgumentType.word())
+                .suggests((ctx,b) -> suggest(b))
+                .executes(ctx -> solo(StringArgumentType.getString(ctx,"id")))));
         root.then(literal("mode")
                 .then(literal("auto").executes(ctx -> changeMode(Mode.AUTO)))
                 .then(literal("cpu").executes(ctx -> changeMode(Mode.CPU)))
@@ -94,6 +119,8 @@ public final class VfxMuseumClient {
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level != observedLevel) {
+            stopPreview();
+            stopTransparency();
             leave();
             observedLevel = level;
             museumAutoStarted = false;
@@ -108,79 +135,210 @@ public final class VfxMuseumClient {
                 if (player == null) return;
                 net.kofllee.pyrovfx.museum.VfxMuseumWorld.build(player.serverLevel());
                 player.serverLevel().setDayTime(6000);
-                player.teleportTo(VfxMuseumCatalog.ORIGIN_X + 6.5,
-                        VfxMuseumCatalog.FLOOR_Y + 2.0,
-                        VfxMuseumCatalog.ORIGIN_Z + 10.5);
+                if (Boolean.getBoolean("pyrovfx.museum.runtimeShowcase")) {
+                    // Showcase is isolated to the dedicated developer save.
+                    // Creative mode allows inspecting a submerged effect
+                    // indefinitely without drowning or accidental block loss.
+                    player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+                    net.kofllee.pyrovfx.museum.VfxMuseumWorld.teleportTransparency(player, 4);
+                } else {
+                    player.teleportTo(VfxMuseumCatalog.ORIGIN_X + 6.5,
+                            VfxMuseumCatalog.FLOOR_Y + 2.0,
+                            VfxMuseumCatalog.ORIGIN_Z + 4.5);
+                }
             });
         }
-        boolean inside = level != null && mc.player != null &&
-                VfxMuseumCatalog.inside(mc.player.getBlockX(),mc.player.getBlockY(),mc.player.getBlockZ()) &&
-                level.getBlockState(VfxMuseumCatalog.MARKER).is(Blocks.LODESTONE);
+        if (Boolean.getBoolean("pyrovfx.museum.runtimeShowcase")
+                && level != null && mc.player != null)
+            updateTransparency(level);
+        boolean inside = level != null && mc.player != null
+                && VfxMuseumCatalog.inside(mc.player.getBlockX(), mc.player.getBlockY(), mc.player.getBlockZ())
+                && level.getBlockState(VfxMuseumCatalog.MARKER).is(Blocks.LODESTONE);
         if (!inside) {
             if (visiting) leave();
             return;
         }
         visiting = true;
-        for (var exhibit : VfxMuseumCatalog.exhibits()) {
-            if (exhibit.base().distSqr(mc.player.blockPosition()) > 38*38) continue;
-            for (var action : VfxMuseumCatalog.Action.values()) {
-                var position=exhibit.button(action);
-                var state=level.getBlockState(position);
-                boolean powered=state.hasProperty(BlockStateProperties.POWERED)
-                        && state.getValue(BlockStateProperties.POWERED);
-                boolean previous=PREVIOUS_BUTTONS.getOrDefault(position,false);
-                if (powered && !previous) button(exhibit,action);
-                PREVIOUS_BUTTONS.put(position,powered);
-            }
+        if (!initializedEnabled) {
+            for (var exhibit : VfxMuseumCatalog.exhibits()) ENABLED.add(exhibit.id());
+            initializedEnabled = true;
         }
+        scanPressedButtons(mc);
         autoPlayback(mc);
         updatePanels(mc);
+    }
+
+    private static void updateTransparency(ClientLevel level) {
+        var fixture = ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/alpha_water_visibility");
+        if (VfxRegistry.get(fixture) == null) return;
+        int x = net.kofllee.pyrovfx.museum.VfxMuseumWorld.TRANSPARENCY_X;
+        int z = net.kofllee.pyrovfx.museum.VfxMuseumWorld.TRANSPARENCY_Z;
+        if (!level.getBlockState(new BlockPos(x, VfxMuseumCatalog.FLOOR_Y, z))
+                .is(Blocks.YELLOW_CONCRETE)) return;
+        for (int lane = 0; lane < 6; lane++) {
+            // The tinted-glass lane needs one broad sprite; the standard
+            // water-visibility fixture has only two small particles.
+            var laneFixture = lane == 5
+                    ? ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/alpha_tinted_split")
+                    : fixture;
+            if (VfxRegistry.get(laneFixture) == null) continue;
+            long old = TRANSPARENCY_HANDLES.getOrDefault(lane, 0L);
+            if (old != 0 && ClientVfxManager.handleActive(old)) continue;
+            long handle = ClientVfxManager.playManaged(laneFixture,
+                    VfxTransformProviders.fixed(
+                            net.kofllee.pyrovfx.museum.VfxMuseumWorld.transparencyOrigin(lane)),
+                    Map.of("count", 1.0));
+            if (handle != 0) TRANSPARENCY_HANDLES.put(lane, handle);
+        }
+    }
+
+    private static void stopTransparency() {
+        for (long handle : TRANSPARENCY_HANDLES.values()) ClientVfxManager.stopHandle(handle);
+        TRANSPARENCY_HANDLES.clear();
+    }
+
+    private static int preview(String id) {
+        var mc = Minecraft.getInstance();
+        if (mc.player == null || !PREVIEW_EFFECTS.contains(id)) return 0;
+        var effect = ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/" + id);
+        if (VfxRegistry.get(effect) == null) {
+            say("Preview not loaded: " + effect);
+            return 0;
+        }
+        stopPreview();
+        var origin = mc.player.getEyePosition().add(mc.player.getLookAngle().scale(8.0));
+        previewHandle = ClientVfxManager.playManaged(effect,
+                VfxTransformProviders.fixed(origin), Map.of("count", 120.0));
+        if (previewHandle != 0) {
+            say("Preview: " + id + " | " + ClientVfxManager.backendForHandle(previewHandle)
+                    + " | /pyrovfx museum preview stop");
+            return 1;
+        }
+        return 0;
+    }
+
+    private static void stopPreview() {
+        if (previewHandle != 0) ClientVfxManager.stopHandle(previewHandle);
+        previewHandle = 0;
+    }
+
+
+    /** Client click and synchronized redstone pulse are deduplicated by position/tick. */
+    @SubscribeEvent
+    public static void onButtonClick(PlayerInteractEvent.RightClickBlock event) {
+        if (event.getLevel().isClientSide() && visiting && observedLevel == event.getLevel())
+            press(event.getPos());
+    }
+
+    private static void scanPressedButtons(Minecraft mc) {
+        for (var action : VfxMuseumCatalog.GlobalAction.values())
+            scan(mc.level, VfxMuseumCatalog.globalButton(action));
+        for (var e : VfxMuseumCatalog.exhibits()) {
+            if (e.base().distSqr(mc.player.blockPosition()) > 20 * 20) continue;
+            for (var action : VfxMuseumCatalog.Action.values()) scan(mc.level, e.button(action));
+        }
+    }
+
+    private static void scan(ClientLevel level, BlockPos pos) {
+        var state=level.getBlockState(pos);
+        boolean powered=state.is(Blocks.STONE_BUTTON)
+                && state.hasProperty(BlockStateProperties.POWERED)
+                && state.getValue(BlockStateProperties.POWERED);
+        boolean old=POWERED_BUTTONS.getOrDefault(pos,false);
+        if (powered && !old) press(pos);
+        POWERED_BUTTONS.put(pos,powered);
+    }
+
+    private static void press(BlockPos pos) {
+        var mc=Minecraft.getInstance();
+        if (!visiting || mc.level == null || !mc.level.getBlockState(pos).is(Blocks.STONE_BUTTON)) return;
+        long now=mc.level.getGameTime();
+        if (now-LAST_PRESS.getOrDefault(pos,-100L) < 8L) return;
+        for (var action : VfxMuseumCatalog.GlobalAction.values()) {
+            if (VfxMuseumCatalog.globalButton(action).equals(pos)) {
+                LAST_PRESS.put(pos,now);
+                global(action);
+                return;
+            }
+        }
+        for (var exhibit : VfxMuseumCatalog.exhibits()) {
+            if (exhibit.base().distSqr(pos) > 14 * 14) continue;
+            for (var action : VfxMuseumCatalog.Action.values()) {
+                if (exhibit.button(action).equals(pos)) {
+                    LAST_PRESS.put(pos,now);
+                    button(exhibit,action);
+                    return;
+                }
+            }
+        }
+    }
+
+    private static int global(VfxMuseumCatalog.GlobalAction action) {
+        solo="";
+        if (action == VfxMuseumCatalog.GlobalAction.ALL_ON) {
+            for (var e : VfxMuseumCatalog.exhibits()) ENABLED.add(e.id());
+            announce("ALL ON: all " + VfxMuseumCatalog.exhibits().size() + " exhibits running");
+        } else {
+            ENABLED.clear();
+            stopManaged();
+            announce("ALL OFF: every exhibit stopped");
+        }
+        return 1;
     }
 
     private static void button(VfxMuseumCatalog.Exhibit e,VfxMuseumCatalog.Action action) {
         selected=e.id();
         switch(action) {
-            case PLAY -> {
-                PAUSED.remove(e.id());
-                stopHandle(e.id());
-                NEXT_REPLAY.remove(e.id());
+            case TOGGLE -> {
+                boolean wasActive=solo.equals(e.id()) || ENABLED.contains(e.id());
+                solo="";
+                if (wasActive) {
+                    ENABLED.remove(e.id());
+                    stopHandle(e.id());
+                } else {
+                    ENABLED.add(e.id());
+                }
+                announce(e.title()+": "+(wasActive ? "OFF" : "ON"));
             }
-            case STOP -> {
-                PAUSED.add(e.id());
-                stopHandle(e.id());
-            }
-            case COMPARE -> {
-                solo = solo.equals(e.id()) ? "" : e.id();
-                lastCompareWasCpu=!lastCompareWasCpu;
-                changeMode(solo.isEmpty() ? Mode.AUTO : (lastCompareWasCpu ? Mode.CPU : Mode.AUTO));
-                stopManaged();
-            }
-            case INFO -> { /* Panel selection only, no chat output. */ }
+            case SOLO -> solo(e.id());
+            case INFO -> info(e.id());
         }
     }
 
-    /** Nearby stands automatically run; at most five, to avoid accumulating 35 demos at once. */
+    private static int solo(String id) {
+        var e=VfxMuseumCatalog.find(id);
+        if (e == null) return 0;
+        if (solo.equals(id)) {
+            solo="";
+            announce("SOLO OFF: previous exhibit selection restored");
+        } else {
+            solo=id;
+            stopManaged();
+            announce("SOLO: "+e.title()+" (press again to restore all)");
+        }
+        return 1;
+    }
+
+    /** All enabled exhibits play simultaneously, independent of player distance. */
     private static void autoPlayback(Minecraft mc) {
         var candidates=new ArrayList<VfxMuseumCatalog.Exhibit>();
         for (var e:VfxMuseumCatalog.exhibits()) {
-            if (!solo.isEmpty() && !solo.equals(e.id())) continue;
-            if (PAUSED.contains(e.id())) continue;
-            double distance=e.effectOrigin().distSqr(mc.player.blockPosition());
-            if (distance <= ACTIVATION_RADIUS*ACTIVATION_RADIUS) candidates.add(e);
+            if (!solo.isEmpty()) {
+                if (solo.equals(e.id())) candidates.add(e);
+            } else if (ENABLED.contains(e.id())) {
+                candidates.add(e);
+            }
         }
-        candidates.sort(Comparator.comparingDouble(e -> e.effectOrigin().distSqr(mc.player.blockPosition())));
-        if (candidates.size()>MAX_ACTIVE) candidates.subList(MAX_ACTIVE,candidates.size()).clear();
         Set<String> desired=new HashSet<>();
         for (var e:candidates) desired.add(e.id());
-        for (String id:new ArrayList<>(HANDLES.keySet())) if (!desired.contains(id)) stopHandle(id);
-        long tick=mc.level.getGameTime();
+        for (String id:new ArrayList<>(HANDLES.keySet()))
+            if (!desired.contains(id)) stopHandle(id);
         for (var e:candidates) {
             long handle=HANDLES.getOrDefault(e.id(),0L);
             if (handle!=0 && ClientVfxManager.handleActive(handle)) continue;
             HANDLES.remove(e.id());
-            if (tick < NEXT_REPLAY.getOrDefault(e.id(),0L)) continue;
+            // The first tick after a finite effect finishes starts a new cycle.
             start(e,e.count());
-            NEXT_REPLAY.put(e.id(),tick+95);
         }
     }
 
@@ -205,28 +363,29 @@ public final class VfxMuseumClient {
     private static void leave() {
         stopManaged();
         restoreFlags();
-        PREVIOUS_BUTTONS.clear();
         DISPLAYED.clear();
-        NEXT_REPLAY.clear();
-        PAUSED.clear();
+        POWERED_BUTTONS.clear();
+        LAST_PRESS.clear();
+        ENABLED.clear();
+        initializedEnabled=false;
         selected="";solo="";lastExhibit="";visiting=false;
     }
 
-    /** Update only when the actual label changes. TextDisplay is never used as a button. */
+    /** INFO goes to chat. The wall shows live playback state. */
     private static void updatePanels(Minecraft mc) {
         for (var e:VfxMuseumCatalog.exhibits()) {
-            if (e.base().distSqr(mc.player.blockPosition()) > 38*38) continue;
             Long handle=HANDLES.get(e.id());
             boolean active=handle!=null && ClientVfxManager.handleActive(handle);
+            boolean enabled=solo.equals(e.id()) || (solo.isEmpty() && ENABLED.contains(e.id()));
             String backend=active ? ClientVfxManager.backendForHandle(handle) : "";
-            String state=PAUSED.contains(e.id()) ? "PAUSED" : active ? "ACTIVE" : "READY";
-            if (solo.equals(e.id())) state="SOLO "+state;
-            String modeLine=state+"  |  "+mode+(backend.isEmpty()?"":"  |  "+backend);
-            showText(mc.level,e,"status",modeLine);
-            String details=selected.equals(e.id())
-                    ? e.id()+"\n"+e.description()
-                    : "REPLAY     PAUSE     SOLO     INFO";
-            showText(mc.level,e,"details",details);
+            String state=!enabled ? "OFF" : active ? "RUNNING" : "ON / STANDBY";
+            if (solo.equals(e.id())) state="SOLO / "+state;
+            // Stand-specific live count separates a missing VFX source from a
+            // renderer visibility issue, without introducing a render limit.
+            if ((e.id().startsWith("source_") || e.id().startsWith("runtime_")) && active)
+                state += " | " + ClientVfxManager.particleCountForHandle(handle) + " particles";
+            showText(mc.level,e,"status",state+
+                    (backend.isBlank() ? "" : "  |  "+backend));
         }
     }
     private static void showText(ClientLevel level,VfxMuseumCatalog.Exhibit e,String kind,String value) {
@@ -274,10 +433,20 @@ public final class VfxMuseumClient {
         return VfxTransformProviders.fixed(origin);
     }
     private static Husk findSource(ClientLevel level,String id,Vec3 origin) {
+        // Server-side scoreboard tags are not reliable client spawn metadata.
+        // Prefer the synchronized custom name; old museum worlds fall back to
+        // the sole Husk inside their stand (cells are 12 x 13 blocks apart).
         var nearby=level.getEntitiesOfClass(Husk.class,
-                new AABB(origin,origin).inflate(5.0),
-                zombie -> zombie.getTags().contains("pyrovfx_museum_source_"+id));
-        return nearby.isEmpty()?null:nearby.getFirst();
+                new AABB(origin,origin).inflate(4.5),
+                husk -> !husk.isRemoved());
+        if (nearby.isEmpty()) return null;
+        for (var husk : nearby) {
+            var name=husk.getCustomName();
+            if (name!=null && name.getString().contains("[" + id + "]")) return husk;
+            if (husk.getTags().contains("pyrovfx_museum_source_"+id)) return husk;
+        }
+        return nearby.stream().min(java.util.Comparator.comparingDouble(
+                husk -> husk.position().distanceToSqr(origin))).orElse(null);
     }
 
     /** Retain the benchmark fixture's explicit clock-domain behavior. */
@@ -301,37 +470,61 @@ public final class VfxMuseumClient {
     private static int play(String id,int requestedCount) {
         var e=VfxMuseumCatalog.find(id);
         if (e==null) return 0;
-        PAUSED.remove(id);
+        ENABLED.add(id);
         selected=id;solo=id;
         stopManaged();
-        NEXT_REPLAY.remove(id);
         start(e,requestedCount>0?requestedCount:e.count());
         return HANDLES.containsKey(id)?1:0;
     }
     private static int info(String id) {
         if (VfxMuseumCatalog.find(id)==null) return 0;
+        var e=VfxMuseumCatalog.find(id);
         selected=id;
-        say(VfxMuseumCatalog.find(id).description());
+        say("[" + e.category() + "] " + e.title() + "  (" + e.id() + ")");
+        say(e.description());
+        if (!VfxMuseumCatalog.legend(id).isBlank())
+            say("Compare: " + VfxMuseumCatalog.legend(id));
+        if (!VfxMuseumCatalog.formulas(id).isBlank()) {
+            say("Actual expressions:");
+            for (String expression : VfxMuseumCatalog.formulas(id).split("\\n"))
+                say(expression);
+        }
+        Long handle=HANDLES.get(id);
+        say("Effect: "+e.effect()+" | count: "+e.count()+
+                " | backend: "+(handle != null && ClientVfxManager.handleActive(handle)
+                        ? ClientVfxManager.backendForHandle(handle) : "not running"));
+        if (id.startsWith("source_")) {
+            if (handle == null || !ClientVfxManager.handleActive(handle)) {
+                say("Attachment: not running. Verify that the source entity/block is loaded.");
+            } else {
+                var source=ClientVfxManager.sourcePositionForHandle(handle);
+                say("Attachment particles: "+ClientVfxManager.particleCountForHandle(handle)
+                        +" | world source: "+(source == null ? "lost" : String.format(java.util.Locale.ROOT,
+                        "(%.2f, %.2f, %.2f)",source.x,source.y,source.z)));
+            }
+        }
+        if (id.equals("gpu_sprite") && handle != null && ClientVfxManager.handleActive(handle)) {
+            say("LEFT actual: "+ClientVfxManager.backendForEmitter(handle,"gpu_resident"));
+            say("RIGHT actual: "+ClientVfxManager.backendForEmitter(handle,"cpu_dense"));
+        }
         return 1;
     }
     private static int compare(String id) {
         var e=VfxMuseumCatalog.find(id);
         if (e==null) return 0;
-        button(e,VfxMuseumCatalog.Action.COMPARE);
-        return 1;
+        return solo(id);
     }
     private static int list() {
         for (var e:VfxMuseumCatalog.exhibits()) say(e.id()+" ["+e.category()+"]");
         return VfxMuseumCatalog.exhibits().size();
     }
     private static int stop() {
-        for(var e:VfxMuseumCatalog.exhibits()) PAUSED.add(e.id());
-        stopManaged();
-        return 1;
+        return global(VfxMuseumCatalog.GlobalAction.ALL_OFF);
     }
     private static int status() {
-        say("Museum: "+HANDLES.size()+" nearby effects, "+mode+
-                (solo.isEmpty()?"":" selected="+solo));
+        say("Museum: "+HANDLES.size()+" running / "+ENABLED.size()+" enabled / "+
+                VfxMuseumCatalog.exhibits().size()+" exhibits, mode="+mode+
+                (solo.isEmpty()?"":" solo="+solo));
         return 1;
     }
     private static int changeMode(Mode next) {
@@ -354,6 +547,10 @@ public final class VfxMuseumClient {
             else System.setProperty(entry.getKey(),entry.getValue());
         }
         ORIGINAL_FLAGS.clear();mode=Mode.AUTO;
+    }
+    private static void announce(String message) {
+        var player=Minecraft.getInstance().player;
+        if (player!=null) player.displayClientMessage(Component.literal(message),true);
     }
     private static void say(String message) {
         var player=Minecraft.getInstance().player;

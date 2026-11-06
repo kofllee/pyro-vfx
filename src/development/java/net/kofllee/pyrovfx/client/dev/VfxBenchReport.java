@@ -5,9 +5,9 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
-import net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer;
-import net.kofllee.pyrovfx.client.render.VfxInstancedModelRenderer;
-import net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer;
+import net.kofllee.pyrovfx.client.render.VfxNativeSpriteBatcher;
+import net.kofllee.pyrovfx.client.render.VfxNativeModelRenderer;
+import net.kofllee.pyrovfx.client.render.VfxGpuBirthBuffers;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.glfw.GLFW;
@@ -73,6 +73,47 @@ final class VfxBenchReport {
         root.addProperty("status", run.error == null ? "completed" : "invalid");
         root.addProperty("error", run.error);
         root.addProperty("scenario", run.scenario.name());
+        if (run.scenario.name().equals("alpha_world_overlap")
+                || run.scenario.name().equals("alpha_world_water")
+                || run.scenario.name().equals("alpha_visibility_water")
+                || run.scenario.name().equals("alpha_visibility_control"))
+            root.addProperty("waterForegroundRayVerified", run.waterForegroundVerified);
+        root.addProperty("vfxWorldRenderStage",
+                net.kofllee.pyrovfx.client.render.VfxRenderer.lastWorldStage());
+        root.addProperty("vfxEarlyPasses",
+                net.kofllee.pyrovfx.client.render.VfxRenderer.totalEarlyPasses()
+                        - run.stageEarlyBaseline);
+        root.addProperty("vfxLatePasses",
+                net.kofllee.pyrovfx.client.render.VfxRenderer.totalLatePasses()
+                        - run.stageLateBaseline);
+        root.addProperty("vfxMixedFrames",
+                net.kofllee.pyrovfx.client.render.VfxRenderer.totalMixedFrames()
+                        - run.stageMixedBaseline);
+        if (run.scenario.name().contains("water")) {
+            var client = net.minecraft.client.Minecraft.getInstance();
+            if (client.level != null) {
+                var eye = client.gameRenderer.getMainCamera().getPosition();
+                root.addProperty("cameraInsideWater",
+                        client.level.getFluidState(net.minecraft.core.BlockPos.containing(eye))
+                                .is(net.minecraft.tags.FluidTags.WATER));
+                root.addProperty("nearParticleInsideWater",
+                        client.level.getFluidState(net.minecraft.core.BlockPos.containing(
+                                new net.minecraft.world.phys.Vec3(-1.25, 141.5, -1.5)))
+                                .is(net.minecraft.tags.FluidTags.WATER));
+                root.addProperty("farParticleInsideWater",
+                        client.level.getFluidState(net.minecraft.core.BlockPos.containing(
+                                new net.minecraft.world.phys.Vec3(2.25, 141.5, 2.5)))
+                                .is(net.minecraft.tags.FluidTags.WATER));
+            }
+            root.addProperty("minecraftFogStartAtReport",
+                    com.mojang.blaze3d.systems.RenderSystem.getShaderFogStart());
+            root.addProperty("minecraftFogEndAtReport",
+                    com.mojang.blaze3d.systems.RenderSystem.getShaderFogEnd());
+            root.addProperty("vfxGpuAppliedFogStart",
+                    net.kofllee.pyrovfx.client.render.VfxGpuFog.lastAppliedStart());
+            root.addProperty("vfxGpuAppliedFogEnd",
+                    net.kofllee.pyrovfx.client.render.VfxGpuFog.lastAppliedEnd());
+        }
         if (run.lifecycle != null)
             root.addProperty("lifecycleVerified", run.lifecycle.verified());
         if (run.scenario.name().equals("m7_lifecycle_world_exit"))
@@ -80,18 +121,18 @@ final class VfxBenchReport {
         root.addProperty("cpuParticleBackend", Boolean.getBoolean("pyrovfx.cpu.forceLegacy")
                 ? "legacy-forced" : "auto-dense-with-feature-fallback");
         root.addProperty("gpuInstancingRequested", !Boolean.getBoolean("pyrovfx.render.forceLegacy"));
-        root.addProperty("gpuInstancedDrawCallsLastFrame", VfxInstancedSpriteRenderer.drawCalls());
-        root.addProperty("gpuInstancedParticlesLastFrame", VfxInstancedSpriteRenderer.submittedParticles());
-        root.addProperty("gpuFrustumCulledLastFrame", VfxInstancedSpriteRenderer.culledParticles());
-        root.addProperty("gpuSubpixelCulledLastFrame", VfxInstancedSpriteRenderer.subpixelCulledParticles());
-        root.addProperty("gpuModelDrawCallsLastFrame", VfxInstancedModelRenderer.lastDrawCalls());
-        root.addProperty("gpuModelInstancesLastFrame", VfxInstancedModelRenderer.lastInstances());
-        root.addProperty("gpuModelResidentUploadsLastFrame", VfxInstancedModelRenderer.residentUploads());
-        root.addProperty("gpuModelResidentUploadBytesLastFrame", VfxInstancedModelRenderer.residentUploadBytes());
-        root.addProperty("gpuAnalyticDrawCallsLastFrame", VfxAnalyticSpriteRenderer.drawCalls());
-        root.addProperty("gpuAnalyticInstancesLastFrame", VfxAnalyticSpriteRenderer.instances());
-        root.addProperty("gpuAnalyticUploadedBytesLastFrame", VfxAnalyticSpriteRenderer.uploadedBytes());
-        root.addProperty("gpuAnalyticDatasetsUploadedLastFrame", VfxAnalyticSpriteRenderer.uploadedDatasets());
+        root.addProperty("gpuInstancedDrawCallsLastFrame", VfxNativeSpriteBatcher.drawCalls());
+        root.addProperty("gpuInstancedParticlesLastFrame", VfxNativeSpriteBatcher.submittedParticles());
+        root.addProperty("gpuFrustumCulledLastFrame", VfxNativeSpriteBatcher.culledParticles());
+        root.addProperty("gpuSubpixelCulledLastFrame", VfxNativeSpriteBatcher.subpixelCulledParticles());
+        root.addProperty("gpuModelDrawCallsLastFrame", VfxNativeModelRenderer.lastDrawCalls());
+        root.addProperty("gpuModelInstancesLastFrame", VfxNativeModelRenderer.lastInstances());
+        root.addProperty("gpuModelResidentUploadsLastFrame", VfxNativeModelRenderer.residentUploads());
+        root.addProperty("gpuModelResidentUploadBytesLastFrame", VfxNativeModelRenderer.residentUploadBytes());
+        root.addProperty("gpuAnalyticDrawCallsLastFrame", net.kofllee.pyrovfx.client.render.VfxRenderer.analyticDrawCalls());
+        root.addProperty("gpuAnalyticInstancesLastFrame", net.kofllee.pyrovfx.client.render.VfxRenderer.analyticInstances());
+        root.addProperty("gpuAnalyticUploadedBytesLastFrame", net.kofllee.pyrovfx.client.render.VfxRenderer.analyticUploadedBytes());
+        root.addProperty("gpuAnalyticDatasetsUploadedLastFrame", net.kofllee.pyrovfx.client.render.VfxRenderer.analyticDatasetUploads());
         root.addProperty("gpuAnalyticUploadBytesTotal", run.analyticUploadBytes);
         root.addProperty("gpuAnalyticDatasetUploadsTotal", run.analyticDatasetUploads);
         root.addProperty("gpuAnalyticDrawCallsTotal", run.analyticDrawCalls);
@@ -99,6 +140,22 @@ final class VfxBenchReport {
         root.addProperty("gpuAnalyticCulledParticlesTotal", run.analyticSkippedParticles);
         root.addProperty("gpuAnalyticMaxInstancesSubmitted", run.maxAnalyticInstances);
         root.addProperty("gpuAnalyticBirthStateStrideBytes", 24);
+        root.addProperty("nativeBridgeInstanceDrawCallsThisRun",
+                net.kofllee.pyrovfx.client.render.VfxNativeGpuGeometryBridge.totalInstanceDrawCalls()
+                        - run.nativeInstanceDrawsAtStart);
+        root.addProperty("nativeBridgeInstanceUploadedBytesThisRun",
+                net.kofllee.pyrovfx.client.render.VfxNativeGpuGeometryBridge.totalInstanceUploadBytes()
+                        - run.nativeInstanceUploadsAtStart);
+        root.addProperty("nativeBridgeDrawCallsLastFrame",
+                net.kofllee.pyrovfx.client.render.VfxNativeGpuGeometryBridge.drawCalls());
+        root.addProperty("nativeBridgeInstancesLastFrame",
+                net.kofllee.pyrovfx.client.render.VfxNativeGpuGeometryBridge.instances());
+        root.addProperty("nativeBridgeOutputCapacityParticles",
+                net.kofllee.pyrovfx.client.render.VfxNativeGpuGeometryBridge.outputCapacityParticles());
+        root.addProperty("nativeBridgeAllocatedGeometryBytes",
+                net.kofllee.pyrovfx.client.render.VfxNativeGpuGeometryBridge.geometryBytes());
+        root.addProperty("nativeBridgeTotalResidentBirthUploadBytes",
+                net.kofllee.pyrovfx.client.render.VfxNativeGpuGeometryBridge.uploadedBirthBytes());
         var globalBudget = ClientVfxManager.globalBudget();
         root.addProperty("globalPeakObservedParticles", globalBudget.peakObservedParticles());
         root.addProperty("globalAdmittedSpawns", globalBudget.admittedSpawns());
@@ -140,6 +197,7 @@ final class VfxBenchReport {
         root.addProperty("requestedParticles", run.scenario.particles());
         root.addProperty("peakActiveParticles", run.peakParticles);
         root.addProperty("collisionContacts", run.collisionContacts);
+        root.addProperty("collisionOrderedHitCount", run.collisionOrderedHitCount);
         root.addProperty("collisionCacheHits", run.collisionCacheHits);
         root.addProperty("collisionCacheMisses", run.collisionCacheMisses);
         root.addProperty("collisionCacheDisabled", Boolean.getBoolean("pyrovfx.collision.disableCache"));

@@ -31,7 +31,7 @@ public final class VfxTwoClientServerProbe {
     private static final boolean ENABLED = !FMLEnvironment.production
             && Boolean.getBoolean("pyrovfx.multiclient.server");
     private static final ResourceLocation EFFECT = ResourceLocation.fromNamespaceAndPath(
-            "pyro_vfx", "museum/source_entity_world");
+            "pyro_vfx", "museum/source_entity_local");
     private static final ResourceLocation STRESS_EFFECT = ResourceLocation.fromNamespaceAndPath(
             "pyro_vfx", "museum/source_custom");
     private static final Vec3 ORIGIN = new Vec3(0.5, 140, 0.5);

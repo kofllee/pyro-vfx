@@ -1,0 +1,22 @@
+{
+  "format":"pyro_vfx:1",
+  "metadata":{"author":"Pyro VFX","description":"Model surface CPU birth sampling with GPU-resident trajectory"},
+  "parameters":{"count":1000},
+  "lifetime":{"mode":"once","active_ticks":160},
+  "emitters":[{
+    "id":"main",
+    "emitter_lifetime":{"mode":"once","active_ticks":1},
+    "spawn_amount":{"mode":"instant","amount":"param.count"},
+    "spawn_shape":{"type":"model","model":"pyro_vfx:vfx/ember_cube",
+       "scale":[4.5,4.5,4.5],"edge_thickness":0},
+    "particle_lifetime":{"max_age_ticks":140},
+    "motion":{"mode":"dynamic","dynamic":{
+      "direction":"outward","speed":0.12,
+      "acceleration":[0,-0.06,0],"linear_drag":0.15
+    }},
+    "rotation":{"mode":"none"},
+    "render":{"type":"sprite","facing":"camera","environment_lighting":false,
+      "sprite":{"texture":"minecraft:textures/particle/generic_0.png","blend_mode":"additive"},
+      "color":"#FFD180FF","scale":[0.14,0.14,1]}
+  }]
+}

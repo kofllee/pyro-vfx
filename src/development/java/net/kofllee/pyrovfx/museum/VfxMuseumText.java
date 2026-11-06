@@ -17,11 +17,20 @@ public final class VfxMuseumText {
     private VfxMuseumText() {}
 
     public static void configure(Display.TextDisplay display, String text, float scale) {
+        configure(display, text, scale, 180f);
+    }
+
+    public static void configure(Display.TextDisplay display, String text, float scale, float yaw) {
+        configure(display, text, scale, yaw, 240);
+    }
+
+    public static void configure(Display.TextDisplay display, String text, float scale, float yaw, int width) {
         CompoundTag tag = new CompoundTag();
         display.saveWithoutId(tag);
         tag.putString("text", JSON.toJson(Map.of("text", text)));
-        tag.putString("billboard", "center");
-        tag.putInt("line_width", 195);
+        tag.putString("billboard", "fixed");
+        tag.put("Rotation", floats(yaw, 0f));
+        tag.putInt("line_width", width);
         tag.putInt("background", 0xE0101420);
         tag.putBoolean("shadow", true);
         CompoundTag transform = new CompoundTag();

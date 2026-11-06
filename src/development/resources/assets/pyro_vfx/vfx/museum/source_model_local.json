@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Transforms & Attachments / Rotating local models: Rotating model particles follow the source with GPU resident geometry. Read on-stand controls to replay and compare."
+    "description": "Museum / Transforms & Attachments / Rotating local models: Rotating model particles follow the source with GPU resident geometry. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
     "count": 24
@@ -22,7 +22,7 @@
       ],
       "offset": [
         0,
-        1,
+        1.25,
         0
       ],
       "emitter_lifetime": {
@@ -31,11 +31,17 @@
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": "param.count"
+        "amount": 6
       },
       "spawn_shape": {
-        "type": "sphere",
-        "radius": 0.85
+        "type": "ring",
+        "radius": 1.15,
+        "inner_radius": 1.1,
+        "axis": [
+          0,
+          1,
+          0
+        ]
       },
       "particle_lifetime": {
         "max_age_ticks": 150
@@ -68,9 +74,59 @@
         },
         "color": "#FFFFFFFF",
         "scale": [
-          0.56,
-          0.56,
-          0.56
+          0.34,
+          0.34,
+          0.34
+        ]
+      }
+    },
+    {
+      "id": "entity_position_marker",
+      "space": "local",
+      "emitter_rotation": [
+        0,
+        30,
+        0
+      ],
+      "offset": [
+        0,
+        1.9,
+        0
+      ],
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 160
+      },
+      "spawn_amount": {
+        "mode": "steady",
+        "rate": 20,
+        "max_particles": 40
+      },
+      "spawn_shape": {
+        "type": "point"
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 35
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": "#55EECCFF",
+        "scale": [
+          0.24,
+          0.24,
+          1
         ]
       }
     }

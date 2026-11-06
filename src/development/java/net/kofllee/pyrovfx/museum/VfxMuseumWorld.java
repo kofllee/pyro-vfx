@@ -35,6 +35,25 @@ import static net.minecraft.commands.Commands.literal;
  */
 @EventBusSubscriber(modid = PyroVfx.MOD_ID)
 public final class VfxMuseumWorld {
+    public static final int TRANSPARENCY_Z =
+            VfxMuseumCatalog.ORIGIN_Z + VfxMuseumCatalog.rows() * VfxMuseumCatalog.CELL_Z + 16;
+    public static final int TRANSPARENCY_X = VfxMuseumCatalog.ORIGIN_X + 7;
+    public static final int TRANSPARENCY_SPACING = 21;
+
+    public static Vec3 transparencyOrigin(int lane) {
+        return new Vec3(TRANSPARENCY_X + lane * TRANSPARENCY_SPACING + 6.5,
+                VfxMuseumCatalog.FLOOR_Y + 3.5, TRANSPARENCY_Z + 16.5);
+    }
+
+    public static void teleportTransparency(net.minecraft.server.level.ServerPlayer player, int lane) {
+        var pos = transparencyOrigin(lane);
+        // Send position AND yaw/pitch together. Calling setYRot after a
+        // position-only teleport changes only the server's copy: the actual
+        // client retains its previous save-camera rotation.
+        player.connection.teleport(pos.x, VfxMuseumCatalog.FLOOR_Y + 2.0,
+                TRANSPARENCY_Z + 3.5, 0f, -5f);
+    }
+
     private VfxMuseumWorld() {}
 
     @SubscribeEvent
@@ -55,11 +74,50 @@ public final class VfxMuseumWorld {
                 .then(literal("visit").executes(ctx -> {
                     var player = ctx.getSource().getPlayerOrException();
                     // Keep each world/dimension independent; this is not a cross-dimensional portal.
-                    player.teleportTo(VfxMuseumCatalog.ORIGIN_X + 7.5,
+                    player.teleportTo(VfxMuseumCatalog.ORIGIN_X + 6.5,
                             VfxMuseumCatalog.FLOOR_Y + 2,
-                            VfxMuseumCatalog.ORIGIN_Z + 13.5);
+                            VfxMuseumCatalog.ORIGIN_Z + 4.5);
                     return 1;
                 }))
+                .then(literal("runtime").executes(ctx -> {
+                    var player = ctx.getSource().getPlayerOrException();
+                    var stand = VfxMuseumCatalog.find("runtime_collision");
+                    if (stand == null) return 0;
+                    player.teleportTo(stand.base().getX() + 6.5,
+                            stand.base().getY() + 2.0, stand.base().getZ() + 2.5);
+                    player.setYRot(0);
+                    player.setXRot(-6);
+                    return 1;
+                }))
+                .then(literal("transparency")
+                        .executes(ctx -> {
+                            teleportTransparency(ctx.getSource().getPlayerOrException(), 1);
+                            return 1;
+                        })
+                        .then(literal("clear").executes(ctx -> {
+                            teleportTransparency(ctx.getSource().getPlayerOrException(), 0);
+                            return 1;
+                        }))
+                        .then(literal("glass").executes(ctx -> {
+                            teleportTransparency(ctx.getSource().getPlayerOrException(), 1);
+                            return 1;
+                        }))
+                        .then(literal("water").executes(ctx -> {
+                            teleportTransparency(ctx.getSource().getPlayerOrException(), 2);
+                            return 1;
+                        }))
+                        .then(literal("submerged").executes(ctx -> {
+                            teleportTransparency(ctx.getSource().getPlayerOrException(), 3);
+                            return 1;
+                        }))
+                        .then(literal("underwater").executes(ctx -> {
+                            teleportTransparency(ctx.getSource().getPlayerOrException(), 4);
+                            return 1;
+                        }))
+                        .then(literal("tinted").executes(ctx -> {
+                            teleportTransparency(ctx.getSource().getPlayerOrException(), 5);
+                            return 1;
+                        })))
                 .then(literal("network").requires(src -> src.hasPermission(2))
                         .then(literal("static").executes(ctx ->
                                 VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "static")))
@@ -91,21 +149,140 @@ public final class VfxMuseumWorld {
 
     /** Build in a dedicated, fixed developer world; no runtime gameplay registration. */
     public static void build(ServerLevel level) {
+        // Initial museum setup may run before the player teleports here. Force
+        // load the former/current display chunks before querying old entities;
+        // unloaded TextDisplays otherwise survive every rebuild and duplicate.
+        preloadMuseumChunks(level);
         removeServiceEntities(level);
         clearOldGallery(level);
         for (var exhibit : VfxMuseumCatalog.exhibits()) {
             buildExhibit(level, exhibit);
         }
+        buildGlobalConsole(level);
+        if (Boolean.getBoolean("pyrovfx.museum.runtimeShowcase"))
+            buildTransparencyShowcase(level);
         place(level, VfxMuseumCatalog.MARKER, Blocks.LODESTONE.defaultBlockState());
         place(level, VfxMuseumCatalog.MARKER.above(), Blocks.SEA_LANTERN.defaultBlockState());
         level.setDefaultSpawnPos(new BlockPos(VfxMuseumCatalog.ORIGIN_X + 6,
-                VfxMuseumCatalog.FLOOR_Y + 2, VfxMuseumCatalog.ORIGIN_Z + 11), 180f);
+                VfxMuseumCatalog.FLOOR_Y + 2, VfxMuseumCatalog.ORIGIN_Z + 4), 180f);
+    }
+
+    /** Developer-only walkable visibility comparison, never added to the
+     * production VFX block set or to regular user worlds. */
+    private static void buildTransparencyShowcase(ServerLevel level) {
+        int y0 = VfxMuseumCatalog.FLOOR_Y;
+        for (int lane = 0; lane < 6; lane++) {
+            int x0 = TRANSPARENCY_X + lane * TRANSPARENCY_SPACING;
+            int z0 = TRANSPARENCY_Z;
+            for (int cx = x0 >> 4; cx <= (x0 + 14) >> 4; cx++)
+                for (int cz = z0 >> 4; cz <= (z0 + 24) >> 4; cz++)
+                    level.getChunk(cx, cz);
+            // Clear previous runs and build a physically navigable platform.
+            for (int dx = 0; dx <= 14; dx++)
+                for (int dz = 0; dz <= 24; dz++) {
+                    for (int dy = 1; dy <= 12; dy++) {
+                        BlockPos pos = new BlockPos(x0 + dx, y0 + dy, z0 + dz);
+                        if (!level.getBlockState(pos).isAir())
+                            place(level, pos, Blocks.AIR.defaultBlockState());
+                    }
+                    var floor = (dx == 0 || dx == 14 || dz == 0 || dz == 24)
+                            ? Blocks.YELLOW_CONCRETE : Blocks.SMOOTH_STONE;
+                    place(level, new BlockPos(x0 + dx, y0, z0 + dz), floor.defaultBlockState());
+                }
+            // Dark distant backing makes the identical alpha sprites readable
+            // through water and glass, rather than disappearing into blue sky.
+            for (int dx = 1; dx <= 13; dx++)
+                for (int dy = 1; dy <= 10; dy++)
+                    place(level, new BlockPos(x0 + dx, y0 + dy, z0 + 23),
+                            Blocks.BLACK_CONCRETE.defaultBlockState());
+            if (lane == 1) {
+                for (int dx = 1; dx <= 13; dx++)
+                    for (int dy = 2; dy <= 9; dy++)
+                        place(level, new BlockPos(x0 + dx, y0 + dy, z0 + 9),
+                                Blocks.GLASS.defaultBlockState());
+            } else if (lane == 2) {
+                // Sealed source-water plane: the observer's line of sight
+                // actually crosses water between z+8 (glass) and z+10 (glass).
+                for (int dx = 1; dx <= 13; dx++)
+                    for (int dy = 2; dy <= 9; dy++) {
+                        place(level, new BlockPos(x0 + dx, y0 + dy, z0 + 8),
+                                Blocks.GLASS.defaultBlockState());
+                        place(level, new BlockPos(x0 + dx, y0 + dy, z0 + 10),
+                                Blocks.GLASS.defaultBlockState());
+                        place(level, new BlockPos(x0 + dx, y0 + dy, z0 + 9),
+                                Blocks.WATER.defaultBlockState());
+                    }
+                for (int dz = 8; dz <= 10; dz++) {
+                    for (int dx = 0; dx <= 14; dx++)
+                        for (int dy : new int[]{1, 10})
+                            place(level, new BlockPos(x0 + dx, y0 + dy, z0 + dz),
+                                    Blocks.GLASS.defaultBlockState());
+                    for (int dy = 2; dy <= 9; dy++)
+                        for (int dx : new int[]{0, 14})
+                            place(level, new BlockPos(x0 + dx, y0 + dy, z0 + dz),
+                                    Blocks.GLASS.defaultBlockState());
+                }
+            } else if (lane == 5) {
+                // The SAME large red alpha sprite spans both sides of the
+                // tinted-glass edge. Move the camera sideways to catch the
+                // edge case without using an automated camera.
+                for (int dx = 1; dx <= 6; dx++)
+                    for (int dy = 2; dy <= 9; dy++)
+                        place(level, new BlockPos(x0 + dx, y0 + dy, z0 + 9),
+                                Blocks.TINTED_GLASS.defaultBlockState());
+            } else if (lane == 3 || lane == 4) {
+                // For these stages the colored particles are physically
+                // INSIDE the fluid. Lane 3 is viewed through the water from
+                // air; lane 4 immerses the viewer in the same water volume.
+                int zNear = lane == 4 ? 2 : 12;
+                int zFar = 21;
+                for (int dx = 0; dx <= 14; dx++)
+                    for (int dy = 1; dy <= 10; dy++)
+                        for (int dz = zNear - 1; dz <= zFar + 1; dz++)
+                            if (dx == 0 || dx == 14 || dy == 1 || dy == 10
+                                    || dz == zNear - 1 || dz == zFar + 1)
+                                place(level, new BlockPos(x0 + dx, y0 + dy, z0 + dz),
+                                        Blocks.GLASS.defaultBlockState());
+                for (int dx = 1; dx <= 13; dx++)
+                    for (int dy = 2; dy <= 9; dy++)
+                        for (int dz = zNear; dz <= zFar; dz++)
+                            place(level, new BlockPos(x0 + dx, y0 + dy, z0 + dz),
+                                    Blocks.WATER.defaultBlockState());
+            }
+            String name = switch (lane) {
+                case 0 -> "CLEAR VIEW - CONTROL";
+                case 1 -> "BEHIND GLASS";
+                case 2 -> "BEHIND WATER";
+                case 3 -> "PARTICLES INSIDE WATER - VIEW FROM AIR";
+                case 4 -> "CAMERA + PARTICLES INSIDE WATER";
+                default -> "HALF TINTED GLASS - WALK SIDEWAYS";
+            };
+            Display.TextDisplay sign = new Display.TextDisplay(EntityType.TEXT_DISPLAY, level);
+            sign.setPos(x0 + 7.5, y0 + 11.2, z0 + 11);
+            VfxMuseumText.configure(sign, name, 0.85f, 180f, 320);
+            sign.addTag("pyrovfx_museum");
+            level.addFreshEntity(sign);
+        }
+    }
+
+    private static void preloadMuseumChunks(ServerLevel level) {
+        int minX = VfxMuseumCatalog.ORIGIN_X - 4;
+        int maxX = VfxMuseumCatalog.ORIGIN_X
+                + VfxMuseumCatalog.COLUMNS * VfxMuseumCatalog.CELL_X + 4;
+        int minZ = VfxMuseumCatalog.ORIGIN_Z - 4;
+        int maxZ = VfxMuseumCatalog.ORIGIN_Z
+                + VfxMuseumCatalog.rows() * VfxMuseumCatalog.CELL_Z + 4;
+        for (int cx = minX >> 4; cx <= maxX >> 4; cx++)
+            for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++)
+                level.getChunk(cx, cz);
     }
 
     private static void removeServiceEntities(ServerLevel level) {
         AABB region = new AABB(VfxMuseumCatalog.ORIGIN_X - 4, VfxMuseumCatalog.FLOOR_Y - 4,
                 VfxMuseumCatalog.ORIGIN_Z - 4,
-                VfxMuseumCatalog.ORIGIN_X + 90, VfxMuseumCatalog.FLOOR_Y + 18,
+                Math.max(VfxMuseumCatalog.ORIGIN_X + 90,
+                        TRANSPARENCY_X + 6 * TRANSPARENCY_SPACING + 15),
+                VfxMuseumCatalog.FLOOR_Y + 18,
                 VfxMuseumCatalog.ORIGIN_Z + 245);
         for (Entity entity : level.getEntities((Entity) null, region)) {
             if (entity.getTags().contains("pyrovfx_museum"))
@@ -162,16 +339,59 @@ public final class VfxMuseumWorld {
         }
         place(level,base.offset(5,1,11),Blocks.SEA_LANTERN.defaultBlockState());
         place(level,base.offset(6,1,11),Blocks.SEA_LANTERN.defaultBlockState());
+        if (e.id().equals("collision_events")) {
+            // Each drop has a matching full-block collision pad and an empty
+            // two-block gap to the next lane. Nothing is simulated in the air.
+            var pads = new net.minecraft.world.level.block.Block[] {
+                    Blocks.LIGHT_BLUE_CONCRETE, Blocks.YELLOW_CONCRETE, Blocks.RED_CONCRETE
+            };
+            for (int i = 0; i < pads.length; i++) {
+                int x = 3 + i * 3;
+                for (int z = 4; z <= 6; z++)
+                    place(level,base.offset(x,1,z),pads[i].defaultBlockState());
+            }
+        }
+        if (e.id().equals("runtime_collision") || e.id().equals("runtime_self_emit")) {
+            // The two event test fixtures must hit real Minecraft blocks.
+            // A broad stage (not an invisible collision override) keeps the
+            // physics visible from any viewing angle at this stand.
+            for (int x = 3; x <= 9; x++)
+                for (int z = 3; z <= 7; z++)
+                    place(level, base.offset(x, 1, z),
+                            Blocks.ORANGE_CONCRETE.defaultBlockState());
+        }
         for (VfxMuseumCatalog.Action action : VfxMuseumCatalog.Action.values()) {
             var button=e.button(action);
-            place(level,button.below(),Blocks.POLISHED_ANDESITE.defaultBlockState());
+            var pedestal = switch (action) {
+                case TOGGLE -> Blocks.LIME_CONCRETE;
+                case SOLO -> Blocks.YELLOW_CONCRETE;
+                case INFO -> Blocks.LIGHT_BLUE_CONCRETE;
+            };
+            place(level,button.below(),pedestal.defaultBlockState());
             place(level,button,Blocks.STONE_BUTTON.defaultBlockState()
                     .setValue(BlockStateProperties.ATTACH_FACE,AttachFace.FLOOR));
+            spawnText(level,e,"control_"+action.name().toLowerCase(java.util.Locale.ROOT),
+                    switch(action) {
+                        case TOGGLE -> "ON/OFF";
+                        case SOLO -> "SOLO";
+                        case INFO -> "INFO";
+                    }, button.getX()-base.getX()+0.5, 3.0, 10.68, 0.42f);
         }
         spawnText(level,e,"title",e.title() + "\\n" + e.category(),
-                6.5,7.0,10.68,0.54f);
-        spawnText(level,e,"status","AUTO  |  LOADING",6.5,5.0,10.68,0.45f);
-        spawnText(level,e,"details","REPLAY     PAUSE     SOLO     INFO",6.5,3.45,10.68,0.43f);
+                6.5,7.2,10.68,0.62f,190);
+        spawnText(level,e,"status","ENABLED  |  LOADING",6.5,5.9,10.68,0.46f);
+        String formula = VfxMuseumCatalog.formulas(e.id());
+        spawnText(level,e,"details",VfxMuseumCatalog.hint(e.id(),e.description()),
+                6.5,formula.isBlank() ? 4.6 : 5.05,10.68,0.33f);
+        if (!formula.isBlank())
+            spawnText(level,e,"formula",formula,6.5,4.30,10.68,0.26f,460);
+        if (!VfxMuseumCatalog.legend(e.id()).isBlank()
+                && VfxMuseumCatalog.sampleLabels(e.id()).isEmpty())
+            spawnText(level,e,"legend",VfxMuseumCatalog.legend(e.id()),6.5,3.50,10.68,0.34f);
+        int labelIndex = 0;
+        for (var label : VfxMuseumCatalog.sampleLabels(e.id()))
+            spawnText(level,e,"sample_"+(labelIndex++),label.text(),
+                    6.5+label.offsetX(),5.2,7.75,0.32f);
         BlockPos anchor=base.offset(6,1,5);
         if (e.id().equals("source_block"))
             place(level,anchor,Blocks.COPPER_BLOCK.defaultBlockState());
@@ -188,6 +408,11 @@ public final class VfxMuseumWorld {
                 model.setNoAi(true);
                 model.setSilent(true);
                 model.setInvulnerable(true);
+                model.setGlowingTag(true);
+                // Glowing outline is enough: a vanilla mob nameplate scales up
+                // and overlays the scene when inspected from close range.
+                model.setCustomName(Component.literal("VFX SOURCE [" + e.id() + "]"));
+                model.setCustomNameVisible(false);
                 model.setPersistenceRequired();
                 model.addTag("pyrovfx_museum");
                 model.addTag("pyrovfx_museum_source_"+e.id());
@@ -196,12 +421,47 @@ public final class VfxMuseumWorld {
         }
     }
 
+    /** Shared museum-wide switchboard at the entrance. */
+    private static void buildGlobalConsole(ServerLevel level) {
+        var base = VfxMuseumCatalog.exhibits().getFirst().base();
+        for (int x=1; x<=10; x++) {
+            for (int y=2; y<=5; y++)
+                place(level,base.offset(x,y,0),
+                        (y == 5 ? Blocks.YELLOW_CONCRETE : Blocks.BLACK_CONCRETE).defaultBlockState());
+        }
+        spawnGlobalText(level,"MUSEUM CONTROLS",6.5,5.1,0.75,0.72f);
+        for (var action : VfxMuseumCatalog.GlobalAction.values()) {
+            BlockPos button=VfxMuseumCatalog.globalButton(action);
+            place(level,button.below(),
+                    (action == VfxMuseumCatalog.GlobalAction.ALL_ON
+                            ? Blocks.LIME_CONCRETE : Blocks.RED_CONCRETE).defaultBlockState());
+            place(level,button,Blocks.STONE_BUTTON.defaultBlockState()
+                    .setValue(BlockStateProperties.ATTACH_FACE,AttachFace.FLOOR));
+            spawnGlobalText(level, action==VfxMuseumCatalog.GlobalAction.ALL_ON ? "ALL ON" : "ALL OFF",
+                    button.getX()-base.getX()+0.5,3.15,1.2,0.52f);
+        }
+    }
+
+    private static void spawnGlobalText(ServerLevel level,String label,
+                                        double x,double y,double z,float scale) {
+        Display.TextDisplay display=new Display.TextDisplay(EntityType.TEXT_DISPLAY,level);
+        display.setPos(VfxMuseumCatalog.ORIGIN_X+x,VfxMuseumCatalog.FLOOR_Y+y,VfxMuseumCatalog.ORIGIN_Z+z);
+        VfxMuseumText.configure(display,label,scale,0f);
+        display.addTag("pyrovfx_museum");
+        level.addFreshEntity(display);
+    }
+
     /** Real TextDisplay entities backed by solid black concrete, never cropped signs. */
     private static void spawnText(ServerLevel level,VfxMuseumCatalog.Exhibit e,
                                   String kind,String text,double x,double y,double z,float scale) {
+        spawnText(level,e,kind,text,x,y,z,scale,240);
+    }
+
+    private static void spawnText(ServerLevel level,VfxMuseumCatalog.Exhibit e,
+                                  String kind,String text,double x,double y,double z,float scale,int width) {
         Display.TextDisplay display = new Display.TextDisplay(EntityType.TEXT_DISPLAY,level);
         display.setPos(e.base().getX()+x,e.base().getY()+y,e.base().getZ()+z);
-        VfxMuseumText.configure(display,text.replace("\\n","\n"),scale);
+        VfxMuseumText.configure(display,text.replace("\\n","\n"),scale,180f,width);
         display.addTag("pyrovfx_museum");
         display.addTag("pyrovfx_museum_"+e.id()+"_"+kind);
         level.addFreshEntity(display);

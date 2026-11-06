@@ -16,6 +16,7 @@ import net.kofllee.pyrovfx.client.vfx.ClientVfxInstance;
 import net.kofllee.pyrovfx.client.vfx.VfxPlayOptions;
 import net.kofllee.pyrovfx.client.render.VfxSpriteUvSampler;
 import net.kofllee.pyrovfx.client.render.VfxRenderVisibility;
+import net.kofllee.pyrovfx.client.render.VfxRenderMaterial;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.AABB;
 import org.joml.Matrix4f;
@@ -485,11 +486,18 @@ public final class PyroVfxGameTests {
     @GameTest(template = "empty")
     public static void museumCatalogHasCompleteValidEffectsAndPhysicalControls(GameTestHelper helper) {
         var entries = net.kofllee.pyrovfx.museum.VfxMuseumCatalog.exhibits();
-        if (entries.size() != 35 || entries.stream().map(e -> e.category()).distinct().count() != 7)
-            throw new AssertionError("Technical museum must have exactly 35 stands in 7 categories");
+        if (entries.size() != 42 || entries.stream().map(e -> e.category()).distinct().count() != 7)
+            throw new AssertionError("Technical museum must have 35 regular and 7 runtime validation stands in 7 categories");
 
         var shapeTypes = java.util.EnumSet.noneOf(net.kofllee.pyrovfx.vfx.type.VfxSpawnShapeType.class);
         var buttonPositions = new java.util.HashSet<net.minecraft.core.BlockPos>();
+        for (var action : net.kofllee.pyrovfx.museum.VfxMuseumCatalog.GlobalAction.values()) {
+            var button = net.kofllee.pyrovfx.museum.VfxMuseumCatalog.globalButton(action);
+            if (!buttonPositions.add(button)
+                    || !net.kofllee.pyrovfx.museum.VfxMuseumCatalog.inside(
+                            button.getX(), button.getY(), button.getZ()))
+                throw new AssertionError("Overlapping or missing global museum control: " + action);
+        }
         for (var e : entries) {
             if (e.count() < 1 || e.count() > 80 || e.visualScale() <= 0
                     || e.title().isBlank() || e.title().length() > 32 || e.description().isBlank())
@@ -535,10 +543,85 @@ public final class PyroVfxGameTests {
                             throw new AssertionError("Missing curve: " + kind);
                     }
                 }
+                if (e.id().equals("sprite_additive")) {
+                    if (definition.emitters().size() != 2)
+                        throw new AssertionError("Additive and alpha must share one stand");
+                    for (var emitter : json.getAsJsonArray("emitters")) {
+                        var specimen=emitter.getAsJsonObject();
+                        if (!"static".equals(specimen.getAsJsonObject("motion").get("mode").getAsString()))
+                            throw new AssertionError("Blend comparison must be motion-free");
+                    }
+                }
+                if (e.id().equals("sprite_horizontal")) {
+                    var modes = new java.util.HashSet<String>();
+                    for (var emitter : json.getAsJsonArray("emitters")) {
+                        var sample = emitter.getAsJsonObject();
+                        modes.add(sample.getAsJsonObject("render").get("facing").getAsString());
+                        if (!"point".equals(sample.getAsJsonObject("spawn_shape").get("type").getAsString())
+                                || !"alpha".equals(sample.getAsJsonObject("render")
+                                        .getAsJsonObject("sprite").get("blend_mode").getAsString())
+                                || sample.getAsJsonObject("spawn_amount").get("amount").getAsInt() != 1)
+                            throw new AssertionError("Billboard must have one tinted alpha sample per mode");
+                    }
+                    if (!modes.containsAll(java.util.Set.of("camera", "camera_horizontal", "world_x", "world_y")))
+                        throw new AssertionError("Billboard orientation comparison incomplete");
+                }
+                if (e.id().equals("gpu_sprite")) {
+                    if (definition.emitters().size() != 2
+                            || !net.kofllee.pyrovfx.client.vfx.VfxAnalyticPlan.analyse(
+                                    definition.emitters().get(0), true).supported()
+                            || net.kofllee.pyrovfx.client.vfx.VfxAnalyticPlan.analyse(
+                                    definition.emitters().get(1), true).supported()
+                            || !VfxDenseParticlePool.supports(definition.emitters().get(1)))
+                        throw new AssertionError("GPU versus CPU must contain both real backend paths");
+                }
+                if (e.id().equals("event_order")) {
+                    if (definition.emitters().size() != 3 || definition.triggers().size() != 3)
+                        throw new AssertionError("Trigger sequencing must show three timed stages");
+                }
+                if (e.id().equals("model_item") || e.id().equals("model_rotating")
+                        || e.id().equals("gpu_model")) {
+                    var positions = new java.util.HashSet<Double>();
+                    for (var emitter : json.getAsJsonArray("emitters")) {
+                        var sample=emitter.getAsJsonObject();
+                        if (!"point".equals(sample.getAsJsonObject("spawn_shape").get("type").getAsString())
+                                || sample.getAsJsonObject("spawn_amount").get("amount").getAsInt()!=1
+                                || !positions.add(sample.getAsJsonArray("offset").get(0).getAsDouble()))
+                            throw new AssertionError("Model specimens must not spawn on top of each other: "+e.id());
+                    }
+                }
+                if (e.id().equals("model_translucent")
+                        && json.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                            .getAsJsonObject("spawn_amount").get("amount").getAsInt()!=1)
+                    throw new AssertionError("Translucent specimen must not self-overlap");
+                if (e.id().equals("source_model_local")
+                        && definition.emitters().stream().noneMatch(
+                                em -> em.id().equals("entity_position_marker")))
+                    throw new AssertionError("Moving entity model must include a source-position marker");
                 if (e.id().equals("model_custom") && definition.emitters().size() < 3)
                     throw new AssertionError("Combined model sources missing");
-                if (e.id().equals("collision_events") && definition.emitters().size() < 3)
-                    throw new AssertionError("Combined collision modes missing");
+                if (e.id().equals("collision_events")) {
+                    if (definition.emitters().size() != 3)
+                        throw new AssertionError("Expected exactly three collision comparison lanes");
+                    var xs=new java.util.HashSet<Double>();
+                    var rebound=new java.util.HashSet<Double>();
+                    int expire=0;
+                    for (var item : json.getAsJsonArray("emitters")) {
+                        var sample=item.getAsJsonObject();
+                        xs.add(sample.getAsJsonArray("offset").get(0).getAsDouble());
+                        if (Math.abs(sample.getAsJsonArray("offset").get(1).getAsDouble()-2.35)>1e-6)
+                            throw new AssertionError("Collision lanes must use the same drop height");
+                        var collision=sample.getAsJsonObject("motion").getAsJsonObject("collision");
+                        rebound.add(collision.get("bounciness").getAsDouble());
+                        if (collision.get("expire_on_contact").getAsBoolean()) expire++;
+                        if (sample.getAsJsonObject("spawn_amount").get("amount").getAsInt()>4)
+                            throw new AssertionError("Crowded collision lane");
+                    }
+                    if (!xs.containsAll(java.util.Set.of(-3.0,0.0,3.0))
+                            || !rebound.containsAll(java.util.Set.of(0.0,0.78))
+                            || expire!=1)
+                        throw new AssertionError("No-bounce, bounce and expiry must be isolated");
+                }
             } catch (java.io.IOException ex) {
                 throw new AssertionError("Unreadable museum fixture: " + e.id(),ex);
             }
@@ -552,8 +635,9 @@ public final class PyroVfxGameTests {
         net.kofllee.pyrovfx.museum.VfxMuseumText.configure(display,"TextDisplay test",0.45f);
         var saved = new net.minecraft.nbt.CompoundTag();
         display.saveWithoutId(saved);
-        if (!saved.contains("text") || !saved.contains("background"))
-            throw new AssertionError("TextDisplay data was not applied");
+        if (!saved.contains("text") || !saved.contains("background")
+                || !"fixed".equals(saved.getString("billboard")))
+            throw new AssertionError("Fixed TextDisplay data was not applied");
         helper.succeed();
     }
 
@@ -582,6 +666,627 @@ public final class PyroVfxGameTests {
                 || net.kofllee.pyrovfx.client.render.VfxRenderCompatibility.eligible(true, false)
                 || net.kofllee.pyrovfx.client.render.VfxRenderCompatibility.eligible(true, true))
             throw new AssertionError("Shaderpack presence must not deny GPU; explicit legacy override must");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticWorldPlaneFacingMatchesSupportedSpriteModes(GameTestHelper helper) {
+        for (String facing : List.of("camera", "camera_horizontal", "world_x", "world_y", "world_z")) {
+            var definition = VfxDefinitionParser.parse(
+                    ResourceLocation.fromNamespaceAndPath("pyro_vfx", "analytic_facing_" + facing),
+                    JsonParser.parseString("""
+                        {"format":"pyro_vfx:1",
+                         "lifetime":{"mode":"once","active_ticks":4},
+                         "emitters":[{"id":"facing",
+                           "emitter_lifetime":{"mode":"once","active_ticks":1},
+                           "spawn_amount":{"mode":"instant","amount":1},
+                           "spawn_shape":{"type":"point"},
+                           "particle_lifetime":{"max_age_ticks":10},
+                           "motion":{"mode":"static"},
+                           "render":{"type":"sprite","facing":"FACING",
+                             "environment_lighting":false,
+                             "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                               "blend_mode":"additive"},
+                             "color":"#FFFFFFFF","scale":[1,1,1]}}]}
+                        """.replace("FACING", facing)).getAsJsonObject());
+            VfxAnalyticPlan plan = VfxAnalyticPlan.analyse(definition.emitters().getFirst(), true);
+            if (!plan.supported()) {
+                throw new AssertionError("Analytic world-plane sprite was rejected (" + facing
+                        + "): " + plan.reason());
+            }
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void saturatedSteadyEmissionDoesNotAccumulateDelayedBirthDebt(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "steady_spawn_debt"),
+                JsonParser.parseString("""
+                    {"format":"pyro_vfx:1","parameters":{"rate":400},
+                     "lifetime":{"mode":"once","active_ticks":14},
+                     "events":{"off":{"type":"set_param","param":"rate","value":0}},
+                     "triggers":[{"type":"timeline","time_ticks":3,"event":"off"}],
+                     "emitters":[{"id":"steady",
+                       "emitter_lifetime":{"mode":"once","active_ticks":12},
+                       "spawn_amount":{"mode":"steady","rate":"param.rate","max_particles":1},
+                       "spawn_shape":{"type":"point"},
+                       "particle_lifetime":{"max_age_ticks":2},
+                       "motion":{"mode":"static"},
+                       "render":{"type":"sprite","sprite":{
+                         "texture":"minecraft:textures/particle/generic_0.png",
+                         "blend_mode":"alpha"}}}]}
+                    """).getAsJsonObject());
+        var instance = new ClientVfxInstance(definition, Vec3.ZERO, VfxPlayOptions.empty(), 1L);
+        try {
+            for (int tick = 0; tick < 12; tick++) instance.tick(null);
+            int spawned = instance.emitters().getFirst().emittedParticles();
+            if (spawned < 1 || spawned > 2)
+                throw new AssertionError("Steady emission replayed capped birth debt after rate=0: "
+                        + spawned);
+        } finally {
+            instance.close();
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticBirthExpressionsMatchCpuSamplingAndRandomStream(GameTestHelper helper) {
+        var effect = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "analytic_birth_expressions"),
+                JsonParser.parseString("""
+                    {"format":"pyro_vfx:1","parameters":{"radius":2,"speed":4},
+                     "emitters":[{"id":"birth",
+                       "spawn_shape":{"type":"sphere",
+                         "radius":"param.radius + particle.random","edge_thickness":1},
+                       "particle_lifetime":{"max_age_ticks":30},
+                       "motion":{"mode":"dynamic","dynamic":{
+                         "direction":"custom",
+                         "custom_direction":["spawn.pos.x + 0.1",1,0],
+                         "speed":"param.speed + particle.random",
+                         "acceleration":[0,0,0],"linear_drag":0}},
+                       "render":{"type":"sprite","environment_lighting":false,
+                         "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                           "blend_mode":"additive"},
+                         "color":"#FFFFFFFF","scale":[0.2,0.2,1]}}]}
+                    """).getAsJsonObject());
+        var definition = effect.emitters().getFirst();
+        var plan = VfxAnalyticPlan.analyse(definition, true);
+        if (!plan.supported())
+            throw new AssertionError("CPU birth-time expressions rejected by GPU plan: " + plan.reason());
+        var start = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of("radius", 2.0, "speed", 4.0), effect.curves(), RandomSource.create(23),
+                effect.program().variables());
+        var scope = ClientVfxExpressionContexts.emitterStart(start, Vec3.ZERO, 0.5);
+        var origin = new Vec3(10, 20, 30);
+        var gpuRandom = RandomSource.create(55);
+        var cpuRandom = RandomSource.create(55);
+        var pool = new VfxAnalyticParticlePool(definition, plan);
+        try {
+            pool.spawn(16, origin, scope, gpuRandom);
+            var state = pool.data().order(java.nio.ByteOrder.nativeOrder());
+            for (int i = 0; i < 16; i++) {
+                double particleRandom = cpuRandom.nextDouble();
+                var pre = ClientVfxExpressionContexts.particleSpawn(scope, origin, particleRandom);
+                Vec3 pos = net.kofllee.pyrovfx.client.vfx.sampling.VfxSpawnPositionSampler.sample(
+                        origin, definition.spawnShape(), pre, cpuRandom);
+                var post = ClientVfxExpressionContexts.particleSpawn(scope, pos, particleRandom);
+                Vec3 velocity = net.kofllee.pyrovfx.client.vfx.sampling.VfxMotionSampler.sampleInitialVelocity(
+                        definition.motion(), origin, pos, post, cpuRandom);
+                int offset = i * pool.stride();
+                checkClose(pos.x, state.getFloat(offset));
+                checkClose(pos.y, state.getFloat(offset + 4));
+                checkClose(pos.z, state.getFloat(offset + 8));
+                checkClose(velocity.x, state.getFloat(offset + 12));
+                checkClose(velocity.y, state.getFloat(offset + 16));
+                checkClose(velocity.z, state.getFloat(offset + 20));
+            }
+            checkClose(cpuRandom.nextDouble(), gpuRandom.nextDouble());
+        } finally {
+            pool.close();
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticCohortAppendRequiresSameAgePlanAndSource(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "analytic_cohort_merge");
+        var effect = VfxDefinitionParser.parse(id, JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{"id":"main",
+                  "spawn_shape":{"type":"point"},
+                  "particle_lifetime":{"max_age_ticks":30},
+                  "motion":{"mode":"static"},
+                  "render":{"type":"sprite","environment_lighting":false,
+                    "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                      "blend_mode":"additive"},"color":"#FFFFFFFF","scale":[0.2,0.2,1]}}]}
+                """).getAsJsonObject());
+        var emitter = effect.emitters().getFirst();
+        var plan = VfxAnalyticPlan.analyse(emitter, true);
+        if (!plan.supported()) throw new AssertionError(plan.reason());
+        var source = net.kofllee.pyrovfx.vfx.transform.VfxTransform.at(Vec3.ZERO);
+        var moved = net.kofllee.pyrovfx.vfx.transform.VfxTransform.at(new Vec3(3, 0, 0));
+        var scope = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of(), effect.curves(), RandomSource.create(11), effect.program().variables());
+        var pool = new VfxAnalyticParticlePool(emitter, plan);
+        try {
+            if (pool.canAppendBirth(plan, source))
+                throw new AssertionError("Uninitialized cohort must not be reusable");
+            pool.spawn(2, Vec3.ZERO, scope, RandomSource.create(12), source);
+            if (!pool.canAppendBirth(plan, source) || pool.canAppendBirth(plan, moved))
+                throw new AssertionError("Cohort should append only to identical source transform");
+            var changed = new VfxAnalyticPlan(true, plan.reason(), plan.accelerationX(),
+                    plan.accelerationY(), plan.accelerationZ(), plan.dragMultiplier(),
+                    plan.lifetime() + 1);
+            if (pool.canAppendBirth(changed, source))
+                throw new AssertionError("Different lifetime must not share a cohort");
+            pool.spawn(3, Vec3.ZERO, scope, RandomSource.create(13), source);
+            if (pool.liveCount() != 5)
+                throw new AssertionError("Same-tick births must append all particles");
+            pool.tick();
+            if (pool.canAppendBirth(plan, source))
+                throw new AssertionError("Aged cohorts must not receive new births");
+        } finally {
+            pool.close();
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticSharedDynamicSpriteRotationUsesUniformAngles(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "analytic_shared_sprite_rotation");
+        var json = JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{"id":"spin",
+                  "spawn_shape":{"type":"point"},
+                  "particle_lifetime":{"max_age_ticks":20},
+                  "motion":{"mode":"static"},
+                  "rotation":{"mode":"dynamic","dynamic":{
+                    "start_rotation":[5,10,20],"angular_velocity":[0,0,80],
+                    "angular_acceleration":[0,0,0],"angular_drag":0}},
+                  "render":{"type":"sprite","environment_lighting":false,
+                    "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                      "blend_mode":"additive"},
+                    "color":"#FFFFFFFF","scale":[0.1,0.25,1]}}]}
+                """).getAsJsonObject();
+        var effect = VfxDefinitionParser.parse(id, json);
+        var emitter = effect.emitters().getFirst();
+        var plan = VfxAnalyticPlan.analyse(emitter, true);
+        if (!plan.supported()) throw new AssertionError(plan.reason());
+        var scope = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of(), effect.curves(), RandomSource.create(31), effect.program().variables());
+        var pool = new VfxAnalyticParticlePool(emitter, plan);
+        try {
+            pool.spawn(1, Vec3.ZERO, scope, RandomSource.create(32));
+            checkClose(20, pool.spriteRotation(0.5f).z);
+            pool.tick();
+            checkClose(22, pool.spriteRotation(0.5f).z);
+            pool.tick();
+            checkClose(26, pool.spriteRotation(0.5f).z);
+            checkClose(5, pool.spriteRotation(0.5f).x);
+        } finally {
+            pool.close();
+        }
+        json.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                .getAsJsonObject("rotation").getAsJsonObject("dynamic")
+                .add("start_rotation", JsonParser.parseString("[\"particle.random\",0,0]"));
+        if (VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
+                .emitters().getFirst(), true).supported())
+            throw new AssertionError("Different particle rotations must fall back to CPU");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticSharedAgeParametricOrbitMatchesCpuTickInterpolation(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "parametric_gpu_shared_age");
+        var json = JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{"id":"orbit",
+                   "spawn_shape":{"type":"point"},
+                   "particle_lifetime":{"max_age_ticks":20},
+                   "motion":{"mode":"parametric","parametric":{"offset":[
+                     "1+particle.age*2","math.sin(particle.age*0.2)",0]}},
+                   "render":{"type":"sprite","environment_lighting":false,
+                     "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                       "blend_mode":"additive"},
+                     "color":"#FFFFFFFF","scale":[0.2,0.2,1]}}]}
+                """).getAsJsonObject();
+        var effect = VfxDefinitionParser.parse(id, json);
+        var definition = effect.emitters().getFirst();
+        var plan = VfxAnalyticPlan.analyse(definition, true);
+        if (!plan.supported()) throw new AssertionError(plan.reason());
+        var scope = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0.0,
+                Map.of(), effect.curves(), RandomSource.create(41), effect.program().variables());
+        var pool = new VfxAnalyticParticlePool(definition, plan);
+        try {
+            pool.spawn(1, Vec3.ZERO, scope, RandomSource.create(42));
+            checkClose(0, pool.parametricOffset(0.5f).x);
+            pool.tick();
+            checkClose(0, pool.parametricOffset(0).x);
+            checkClose(0.5, pool.parametricOffset(0.5f).x);
+            checkClose(1, pool.parametricOffset(1).x);
+            pool.tick();
+            checkClose(2, pool.parametricOffset(0.5f).x);
+            checkClose(Math.sin(0.2) * 0.5, pool.parametricOffset(0.5f).y);
+        } finally {
+            pool.close();
+        }
+        json.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                .getAsJsonObject("motion").getAsJsonObject("parametric")
+                .add("offset", JsonParser.parseString("[\"particle.random\",0,0]"));
+        if (VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
+                .emitters().getFirst(), true).supported())
+            throw new AssertionError("Different particle.random offsets require CPU per-particle simulation");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticRandomUvStartAndEmitterTimingFreezeAtBirth(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "gpu_random_start_uv");
+        var json = JsonParser.parseString("""
+                {"format":"pyro_vfx:1","parameters":{"fps":8},
+                 "emitters":[{"id":"main","spawn_shape":{"type":"point"},
+                   "particle_lifetime":{"max_age_ticks":60},
+                   "motion":{"mode":"static"},
+                   "render":{"type":"sprite","environment_lighting":false,
+                     "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                       "blend_mode":"additive",
+                       "uv":{"mode":"animated","texture_size":[16,16,0],
+                         "uv_start":[0,0,0],"uv_size":[4,16,0],
+                         "uv_step":[4,0,0],"frame_count":4,"fps":"param.fps",
+                         "loop":true,"random_start_frame":true}},
+                     "color":"#FFFFFFFF","scale":[0.2,0.2,1]}}]}
+                """).getAsJsonObject();
+        var definition = VfxDefinitionParser.parse(id, json);
+        var emitter = definition.emitters().getFirst();
+        var plan = VfxAnalyticPlan.analyse(emitter, true);
+        if (!plan.supported()) throw new AssertionError(plan.reason());
+        var a = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of("fps", 8.0), definition.curves(),
+                RandomSource.create(31), definition.program().variables());
+        var b = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of("fps", 12.0), definition.curves(),
+                RandomSource.create(32), definition.program().variables());
+        var pool = new VfxAnalyticParticlePool(emitter, plan);
+        try {
+            var source = net.kofllee.pyrovfx.vfx.transform.VfxTransform.at(Vec3.ZERO);
+            var random = RandomSource.create(33);
+            var reference = RandomSource.create(33);
+            pool.spawn(8, Vec3.ZERO, a, random);
+            if (!pool.birthRandomAttribute() || pool.stride() != 28)
+                throw new AssertionError("Missing GPU birth random attribute for UV frame offsets");
+            checkClose(8.0, pool.uvState().fps());
+            if (!pool.canAppendBirth(plan, source, a)
+                    || pool.canAppendBirth(plan, source, b))
+                throw new AssertionError("Mutable UV fps was not snapshotted per birth");
+            var data = pool.data();
+            for (int i = 0; i < 8; i++)
+                checkClose((float) reference.nextDouble(), data.getFloat(i * pool.stride() + 24));
+            checkClose(reference.nextDouble(), random.nextDouble());
+        } finally {
+            pool.close();
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticModelSurfaceUsesCpuBirthSamplerWithoutDisablingGpuMotion(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "gpu_model_surface_birth");
+        var def = VfxDefinitionParser.parse(id, JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{"id":"main",
+                  "spawn_shape":{"type":"model","model":"pyro_vfx:vfx/ember_cube",
+                    "scale":[2,2,2]},
+                  "particle_lifetime":{"max_age_ticks":25},
+                  "motion":{"mode":"dynamic","dynamic":{
+                    "direction":"outward","speed":1,
+                    "acceleration":[0,0,0],"linear_drag":0}},
+                  "render":{"type":"sprite","environment_lighting":false,
+                    "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                      "blend_mode":"additive"},
+                    "color":"#FFFFFFFF","scale":[0.2,0.2,1]}}]}
+                """).getAsJsonObject());
+        if (!VfxAnalyticPlan.analyse(def.emitters().getFirst(), true).supported())
+            throw new AssertionError("Model surface geometry is a birth-time operation, not GPU physics");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticSharedBlockLightIsOnlyUsedForExactPointCohorts(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "gpu_light_probe");
+        var json = JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{"id":"light",
+                  "spawn_shape":{"type":"point"},
+                  "particle_lifetime":{"max_age_ticks":40},
+                  "motion":{"mode":"static"},
+                  "render":{"type":"sprite","environment_lighting":true,
+                    "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                      "blend_mode":"additive"},
+                    "color":"#FFFFFFFF","scale":[0.4,0.4,1]}}]}
+                """).getAsJsonObject();
+        var definition = VfxDefinitionParser.parse(id, json);
+        var emitter = definition.emitters().getFirst();
+        var plan = VfxAnalyticPlan.analyse(emitter, true);
+        if (!plan.supported()) throw new AssertionError("Shared point light should use one GPU probe");
+        var scope = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of(), definition.curves(), RandomSource.create(50), definition.program().variables());
+        var pool = new VfxAnalyticParticlePool(emitter, plan);
+        try {
+            var origin = new Vec3(3.5, 65.0, 6.5);
+            pool.spawn(20, origin, scope, RandomSource.create(51));
+            checkClose(origin.x, pool.sharedLightPosition().x);
+            checkClose(origin.y, pool.sharedLightPosition().y);
+            checkClose(origin.z, pool.sharedLightPosition().z);
+        } finally {
+            pool.close();
+        }
+        var body = json.getAsJsonArray("emitters").get(0).getAsJsonObject();
+        body.add("spawn_shape", JsonParser.parseString(
+                "{\"type\":\"sphere\",\"radius\":1}"));
+        if (!VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
+                .emitters().getFirst(), true).supported())
+            throw new AssertionError("Bounded world-lit cloud must admit GPU volume probes");
+        body.add("spawn_shape", JsonParser.parseString("{\"type\":\"point\"}"));
+        body.add("motion", JsonParser.parseString(
+                "{\"mode\":\"dynamic\",\"dynamic\":{\"direction\":\"up\",\"speed\":1}}"));
+        if (!VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
+                .emitters().getFirst(), true).supported())
+            throw new AssertionError("Moving world-lit cohorts should be eligible for bounded light volumes");
+        var region = net.kofllee.pyrovfx.client.render.VfxAnalyticLightVolume.plan(
+                new AABB(-0.5, 64.2, 3.9, 3.1, 67.5, 7.2), 1000);
+        if (region == null || region.index(-0.5, 64.2, 3.9) < 0
+                || region.index(3.1, 67.5, 7.2) < 0
+                || region.index(0, 68, 5) < 0
+                || region.index(100, 64, 5) >= 0)
+            throw new AssertionError("Light volume must contain all interpolated particle block positions");
+        if (net.kofllee.pyrovfx.client.render.VfxAnalyticLightVolume.plan(
+                new AABB(-16, 0, -16, 16, 32, 16), 1000) != null)
+            throw new AssertionError("Large world-lit clouds must use precise CPU fallback");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticIndividualRandomLifetimesRetireExactly(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "random_gpu_particle_life");
+        var json = JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{"id":"main",
+                    "spawn_shape":{"type":"point"},
+                    "particle_lifetime":{"max_age_ticks":"2 + particle.random * 20"},
+                    "motion":{"mode":"static"},
+                    "render":{"type":"sprite","environment_lighting":false,
+                      "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                        "blend_mode":"additive"},
+                      "color":"#FFFFFFFF","scale":[0.2,0.2,1]}}]}
+                """).getAsJsonObject();
+        var definition = VfxDefinitionParser.parse(id, json);
+        var emitter = definition.emitters().getFirst();
+        var plan = VfxAnalyticPlan.analyse(emitter, true);
+        if (!plan.supported())
+            throw new AssertionError("Birth-random lifetimes must use GPU residency: " + plan.reason());
+        var scope = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of(), definition.curves(), RandomSource.create(19), definition.program().variables());
+        var source = RandomSource.create(22);
+        var expectedRandom = RandomSource.create(22);
+        var pool = new VfxAnalyticParticlePool(emitter, plan.forBirth(emitter, scope));
+        int[] lifetimes = new int[64];
+        try {
+            pool.spawn(lifetimes.length, Vec3.ZERO, scope, source);
+            if (!pool.individualLifetimes() || pool.stride() != 28)
+                throw new AssertionError("Per-particle lifetime attribute was not allocated");
+            var bytes = pool.data();
+            int maxLife = 0;
+            for (int i = 0; i < lifetimes.length; i++) {
+                int life = Math.max(1, (int) Math.round(2 + expectedRandom.nextDouble() * 20));
+                lifetimes[i] = life;
+                maxLife = Math.max(maxLife, life);
+                checkClose(life, bytes.getFloat(i * pool.stride() + pool.lifetimeAttributeOffset()));
+            }
+            for (int tick = 1; tick <= maxLife; tick++) {
+                pool.tick();
+                int remaining = 0;
+                for (int life : lifetimes) if (life > tick) remaining++;
+                if (pool.liveCount() != remaining)
+                    throw new AssertionError("Expired particle still charged against budget on tick "
+                            + tick + ": " + pool.liveCount() + " vs " + remaining);
+            }
+            if (pool.allocatedStateBytes() != 0)
+                throw new AssertionError("Last random lifetime did not release resident birth data");
+        } finally {
+            pool.close();
+        }
+        json.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                .getAsJsonObject("render").add("color",
+                        JsonParser.parseString("[1,1,1,\"1-particle.normalized_age\"]"));
+        if (VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
+                .emitters().getFirst(), true).supported())
+            throw new AssertionError("Lifetime-sensitive appearance needs per-particle shader evaluation");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void residentModelSupportsSharedAgeRgbButNotTranslucentSolid(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "model_shared_age_color");
+        var json = JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{"id":"model",
+                  "spawn_shape":{"type":"sphere","radius":2},
+                  "particle_lifetime":{"max_age_ticks":60},
+                  "motion":{"mode":"dynamic","dynamic":{
+                    "direction":"outward","speed":0.3}},
+                  "render":{"type":"model","environment_lighting":false,
+                    "model":{"source":"custom","model":"pyro_vfx:vfx/ember_cube",
+                      "render_layer":"solid"},
+                    "color":["particle.normalized_age",0.6,1,1],
+                    "scale":[0.2,0.2,0.2]}}]}
+                """).getAsJsonObject();
+        var definition = VfxDefinitionParser.parse(id, json).emitters().getFirst();
+        if (!VfxAnalyticPlan.analyse(definition, true).supported())
+            throw new AssertionError("Shared-age RGB should be evaluated once per resident model cohort");
+        json.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                .getAsJsonObject("render").add("color",
+                        JsonParser.parseString("[1,1,1,\"particle.normalized_age\"]"));
+        definition = VfxDefinitionParser.parse(id, json).emitters().getFirst();
+        if (VfxAnalyticPlan.analyse(definition, true).supported())
+            throw new AssertionError("Solid model alpha cannot vary without a transparent pass");
+        json.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                .getAsJsonObject("render").getAsJsonObject("model")
+                .addProperty("render_layer", "additive");
+        definition = VfxDefinitionParser.parse(id, json).emitters().getFirst();
+        if (!VfxAnalyticPlan.analyse(definition, true).supported())
+            throw new AssertionError("Additive resident models may vary shared-age alpha");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void velocityBillboardsUseResidentGpuAndDenseInstancing(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "gpu_velocity_billboard");
+        var definition = VfxDefinitionParser.parse(id, JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[{"id":"main",
+                    "spawn_shape":{"type":"point"},
+                    "particle_lifetime":{"max_age_ticks":30},
+                    "motion":{"mode":"dynamic","dynamic":{
+                        "direction":"outward","speed":2,
+                        "acceleration":[0,-1,0],"linear_drag":0.1}},
+                    "render":{"type":"sprite","facing":"velocity",
+                        "environment_lighting":false,
+                        "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                            "blend_mode":"additive"},
+                        "color":"#FFFFFFFF","scale":[0.2,0.7,1]}}]}
+                """).getAsJsonObject());
+        var emitter = definition.emitters().getFirst();
+        if (!VfxAnalyticPlan.analyse(emitter, true).supported()
+                || !net.kofllee.pyrovfx.client.render.VfxNativeSpriteBatcher.supportsGeometry(emitter)
+                || !VfxDenseParticlePool.supports(emitter))
+            throw new AssertionError("Velocity-facing sprites must be available in resident and Dense GPU routes");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticBirthAccelerationAndDragCaptureIndependentCohorts(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "gpu_birth_motion_coefficients");
+        var json = JsonParser.parseString("""
+                {"format":"pyro_vfx:1","parameters":{"gravity":4,"drag":0.2},
+                 "emitters":[{"id":"main","spawn_shape":{"type":"point"},
+                   "particle_lifetime":{"max_age_ticks":40},
+                   "motion":{"mode":"dynamic","dynamic":{
+                     "direction":"up","speed":1,
+                     "acceleration":[0,"-param.gravity",0],
+                     "linear_drag":"param.drag"}},
+                   "render":{"type":"sprite","environment_lighting":false,
+                     "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                       "blend_mode":"additive"},
+                     "color":"#FFFFFFFF","scale":[0.2,0.2,1]}}]}
+                """).getAsJsonObject();
+        var definition = VfxDefinitionParser.parse(id, json);
+        var emitter = definition.emitters().getFirst();
+        var plan = VfxAnalyticPlan.analyse(emitter, true);
+        if (!plan.supported())
+            throw new AssertionError("Birth-only acceleration/drag should stay resident: " + plan.reason());
+        var a = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of("gravity", 4.0, "drag", 0.2), definition.curves(),
+                RandomSource.create(7), definition.program().variables());
+        var b = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of("gravity", 10.0, "drag", 0.9), definition.curves(),
+                RandomSource.create(8), definition.program().variables());
+        var first = plan.forBirth(emitter, a);
+        var second = plan.forBirth(emitter, b);
+        checkClose(-4 * 0.05 * 0.05, first.accelerationY());
+        checkClose(-10 * 0.05 * 0.05, second.accelerationY());
+        checkClose(Math.exp(-0.2 * 0.05), first.dragMultiplier());
+        checkClose(Math.exp(-0.9 * 0.05), second.dragMultiplier());
+        if (first.equals(second)) throw new AssertionError("Parameter changes merged different birth plans");
+        // A coefficient that changes with each particle cannot be shared.
+        json.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                .getAsJsonObject("motion").getAsJsonObject("dynamic")
+                .addProperty("linear_drag", "particle.random");
+        if (VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
+                .emitters().getFirst(), true).supported())
+            throw new AssertionError("Randomized per-particle drag must remain CPU");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticEmitterBirthLifetimeKeepsIndependentCohortAges(GameTestHelper helper) {
+        var id = ResourceLocation.fromNamespaceAndPath("pyro_vfx", "analytic_emitter_birth_lifetime");
+        var json = JsonParser.parseString("""
+                {"format":"pyro_vfx:1","parameters":{"life":3},
+                 "emitters":[{"id":"bursts",
+                   "emitter_lifetime":{"mode":"looping","active_ticks":2,"loops":2},
+                   "spawn_amount":{"mode":"instant","amount":1},
+                   "spawn_shape":{"type":"point"},
+                   "particle_lifetime":{"max_age_ticks":"param.life"},
+                   "motion":{"mode":"static"},
+                   "render":{"type":"sprite","environment_lighting":false,
+                     "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                       "blend_mode":"additive"},
+                     "color":"#FFFFFFFF","scale":[0.2,0.2,1]}}]}
+                """).getAsJsonObject();
+        var effect = VfxDefinitionParser.parse(id, json);
+        var emitter = effect.emitters().getFirst();
+        var analytic = VfxAnalyticPlan.analyse(emitter, true);
+        if (!analytic.supported()) throw new AssertionError(analytic.reason());
+        var a = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of("life", 3.0), effect.curves(), RandomSource.create(1),
+                effect.program().variables());
+        var b = ClientVfxExpressionContexts.effectStart(Vec3.ZERO, 0,
+                Map.of("life", 8.0), effect.curves(), RandomSource.create(2),
+                effect.program().variables());
+        var first = new VfxAnalyticParticlePool(emitter, analytic.forBirth(emitter, a));
+        var second = new VfxAnalyticParticlePool(emitter, analytic.forBirth(emitter, b));
+        try {
+            if (first.plan().lifetime() != 3 || second.plan().lifetime() != 8)
+                throw new AssertionError("Changed effect parameter was not bound per birth");
+            first.spawn(1, Vec3.ZERO, a, RandomSource.create(3));
+            second.spawn(1, Vec3.ZERO, b, RandomSource.create(4));
+            for (int i = 0; i < 3; i++) {
+                first.tick(); second.tick();
+            }
+            if (first.liveCount() != 0 || second.liveCount() != 1)
+                throw new AssertionError("Cohorts with different birth lifetimes expired together");
+        } finally {
+            first.close();
+            second.close();
+        }
+        json.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                .getAsJsonObject("particle_lifetime").addProperty("max_age_ticks", "particle.random*20");
+        var randomLife = VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
+                .emitters().getFirst(), true);
+        if (!randomLife.supported())
+            throw new AssertionError("Per-particle random lifetime should use independent GPU lifetime attributes");
+        json.getAsJsonArray("emitters").get(0).getAsJsonObject()
+                .getAsJsonObject("particle_lifetime").addProperty("max_age_ticks", "particle.age+20");
+        if (VfxAnalyticPlan.analyse(VfxDefinitionParser.parse(id, json)
+                .emitters().getFirst(), true).supported())
+            throw new AssertionError("Lifetime changing every particle tick is not a birth-time value");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void analyticSchedulingAcceptsLoopingAndManualBirthCohorts(GameTestHelper helper) {
+        for (String lifetime : List.of("once", "looping", "manual")) {
+            for (String spawnMode : List.of("instant", "steady", "manual")) {
+                var definition = VfxDefinitionParser.parse(
+                        ResourceLocation.fromNamespaceAndPath("pyro_vfx",
+                                "analytic_" + lifetime + "_" + spawnMode),
+                        JsonParser.parseString("""
+                            {"format":"pyro_vfx:1",
+                             "lifetime":{"mode":"once","active_ticks":20},
+                             "emitters":[{"id":"cohort",
+                               "emitter_lifetime":{"mode":"LIFETIME","active_ticks":1,
+                                   "sleep_ticks":2,"loops":3},
+                               "spawn_amount":{"mode":"SPAWN","amount":2,
+                                   "rate":20,"max_particles":20},
+                               "spawn_shape":{"type":"point"},
+                               "particle_lifetime":{"max_age_ticks":10},
+                               "motion":{"mode":"static"},
+                               "render":{"type":"sprite","environment_lighting":false,
+                                   "sprite":{"texture":"minecraft:textures/particle/generic_0.png",
+                                   "blend_mode":"additive"},"color":"#FFFFFFFF",
+                                   "scale":[1,1,1]}}]}
+                            """.replace("LIFETIME", lifetime)
+                                .replace("SPAWN", spawnMode)).getAsJsonObject());
+                VfxAnalyticPlan plan = VfxAnalyticPlan.analyse(
+                        definition.emitters().getFirst(), true);
+                if (!plan.supported())
+                    throw new AssertionError("A GPU-compatible birth schedule fell back for "
+                            + lifetime + "/" + spawnMode + ": " + plan.reason());
+            }
+        }
         helper.succeed();
     }
 
@@ -868,7 +1573,7 @@ public final class PyroVfxGameTests {
                 """).getAsJsonObject());
         var emitter = definition.emitters().getFirst();
         if (!VfxDenseParticlePool.supports(emitter)
-                || !net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.supportsGeometry(emitter))
+                || !net.kofllee.pyrovfx.client.render.VfxNativeSpriteBatcher.supportsGeometry(emitter))
             throw new AssertionError("Rotated additive sprite unnecessarily requires CPU quad rendering");
         helper.succeed();
     }
@@ -887,19 +1592,57 @@ public final class PyroVfxGameTests {
                 ]}
                 """).getAsJsonObject());
         var emitter = definition.emitters().getFirst();
-        if (!net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.supportsGeometry(emitter))
+        if (!net.kofllee.pyrovfx.client.render.VfxNativeSpriteBatcher.supportsGeometry(emitter))
             throw new AssertionError("Fullbright alpha smoke should use the sorted GPU instancer");
-        long far = net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.depthSortKey(8, 0);
-        long near = net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.depthSortKey(1, 1);
-        long behind = net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.depthSortKey(-3, 2);
+        long far = net.kofllee.pyrovfx.client.render.VfxNativeSpriteBatcher.depthSortKey(8, 0);
+        long near = net.kofllee.pyrovfx.client.render.VfxNativeSpriteBatcher.depthSortKey(1, 1);
+        long behind = net.kofllee.pyrovfx.client.render.VfxNativeSpriteBatcher.depthSortKey(-3, 2);
         if (!(far < near && near < behind))
             throw new AssertionError("Alpha particles must sort back-to-front in view space");
         long[] keys = {near, behind, far,
-                net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.depthSortKey(8, 3)};
-        net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer.sortAlphaOrder(keys, keys.length);
+                net.kofllee.pyrovfx.client.render.VfxNativeSpriteBatcher.depthSortKey(8, 3)};
+        net.kofllee.pyrovfx.client.render.VfxNativeSpriteBatcher.sortAlphaOrder(keys, keys.length);
         if ((int) keys[0] != 0 || (int) keys[1] != 3
                 || (int) keys[2] != 1 || (int) keys[3] != 2) {
             throw new AssertionError("Depth sorting must preserve stable order for identical depths");
+        }
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void nativeMaterialPassesUseSemanticsNotWorldRaycasts(GameTestHelper helper) {
+        var definition = VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "native_material_routing"),
+                JsonParser.parseString("""
+                {"format":"pyro_vfx:1","emitters":[
+                  {"id":"flare","spawn_shape":{"type":"point"},"render":{"type":"sprite",
+                    "sprite":{"texture":"minecraft:textures/particle/generic_0.png","blend_mode":"additive"}}},
+                  {"id":"smoke","spawn_shape":{"type":"point"},"render":{"type":"sprite",
+                    "sprite":{"texture":"minecraft:textures/particle/generic_0.png","blend_mode":"alpha"}}},
+                  {"id":"opaque","spawn_shape":{"type":"point"},"render":{"type":"model","model":{"source":"custom",
+                    "model":"pyro_vfx:vfx/ember_cube","render_layer":"solid"}}},
+                  {"id":"cutout","spawn_shape":{"type":"point"},"render":{"type":"model","model":{"source":"custom",
+                    "model":"pyro_vfx:vfx/ember_cube","render_layer":"cutout"}}},
+                  {"id":"transparent","spawn_shape":{"type":"point"},"render":{"type":"model","model":{"source":"custom",
+                    "model":"pyro_vfx:vfx/ember_cube","render_layer":"translucent"}}}
+                ]}
+                """).getAsJsonObject());
+        var expected = new VfxRenderMaterial.Kind[]{
+                VfxRenderMaterial.Kind.ADDITIVE, VfxRenderMaterial.Kind.ALPHA,
+                VfxRenderMaterial.Kind.OPAQUE, VfxRenderMaterial.Kind.CUTOUT,
+                VfxRenderMaterial.Kind.ALPHA
+        };
+        for (int i = 0; i < definition.emitters().size(); i++) {
+            var material = VfxRenderMaterial.of(definition.emitters().get(i));
+            if (material.kind() != expected[i])
+                throw new AssertionError("Incorrect native material kind at " + i);
+            boolean alpha = expected[i] == VfxRenderMaterial.Kind.ALPHA;
+            if (material.requiresSorting() != alpha
+                    || (material.pass()
+                        == VfxRenderMaterial.Pass.AFTER_WORLD)
+                        != alpha
+                    || material.writesDepth() != (i == 2 || i == 3))
+                throw new AssertionError("Native pass must use material semantics: " + material);
         }
         helper.succeed();
     }
@@ -961,7 +1704,7 @@ public final class PyroVfxGameTests {
         var emitter = definition.emitters().getFirst();
         if (VfxDenseParticlePool.supports(emitter)
                 || VfxAnalyticPlan.analyse(emitter, true).supported()
-                || net.kofllee.pyrovfx.client.render.VfxInstancedModelRenderer.supportsGeometry(emitter)) {
+                || net.kofllee.pyrovfx.client.render.VfxNativeModelRenderer.supportsGeometry(emitter)) {
             throw new AssertionError("Entity renderers have runtime pose, texture and render-layer behavior");
         }
         helper.succeed();
@@ -1236,8 +1979,12 @@ public final class PyroVfxGameTests {
                                 throw new AssertionError("Unjustified Legacy route: " + model + "/"
                                         + lit + "/" + collision + "/" + rotation + "/" + translucent);
                             }
-                            boolean expectedGpu = !lit && !collision && !translucent
-                                    && (model || !rotation);
+                            // Moving lit sprites may use an exact bounded
+                            // voxel lightmap; if the volume is too large the
+                            // renderer chooses the CPU lit fallback per draw.
+                            // World-lit models still remain on CPU.
+                            boolean expectedGpu = !collision && !translucent
+                                    && (!lit || !model);
                             if (VfxAnalyticPlan.analyse(emitter, true).supported() != expectedGpu) {
                                 throw new AssertionError("Incorrect GPU eligibility: " + model + "/"
                                         + lit + "/" + collision + "/" + rotation + "/" + translucent);
@@ -1251,7 +1998,7 @@ public final class PyroVfxGameTests {
     }
 
     @GameTest(template = "empty")
-    public static void collisionEventCallbacksStayOrderedOnLegacy(GameTestHelper helper) {
+    public static void collisionCallbacksMayUseDenseWithoutLosingOrderedExecution(GameTestHelper helper) {
         var def = VfxDefinitionParser.parse(
                 ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "event_backend_guard"),
                 JsonParser.parseString("""
@@ -1268,9 +2015,24 @@ public final class PyroVfxGameTests {
                 }]}
                 """).getAsJsonObject());
         var emitter = def.emitters().getFirst();
-        if (VfxDenseParticlePool.supports(emitter)
+        if (!VfxDenseParticlePool.supports(emitter)
                 || VfxAnalyticPlan.analyse(emitter, true).supported()) {
-            throw new AssertionError("Collision callbacks cannot be bypassed by Dense or GPU routing");
+            throw new AssertionError("Ordered collision callbacks must be Dense-capable but not GPU resident");
+        }
+        // No collision system means no legal callback point. Keep such
+        // configurations on the legacy path rather than silently skipping events.
+        var json = JsonParser.parseString("""
+              {"format":"pyro_vfx:1","events":{"mark_hit":{"type":"set_param",
+                  "param":"hit","value":1}},"parameters":{"hit":0},
+               "emitters":[{"id":"main","spawn_shape":{"type":"point"},"particle_triggers":[
+                 {"type":"on_collision","event":"mark_hit"}],
+                 "motion":{"mode":"static"},"render":{"type":"sprite","sprite":{
+                    "texture":"minecraft:textures/particle/generic_0.png"}}}]}
+              """).getAsJsonObject();
+        if (VfxDenseParticlePool.supports(VfxDefinitionParser.parse(
+                ResourceLocation.fromNamespaceAndPath(PyroVfx.MOD_ID, "dense_without_contact"), json)
+                .emitters().getFirst())) {
+            throw new AssertionError("Particle callbacks without collisions must keep Legacy routing");
         }
         helper.succeed();
     }
@@ -1523,6 +2285,21 @@ public final class PyroVfxGameTests {
         checkClose(second.nextDouble(),first.nextDouble());
         if(pool.liveCount()!=20 || pool.data().remaining()!=20*24)
             throw new AssertionError("GPU birth state count or packed stride mismatch");
+        if(pool.allocatedStateBytes() != 20L * VfxAnalyticParticlePool.STRIDE)
+            throw new AssertionError("Analytic cohort allocated unnecessary native memory");
+        var smallCohort = new VfxAnalyticParticlePool(definition.emitters().getFirst(), plan);
+        try {
+            smallCohort.spawn(1, Vec3.ZERO, scope, RandomSource.create(100));
+            if (smallCohort.allocatedStateBytes() != 256)
+                throw new AssertionError("A one-particle cohort should not reserve 4 KiB");
+            smallCohort.spawn(19, Vec3.ZERO, scope, RandomSource.create(101));
+            if (smallCohort.liveCount() != 20
+                    || smallCohort.allocatedStateBytes() < 20L * VfxAnalyticParticlePool.STRIDE
+                    || smallCohort.data().remaining() != 20 * VfxAnalyticParticlePool.STRIDE)
+                throw new AssertionError("Growth of a compact cohort lost packed birth state");
+        } finally {
+            smallCohort.close();
+        }
         for(int t=1;t<=40;t++) pool.tick();
         if(pool.liveCount()!=0) throw new AssertionError("Analytic particle lifetime mismatch");
 
@@ -1573,8 +2350,8 @@ public final class PyroVfxGameTests {
                 .getAsJsonObject("render").getAsJsonObject("sprite")
                 .getAsJsonObject("uv").addProperty("random_start_frame", true);
         var random = VfxDefinitionParser.parse(id, parsed);
-        if (VfxAnalyticPlan.analyse(random.emitters().getFirst(), true).supported()) {
-            throw new AssertionError("Per-particle random UV phase cannot share one GPU uniform");
+        if (!VfxAnalyticPlan.analyse(random.emitters().getFirst(), true).supported()) {
+            throw new AssertionError("Per-particle random UV frame should use a resident birth attribute");
         }
         helper.succeed();
     }

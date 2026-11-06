@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Minecraft light-sampled sprite must retain vanilla RenderType fallback"
+    "description": "World-lit sprite lightmap parity between GPU instancing and Minecraft RenderType"
   },
   "parameters": {
     "count": 1000

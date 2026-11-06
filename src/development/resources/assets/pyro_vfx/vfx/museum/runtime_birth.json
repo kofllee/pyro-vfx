@@ -1,0 +1,73 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "Museum / CPU / GPU / NEW Birth expressions: GPU Analytic samples sphere radius and initial speed from birth-time expressions. Use the stand's INFO button for technical details and comparison labels."
+  },
+  "parameters": {
+    "count": 64,
+    "radius": 0.8,
+    "speed": 0.5
+  },
+  "lifetime": {
+    "mode": "once",
+    "active_ticks": 160
+  },
+  "emitters": [
+    {
+      "id": "birth",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": "param.radius + particle.random * 0.35",
+        "edge_thickness": 0.2
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 110
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": "param.speed + particle.random * 0.25",
+          "acceleration": [
+            0,
+            -0.03,
+            0
+          ],
+          "linear_drag": 0.15
+        }
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": [
+          0.55,
+          0.8,
+          1,
+          "1-particle.normalized_age*0.65"
+        ],
+        "scale": [
+          0.512,
+          0.512,
+          1
+        ]
+      }
+    }
+  ]
+}

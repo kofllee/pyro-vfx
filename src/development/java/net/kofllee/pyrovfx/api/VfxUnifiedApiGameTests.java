@@ -180,9 +180,11 @@ public final class VfxUnifiedApiGameTests {
                 || point.updatePose(VfxTransform.at(Vec3.ZERO)))
             throw new AssertionError("World-aware position/streamed routing failed");
         helper.runAfterDelay(5, () -> {
-            if (point.isActive() || block.isActive() || pose.isActive() || streamed.isActive()
-                    || ServerVfxNetwork.liveCount(level) != before)
-                throw new AssertionError("Default routing bypassed server duration/cleanup");
+            // GameTests run concurrently in one ServerLevel. Other tests may
+            // start or expire unrelated leases during this five-tick delay.
+            // Each handle probes its own UUID in the server lease ledger.
+            if (point.isActive() || block.isActive() || pose.isActive() || streamed.isActive())
+                throw new AssertionError("One of the four server leases failed to expire");
             helper.succeed();
         });
     }

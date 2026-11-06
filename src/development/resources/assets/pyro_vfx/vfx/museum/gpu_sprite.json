@@ -2,10 +2,12 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / CPU / GPU / GPU analytic: GPU birth-state sparks show no difference versus CPU replay. Read on-stand controls to replay and compare."
+    "description": "Museum / CPU / GPU / GPU analytic: GPU birth-state sparks show no difference versus CPU replay. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
-    "count": 40
+    "count": 40,
+    "cpuRadius": 0.65,
+    "cpuAlpha": 0.9333333333333333
   },
   "lifetime": {
     "mode": "once",
@@ -13,7 +15,7 @@
   },
   "emitters": [
     {
-      "id": "main",
+      "id": "gpu_resident",
       "emitter_lifetime": {
         "mode": "once",
         "active_ticks": 1
@@ -24,7 +26,7 @@
       },
       "spawn_shape": {
         "type": "sphere",
-        "radius": 1.55
+        "radius": 0.65
       },
       "particle_lifetime": {
         "max_age_ticks": 140
@@ -33,10 +35,64 @@
         "mode": "dynamic",
         "dynamic": {
           "direction": "outward",
-          "speed": 0.75,
+          "speed": 0.2,
           "acceleration": [
             0,
-            -1.0,
+            0,
+            0
+          ],
+          "linear_drag": 0.6
+        }
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": "#FFBB66EE",
+        "scale": [
+          0.34,
+          0.34,
+          1
+        ]
+      },
+      "offset": [
+        -2.2,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "cpu_dense",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": "param.count"
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": "param.cpuRadius"
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": 0.2,
+          "acceleration": [
+            0,
+            0,
             0
           ],
           "linear_drag": 0.6
@@ -54,17 +110,22 @@
           "blend_mode": "additive"
         },
         "color": [
+          0.3333333333333333,
+          0.8745098039215686,
           1.0,
-          0.7,
-          0.3,
-          "1.0 - 0.7 * particle.normalized_age"
+          "param.cpuAlpha"
         ],
         "scale": [
-          "(0.12 + 0.25 * particle.normalized_age) * 4",
-          "(0.12 + 0.25 * particle.normalized_age) * 4",
+          0.34,
+          0.34,
           1
         ]
-      }
+      },
+      "offset": [
+        2.2,
+        0,
+        0
+      ]
     }
   ]
 }

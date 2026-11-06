@@ -2,32 +2,36 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Appearance & Rendering / Custom / block / entity: Custom, block and entity 3D geometry; observe the depth. Read on-stand controls to replay and compare."
+    "description": "Museum / Appearance & Rendering / Custom / block / entity: Three stationary labeled geometry samples: custom on the left, block in the middle, entity on the right. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
     "count": 5
   },
   "lifetime": {
-    "mode": "once",
-    "active_ticks": 160
+    "mode": "looping",
+    "active_ticks": 120,
+    "sleep_ticks": 0,
+    "loops": 0
   },
   "emitters": [
     {
       "id": "main",
       "emitter_lifetime": {
-        "mode": "once",
-        "active_ticks": 1
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 111,
+        "loops": 0
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": "param.count"
+        "amount": 1
       },
       "spawn_shape": {
         "type": "sphere",
-        "radius": 1.55
+        "radius": 0.1
       },
       "offset": [
-        -2,
+        -2.4,
         0,
         0
       ],
@@ -35,17 +39,7 @@
         "max_age_ticks": 140
       },
       "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": 0.25,
-          "acceleration": [
-            0,
-            -0.1,
-            0
-          ],
-          "linear_drag": 0.1
-        }
+        "mode": "static"
       },
       "rotation": {
         "mode": "none"
@@ -60,41 +54,33 @@
         },
         "color": "#FFFFFFFF",
         "scale": [
-          0.6,
-          0.6,
-          0.6
+          1.15,
+          1.15,
+          1.15
         ]
       }
     },
     {
       "id": "block",
       "emitter_lifetime": {
-        "mode": "once",
-        "active_ticks": 1
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 111,
+        "loops": 0
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": 2
+        "amount": 1
       },
       "spawn_shape": {
         "type": "sphere",
-        "radius": 3
+        "radius": 0.1
       },
       "particle_lifetime": {
         "max_age_ticks": 140
       },
       "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": 0.25,
-          "acceleration": [
-            0,
-            -0.1,
-            0
-          ],
-          "linear_drag": 0.1
-        }
+        "mode": "static"
       },
       "render": {
         "type": "model",
@@ -107,9 +93,9 @@
         },
         "color": "#FFFFFFFF",
         "scale": [
-          1.1,
-          1.1,
-          1.1
+          1.15,
+          1.15,
+          1.15
         ]
       },
       "offset": [
@@ -121,19 +107,21 @@
     {
       "id": "entity",
       "emitter_lifetime": {
-        "mode": "once",
-        "active_ticks": 1
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 111,
+        "loops": 0
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": 2
+        "amount": 1
       },
       "spawn_shape": {
         "type": "sphere",
-        "radius": 3
+        "radius": 0.1
       },
       "offset": [
-        2,
+        2.4,
         0,
         0
       ],
@@ -141,17 +129,7 @@
         "max_age_ticks": 140
       },
       "motion": {
-        "mode": "dynamic",
-        "dynamic": {
-          "direction": "outward",
-          "speed": 0.25,
-          "acceleration": [
-            0,
-            -0.1,
-            0
-          ],
-          "linear_drag": 0.1
-        }
+        "mode": "static"
       },
       "rotation": {
         "mode": "none"
@@ -166,9 +144,9 @@
         },
         "color": "#FFFFFFFF",
         "scale": [
-          1.1,
-          1.1,
-          1.1
+          1.15,
+          1.15,
+          1.15
         ]
       }
     }

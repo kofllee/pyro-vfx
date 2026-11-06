@@ -1,0 +1,36 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX",
+    "description": "Deterministic 1k age-driven orbit: GPU shared-age parametric offset vs CPU Dense fallback"
+  },
+  "parameters": {"count": 1000},
+  "lifetime": {"mode": "once", "active_ticks": 160},
+  "emitters": [{
+    "id": "orbit",
+    "emitter_lifetime": {"mode": "once", "active_ticks": 1},
+    "spawn_amount": {"mode": "instant", "amount": "param.count"},
+    "spawn_shape": {"type": "sphere", "radius": 2.0},
+    "particle_lifetime": {"max_age_ticks": 140},
+    "motion": {
+      "mode": "parametric",
+      "parametric": {
+        "offset": [
+          "math.sin(particle.age * 0.14) * 2.0",
+          "math.cos(particle.age * 0.09) * 1.2",
+          "math.sin(particle.age * 0.07) * 1.3"
+        ]
+      }
+    },
+    "rotation": {"mode": "none"},
+    "render": {
+      "type": "sprite", "facing": "camera", "environment_lighting": false,
+      "sprite": {
+        "texture": "minecraft:textures/particle/generic_0.png",
+        "blend_mode": "additive"
+      },
+      "color": [1,0.55,0.2,"1-particle.normalized_age*0.8"],
+      "scale": [0.2,0.2,1]
+    }
+  }]
+}

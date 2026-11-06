@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Appearance & Rendering / Sprite UV frames: Sprite texture frames change over time without moving the billboard. Read on-stand controls to replay and compare."
+    "description": "Museum / Appearance & Rendering / Sprite UV frames: Sprite texture frames change over time without moving the billboard. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
     "count": 36

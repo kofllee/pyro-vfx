@@ -2,7 +2,7 @@
   "format": "pyro_vfx:1",
   "metadata": {
     "author": "Pyro VFX",
-    "description": "Museum / Motion & Rotation / 3D angular velocity: Fully three-dimensional cubes rotate visibly without collapsing to planes. Read on-stand controls to replay and compare."
+    "description": "Museum / Motion & Rotation / 3D angular velocity: Fully three-dimensional cubes rotate visibly without collapsing to planes. Use the stand's INFO button for technical details and comparison labels."
   },
   "parameters": {
     "count": 5
@@ -13,18 +13,17 @@
   },
   "emitters": [
     {
-      "id": "main",
+      "id": "model_1",
       "emitter_lifetime": {
         "mode": "once",
         "active_ticks": 1
       },
       "spawn_amount": {
         "mode": "instant",
-        "amount": "param.count"
+        "amount": 1
       },
       "spawn_shape": {
-        "type": "sphere",
-        "radius": 1.55
+        "type": "point"
       },
       "particle_lifetime": {
         "max_age_ticks": 140
@@ -73,11 +72,158 @@
           1
         ],
         "scale": [
-          0.6,
-          0.6,
-          0.6
+          0.75,
+          0.75,
+          0.75
         ]
-      }
+      },
+      "offset": [
+        -2.5,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "model_2",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 1
+      },
+      "spawn_shape": {
+        "type": "point"
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": 0.25,
+          "acceleration": [
+            0,
+            -0.1,
+            0
+          ],
+          "linear_drag": 0.1
+        }
+      },
+      "rotation": {
+        "mode": "dynamic",
+        "dynamic": {
+          "start_rotation": [
+            10,
+            20,
+            0
+          ],
+          "angular_velocity": [
+            70,
+            100,
+            35
+          ],
+          "angular_drag": 0.1
+        }
+      },
+      "render": {
+        "type": "model",
+        "environment_lighting": false,
+        "model": {
+          "source": "custom",
+          "model": "pyro_vfx:vfx/ember_cube",
+          "render_layer": "solid"
+        },
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "scale": [
+          0.75,
+          0.75,
+          0.75
+        ]
+      },
+      "offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "id": "model_3",
+      "emitter_lifetime": {
+        "mode": "once",
+        "active_ticks": 1
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 1
+      },
+      "spawn_shape": {
+        "type": "point"
+      },
+      "particle_lifetime": {
+        "max_age_ticks": 140
+      },
+      "motion": {
+        "mode": "dynamic",
+        "dynamic": {
+          "direction": "outward",
+          "speed": 0.25,
+          "acceleration": [
+            0,
+            -0.1,
+            0
+          ],
+          "linear_drag": 0.1
+        }
+      },
+      "rotation": {
+        "mode": "dynamic",
+        "dynamic": {
+          "start_rotation": [
+            10,
+            20,
+            0
+          ],
+          "angular_velocity": [
+            70,
+            100,
+            35
+          ],
+          "angular_drag": 0.1
+        }
+      },
+      "render": {
+        "type": "model",
+        "environment_lighting": false,
+        "model": {
+          "source": "custom",
+          "model": "pyro_vfx:vfx/ember_cube",
+          "render_layer": "solid"
+        },
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "scale": [
+          0.75,
+          0.75,
+          0.75
+        ]
+      },
+      "offset": [
+        2.5,
+        0,
+        0
+      ]
     }
   ]
 }
