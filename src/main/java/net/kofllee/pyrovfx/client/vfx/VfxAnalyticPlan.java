@@ -1,6 +1,7 @@
 package net.kofllee.pyrovfx.client.vfx;
 
 import net.kofllee.pyrovfx.vfx.definition.VfxEmitterDefinition;
+import net.kofllee.pyrovfx.vfx.expression.VfxExpressionContext;
 import net.kofllee.pyrovfx.vfx.type.*;
 
 /**
@@ -24,43 +25,45 @@ public record VfxAnalyticPlan(boolean supported, String reason,
         boolean sprite = d.render().type() == VfxRenderType.SPRITE
                 && d.render().sprite() != null
                 && d.render().sprite().blendMode() == VfxBlendMode.ADDITIVE
-                && !d.render().environmentLighting()
+                // Shared point light is exact with one probe. Spatially
+                // spread and moving GPU sprites use an exact, bounded block
+                // light volume when its voxel cost is acceptable, otherwise
+                // the renderer draws through Minecraft's lit fallback.
                 && (d.render().facing() == VfxFacingMode.CAMERA
                     || d.render().facing() == VfxFacingMode.CAMERA_HORIZONTAL
-                    || d.render().facing() == VfxFacingMode.WORLD_Z);
+                    || d.render().facing() == VfxFacingMode.WORLD_X
+                    || d.render().facing() == VfxFacingMode.WORLD_Y
+                    || d.render().facing() == VfxFacingMode.WORLD_Z
+                    || d.render().facing() == VfxFacingMode.VELOCITY);
         if (!sprite && !model)
             return reject("GPU resident path requires an additive sprite or unlit baked opaque/cutout/additive model");
-        if (model && (!d.render().appearance().color().isConstant()
-                    || d.render().appearance().color().evaluate(null).a() != 1.0))
-            return reject("model resident kernel requires constant opaque color");
-        if (sprite && (d.render().facing() != VfxFacingMode.CAMERA
-                    && d.render().facing() != VfxFacingMode.CAMERA_HORIZONTAL
-                    && d.render().facing() != VfxFacingMode.WORLD_Z))
-            return reject("additive full-bright camera-facing sprite required");
-        if (d.emitterLifetime().mode() != VfxEmitterLifetimeMode.ONCE
-                || (d.spawnAmount().mode() != VfxSpawnAmountMode.INSTANT
-                    && d.spawnAmount().mode() != VfxSpawnAmountMode.STEADY))
-            return reject("analytic backend supports once-lived instant or steady emitters");
+        if (model && (!d.render().appearance().color().isSharedParticleAgeOnly()
+                || d.render().model().renderLayer() != VfxModelRenderLayer.ADDITIVE
+                && !d.render().appearance().color().hasConstantOpaqueAlpha()))
+            return reject("resident model colors must share particle age; solid meshes need opaque alpha");
+        // Emitter lifetime and emission scheduling remain CPU-side. Each GPU
+        // cohort retains a separate birth tick, so LOOPING and MANUAL births
+        // have the same particle-age semantics as ONCE/STEADY.
         if (!d.triggers().isEmpty() || !d.particleTriggers().isEmpty())
             return reject("emitter/particle triggers require ordered CPU events");
         if (d.rotation().mode() != VfxRotationMode.NONE
-                && (!model || !VfxAnalyticModelRotation.supports(d.rotation())))
+                && !VfxAnalyticModelRotation.supports(d.rotation()))
             return reject("rotation needs per-particle or runtime evaluation");
         if (d.motion().collision().collide())
             return reject("collision queries require Minecraft world state");
         var uv = sprite ? d.render().sprite().uv() : null;
-        // An instant burst has a shared age. Deterministic static/animated
-        // frames can therefore be updated by one uniform, not per particle.
-        // Per-particle random start frames still require the dense CPU path.
+        // Every cohort owns one immutable UV sheet configuration, sampled
+        // from emitter parameters at birth. A random start frame depends
+        // only on the already-sampled particle.random and is calculated by
+        // the sprite vertex shader without per-frame instance uploads.
         if (sprite && uv.mode() != VfxUvMode.FULL
-                && (uv.randomStartFrame()
-                    || !uv.textureSize().isConstant()
-                    || !uv.uvStart().isConstant()
-                    || !uv.uvSize().isConstant()
-                    || !uv.uvStep().isConstant()
-                    || !uv.frameCount().isConstant()
-                    || !uv.fps().isConstant()))
-            return reject("UV animation requires identical constant sheet parameters and no random start frame");
+                && (!uv.textureSize().isEmitterBirthOnly()
+                    || !uv.uvStart().isEmitterBirthOnly()
+                    || !uv.uvSize().isEmitterBirthOnly()
+                    || !uv.uvStep().isEmitterBirthOnly()
+                    || !uv.frameCount().isEmitterBirthOnly()
+                    || !uv.fps().isEmitterBirthOnly()))
+            return reject("UV sheet coordinates or timing require runtime/per-particle evaluation");
         boolean sharedAppearance = d.render().appearance().color().isSharedParticleAgeOnly()
                 && d.render().appearance().scale().isSharedParticleAgeOnly();
         boolean gpuBirthAppearance = sprite
@@ -68,37 +71,88 @@ public record VfxAnalyticPlan(boolean supported, String reason,
                 && d.render().appearance().scale().isGpuBirthOrAgeOnly();
         if (!sharedAppearance && !gpuBirthAppearance)
             return reject("appearance requires unsupported mutable, curve or world-dependent evaluation");
-        if (!d.particleLifetime().maxAgeTicks().isConstant())
-            return reject("particle lifetime is not constant");
-        if (!d.spawnShape().radius().isConstant() || !d.spawnShape().innerRadius().isConstant()
-                || !d.spawnShape().height().isConstant()
-                || !d.spawnShape().halfExtents().isConstant()
-                || !d.spawnShape().axis().isConstant()
-                || !d.spawnShape().edgeThickness().isConstant()
-                || !d.spawnShape().scale().isConstant()
-                || d.spawnShape().type() == VfxSpawnShapeType.MODEL)
-            return reject("spawn shape needs per-particle expression or model sampling");
+        if (d.motion().mode() == VfxMotionMode.PARAMETRIC && !sharedAppearance)
+            return reject("parametric motion with per-particle GPU appearance needs position-aware shader evaluation");
+        boolean perParticleLifetime = d.particleLifetime().maxAgeTicks().isPerParticleBirthLifetime();
+        if (!d.particleLifetime().maxAgeTicks().isEmitterBirthOnly() && !perParticleLifetime)
+            return reject("particle lifetime depends on individual particle or runtime RNG");
+        // A per-particle expiration mask is supported for additive sprites
+        // with constant appearance and a full UV sheet. Per-lifetime curves,
+        // animated UV and models need separate per-particle shader semantics.
+        if (perParticleLifetime && (!sprite
+                || !d.render().appearance().color().isConstant()
+                || !d.render().appearance().scale().isConstant()
+                || d.render().sprite().uv().mode() != VfxUvMode.FULL))
+            return reject("random lifetimes require constant sprite appearance and full UV");
+        // Spawn geometry is sampled once on the CPU and uploaded as immutable
+        // birth positions. It does NOT need to be constant or GLSL-compatible.
+        // This includes expressions using emitter/param/particle.random values.
+        // MODEL geometry is sampled by the same CPU birth sampler as Dense,
+        // then uploaded as immutable positions. Resource reload invalidates
+        // the sampler cache; already-born GPU points retain their positions.
         double ax=0, ay=0, az=0, q=1;
         if (d.motion().mode() == VfxMotionMode.DYNAMIC) {
             var motion = d.motion().dynamic();
-            if (!motion.speed().isConstant() || !motion.acceleration().isConstant()
-                    || !motion.linearDrag().isConstant()
-                    || !motion.customDirection().isConstant())
-                return reject("motion depends on runtime expressions or parameters");
-            var a = motion.acceleration().evaluate(null);
-            ax = a.x() * VfxTime.SECONDS_PER_TICK * VfxTime.SECONDS_PER_TICK;
-            ay = a.y() * VfxTime.SECONDS_PER_TICK * VfxTime.SECONDS_PER_TICK;
-            az = a.z() * VfxTime.SECONDS_PER_TICK * VfxTime.SECONDS_PER_TICK;
-            q = Math.exp(-motion.linearDrag().evaluateDouble(null) * VfxTime.SECONDS_PER_TICK);
+            // These are sampled once per birth cohort, not each rendered
+            // frame: mutable parameters may change for subsequent cohorts.
+            // Per-particle RNG, age or world-dependent coefficients still
+            // require the CPU solver.
+            if (!motion.acceleration().isEmitterBirthOnly()
+                    || !motion.linearDrag().isEmitterBirthOnly())
+                return reject("dynamic acceleration and drag require emitter birth-only coefficients");
+            if (motion.acceleration().isConstant()) {
+                var a = motion.acceleration().evaluate(null);
+                ax = a.x() * VfxTime.SECONDS_PER_TICK * VfxTime.SECONDS_PER_TICK;
+                ay = a.y() * VfxTime.SECONDS_PER_TICK * VfxTime.SECONDS_PER_TICK;
+                az = a.z() * VfxTime.SECONDS_PER_TICK * VfxTime.SECONDS_PER_TICK;
+            }
+            if (motion.linearDrag().isConstant())
+                q = Math.exp(-motion.linearDrag().evaluateDouble(null) * VfxTime.SECONDS_PER_TICK);
+        } else if (d.motion().mode() == VfxMotionMode.PARAMETRIC) {
+            // Every particle in a cohort has the same lifetime/age; an
+            // immutable age-only parametric offset can be sampled once per
+            // render and uploaded as a vec3 uniform. No per-particle CPU tick.
+            if (!d.motion().parametric().offset().isSharedParticleAgeOnly())
+                return reject("parametric offset must depend only on shared particle age/lifetime");
         } else if (d.motion().mode() != VfxMotionMode.STATIC) {
-            return reject("parametric motion needs CPU evaluation");
+            return reject("unsupported motion mode");
         }
         if (!Double.isFinite(q) || !Double.isFinite(ax)
                 || !Double.isFinite(ay) || !Double.isFinite(az))
             return reject("nonfinite motion coefficients");
-        int life = Math.max(1, (int)Math.round(d.particleLifetime().maxAgeTicks().evaluateDouble(null)));
-        return new VfxAnalyticPlan(true,"per-birth-tick shared-age uniforms and closed-form discrete motion",
+        int life = d.particleLifetime().maxAgeTicks().isConstant()
+                ? Math.max(1, (int)Math.round(d.particleLifetime().maxAgeTicks().evaluateDouble(null)))
+                : 1; // actual emitter-scoped lifetime evaluated for every birth cohort
+        return new VfxAnalyticPlan(true,"per-birth-tick shared-age uniforms and closed-form or parametric motion",
                 ax, ay, az, q, life);
+    }
+
+    /** Capture all shared mutable birth coefficients, not just lifetime. */
+    public VfxAnalyticPlan forBirth(VfxEmitterDefinition emitter, VfxExpressionContext birthScope) {
+        if (!supported) return this;
+        int sampled = (emitter.particleLifetime().maxAgeTicks().isConstant()
+                || emitter.particleLifetime().maxAgeTicks().isPerParticleBirthLifetime()) ? lifetime
+                : Math.max(1, (int) Math.round(
+                        emitter.particleLifetime().maxAgeTicks().evaluateDouble(birthScope)));
+        double ax = accelerationX, ay = accelerationY, az = accelerationZ, drag = dragMultiplier;
+        if (emitter.motion().mode() == VfxMotionMode.DYNAMIC) {
+            var motion = emitter.motion().dynamic();
+            if (!motion.acceleration().isConstant()) {
+                var a = motion.acceleration().evaluate(birthScope);
+                ax = a.x() * VfxTime.SECONDS_PER_TICK * VfxTime.SECONDS_PER_TICK;
+                ay = a.y() * VfxTime.SECONDS_PER_TICK * VfxTime.SECONDS_PER_TICK;
+                az = a.z() * VfxTime.SECONDS_PER_TICK * VfxTime.SECONDS_PER_TICK;
+            }
+            if (!motion.linearDrag().isConstant())
+                drag = Math.exp(-motion.linearDrag().evaluateDouble(birthScope)
+                        * VfxTime.SECONDS_PER_TICK);
+        }
+        if (!Double.isFinite(ax) || !Double.isFinite(ay) || !Double.isFinite(az)
+                || !Double.isFinite(drag))
+            throw new IllegalArgumentException("Nonfinite GPU birth motion coefficients");
+        return sampled == lifetime && ax == accelerationX && ay == accelerationY
+                && az == accelerationZ && drag == dragMultiplier ? this
+                : new VfxAnalyticPlan(true, reason, ax, ay, az, drag, sampled);
     }
 
     /**

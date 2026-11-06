@@ -125,6 +125,36 @@ public final class ClientVfxManager {
                 : instance.emitters().getFirst().selectedBackend();
     }
 
+    /** Actual renderer/simulation path for one emitter in a managed effect. */
+    public static String backendForEmitter(long id, String emitterId) {
+        trackWorld();
+        ClientVfxInstance instance = HANDLES.get(id);
+        if (instance == null || emitterId == null) return "";
+        for (var emitter : instance.emitters()) {
+            if (emitterId.equals(emitter.definition().id()))
+                return emitter.selectedBackend();
+        }
+        return "";
+    }
+
+    /** Live counts are useful for debugging a managed emitter which appears invisible. */
+    public static int particleCountForHandle(long id) {
+        trackWorld();
+        ClientVfxInstance instance = HANDLES.get(id);
+        if (instance == null) return -1;
+        int count = 0;
+        for (var emitter : instance.emitters()) count += emitter.liveParticleCount();
+        return count;
+    }
+
+    /** Sample the actual attachment pose; null means the managed handle is gone. */
+    public static Vec3 sourcePositionForHandle(long id) {
+        trackWorld();
+        ClientVfxInstance instance = HANDLES.get(id);
+        if (instance == null) return null;
+        return instance.renderTransform(1.0f).position();
+    }
+
     public static boolean stopHandle(long id) {
         trackWorld();
         ClientVfxInstance instance = HANDLES.remove(id);

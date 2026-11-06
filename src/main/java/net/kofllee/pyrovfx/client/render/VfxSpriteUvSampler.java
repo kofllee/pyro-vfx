@@ -14,8 +14,14 @@ public final class VfxSpriteUvSampler {
             return VfxSpriteUvRect.full();
         }
 
-        int frame = resolveFrame(particle, uv);
+        int frame = frameIndex(particle.age(), particle.ageNormalized(), uv);
+        return sampleFrame(uv, frame);
+    }
 
+    /** Immutable sheet coordinates, reused when one GPU cohort has multiple
+     * per-particle random start frames.
+     */
+    public static VfxSpriteUvRect sampleFrame(ClientVfxSpriteUvState uv, int frame) {
         VfxVec3 textureSize = uv.textureSize();
         VfxVec3 start = uv.uvStart();
         VfxVec3 size = uv.uvSize();
@@ -32,7 +38,7 @@ public final class VfxSpriteUvSampler {
         return new VfxSpriteUvRect(u0, v0, u1, v1);
     }
 
-    private static int resolveFrame(VfxSpriteParticleView particle, ClientVfxSpriteUvState uv) {
+    public static int frameIndex(int age, double normalizedAge, ClientVfxSpriteUvState uv) {
         int frameCount = Math.max(1, uv.frameCount());
 
         if (uv.mode() == VfxUvMode.STATIC) {
@@ -42,9 +48,9 @@ public final class VfxSpriteUvSampler {
         int frame;
 
         if (uv.stretchToLifetime()) {
-            frame = (int) Math.floor(particle.ageNormalized() * frameCount);
+            frame = (int) Math.floor(normalizedAge * frameCount);
         } else {
-            frame = (int) Math.floor((particle.age() / 20.0) * uv.fps());
+            frame = (int) Math.floor((age / 20.0) * uv.fps());
         }
 
         frame += uv.randomStartFrame();

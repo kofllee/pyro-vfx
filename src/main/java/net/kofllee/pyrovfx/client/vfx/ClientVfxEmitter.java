@@ -67,6 +67,7 @@ public final class ClientVfxEmitter {
     private final VfxDenseParticlePool densePool;
     private final VfxAnalyticParticlePool analyticPool;
     private final List<VfxAnalyticParticlePool> analyticBatches = new ArrayList<>();
+    private boolean analyticPrimarySpawned;
     private final VfxAnalyticPlan analyticPlan;
     private final VfxEventCommandQueue collisionEvents;
     private boolean updatingParticles;
@@ -89,11 +90,11 @@ public final class ClientVfxEmitter {
         this.previousEmitterPosition = emitterPosition;
         this.analyticPlan = VfxAnalyticPlan.analyse(definition,
                 net.neoforged.fml.loading.FMLEnvironment.dist.isClient()
-                        && net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer.gpuPossible());
+                        && net.kofllee.pyrovfx.client.render.VfxGpuBirthBuffers.gpuPossible());
         this.analyticPool = analyticPlan.useGpu()
+                && definition.emitterLifetime().mode() == VfxEmitterLifetimeMode.ONCE
                 && definition.spawnAmount().mode() == VfxSpawnAmountMode.INSTANT
                 ? new VfxAnalyticParticlePool(definition, analyticPlan) : null;
-        if (analyticPool != null) analyticBatches.add(analyticPool);
         this.densePool = !analyticPlan.useGpu() && VfxDenseParticlePool.supports(definition)
                 ? new VfxDenseParticlePool(definition) : null;
         this.collisionEvents = definition.particleTriggers().isEmpty() ? null : new VfxEventCommandQueue();
@@ -180,7 +181,20 @@ public final class ClientVfxEmitter {
         // Collision events may emit into this emitter. Process only the particles
         // present at the start of the phase; newly emitted particles start next tick.
         if (densePool != null) {
-            densePool.tick(level, emitterContext);
+            densePool.tick(level, emitterContext,
+                    sourceAvailable && collisionEvents != null
+                    ? (x, y, z) -> {
+                        Vec3 contact = new Vec3(x, y, z);
+                        for (VfxTriggerDefinition trigger : definition.particleTriggers()) {
+                            if (trigger.type() == VfxTriggerType.ON_COLLISION)
+                                collisionEvents.enqueue(trigger.eventId(), contact);
+                        }
+                        // Preserve Legacy's immediate per-particle event ordering:
+                        // set_param affects the next particle, and self-emitted
+                        // births append after the original Dense tick cohort.
+                        collisionEvents.drain(events, emittersById, level,
+                                effectPosition, emitterContext, eventRuntime, random);
+                    } : null);
         }
         if (analyticPlan.useGpu()) {
             for (var iterator = analyticBatches.iterator(); iterator.hasNext();) {
@@ -369,25 +383,22 @@ public final class ClientVfxEmitter {
             RandomSource random,
             VfxEventRuntime runtime
     ) {
-        if (liveParticleCount() >= maxParticles) {
-            return;
-        }
-
-        double rate = Math.max(0.0, definition.spawnAmount().rate().evaluateDouble(emitterContext));
+        double rate = definition.spawnAmount().rate().evaluateDouble(emitterContext);
+        // A saturated emitter discards scheduled births instead of retaining
+        // unbounded spawn debt that would later emerge as a delayed burst.
+        if (!Double.isFinite(rate) || rate < 0.0) rate = 0.0;
         spawnAccumulator += (float) (rate / 20.0);
 
-        int amount = (int) spawnAccumulator;
+        int scheduled = (int) spawnAccumulator;
+        if (!Float.isFinite(spawnAccumulator) || spawnAccumulator >= Integer.MAX_VALUE)
+            spawnAccumulator = 0;
+        else
+            spawnAccumulator -= scheduled;
 
-        if (amount <= 0) {
-            return;
-        }
-
-        int remaining = maxParticles - liveParticleCount();
-        amount = Math.min(amount, remaining);
-
-        spawnAccumulator -= amount;
-
-        spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, amount, runtime);
+        int remaining = Math.max(0, maxParticles - liveParticleCount());
+        int admitted = Math.min(scheduled, remaining);
+        if (admitted > 0)
+            spawnParticles(level, effectPosition, emitterPosition, emitterContext, random, admitted, runtime);
     }
 
 
@@ -436,14 +447,20 @@ public final class ClientVfxEmitter {
         count = runtime.reserveSpawns(count, particleCostMask());
         if (analyticPlan.useGpu()) {
             if (count == 0) return;
-            VfxAnalyticParticlePool batch = analyticPool;
-            if (batch == null) {
-                // Continuous emitters are represented by short-lived birth
-                // cohorts, each with its own common age. This never updates
-                // individual particle state after the once-only GPU upload.
-                batch = new VfxAnalyticParticlePool(definition, analyticPlan);
+            // A mutable lifetime is shared by particles born in this tick,
+            // but later batches may see changed effect parameters.
+            VfxAnalyticPlan birthPlan = analyticPlan.forBirth(definition, emitterContext);
+            VfxAnalyticParticlePool batch = analyticBatches.isEmpty()
+                    ? null : analyticBatches.getLast();
+            if (batch == null || !batch.canAppendBirth(birthPlan, sourceTransform, emitterContext)) {
+                // Preserve an empty primary cohort for delayed instant births,
+                // but never reuse it once emitted. A new cohort owns its own age.
+                batch = !analyticPrimarySpawned && analyticPool != null
+                        && birthPlan == analyticPlan ? analyticPool
+                        : new VfxAnalyticParticlePool(definition, birthPlan);
                 analyticBatches.add(batch);
             }
+            analyticPrimarySpawned = true;
             batch.spawn(count, emitterPosition, emitterContext, random, sourceTransform);
             emittedParticles += count;
             return;
@@ -685,6 +702,41 @@ public final class ClientVfxEmitter {
         for (VfxAnalyticParticlePool batch : analyticBatches) gpuCount += batch.liveCount();
         return particles.size() + pendingParticles.size()
                 + (densePool == null ? 0 : densePool.size()) + gpuCount;
+    }
+
+    /** Sample an actual particle rather than the emitter origin. Emitters may
+     * spawn at an offset, or travel into water while their source stays dry.
+     * The sample is constant-cost for Dense and GPU-resident backends.
+     */
+    public Vec3 representativeParticlePosition(float partialTick) {
+        for (var cohort : analyticBatches) {
+            if (cohort.liveCount() == 0) continue;
+            Vec3 position = cohort.representativeWorldPosition(partialTick);
+            if (position != null) return position;
+        }
+        if (densePool != null && densePool.size() > 0)
+            return densePool.interpolatedPosition(0, partialTick);
+        if (!particles.isEmpty())
+            return particles.getFirst().interpolatedPosition(partialTick);
+        if (!pendingParticles.isEmpty())
+            return pendingParticles.getFirst().interpolatedPosition(partialTick);
+        return null;
+    }
+
+    /** Approximate billboard extent for foreground visibility. Used only
+     * when determining whether a single large quad straddles transparent
+     * blocks, not as a replacement for per-fragment transparency sorting.
+     */
+    public Vec3 representativeParticleScale(float partialTick) {
+        for (var cohort : analyticBatches)
+            if (cohort.liveCount() > 0) return cohort.scale();
+        if (densePool != null && densePool.size() > 0)
+            return densePool.interpolatedScale(0, partialTick);
+        if (!particles.isEmpty())
+            return particles.getFirst().interpolatedScale(partialTick);
+        if (!pendingParticles.isEmpty())
+            return pendingParticles.getFirst().interpolatedScale(partialTick);
+        return Vec3.ZERO;
     }
 
     public VfxLifetimeState lifetimeState() {

@@ -2,7 +2,7 @@ package net.kofllee.pyrovfx.client.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
-import net.kofllee.pyrovfx.client.vfx.ClientVfxParticle;
+import net.kofllee.pyrovfx.client.vfx.VfxSpriteParticleView;
 import net.minecraft.client.Camera;
 import net.minecraft.world.phys.Vec3;
 
@@ -11,7 +11,7 @@ public final class VfxRenderTransforms {
 
     public static void applyParticleTransform(
             PoseStack poseStack,
-            ClientVfxParticle particle,
+            VfxSpriteParticleView particle,
             Camera camera,
             float partialTick
     ) {

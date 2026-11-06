@@ -2,7 +2,7 @@ package net.kofllee.pyrovfx.client.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.kofllee.pyrovfx.client.vfx.ClientVfxParticle;
+import net.kofllee.pyrovfx.client.vfx.VfxSpriteParticleView;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -29,7 +29,7 @@ public final class ItemModelVfxParticleRenderer {
     private static final Map<ResourceLocation, ItemStack> ITEM_STACK_CACHE = new HashMap<>();
 
     public static void render(
-            ClientVfxParticle particle,
+            VfxSpriteParticleView particle,
             PoseStack poseStack,
             MultiBufferSource bufferSource,
             Camera camera,

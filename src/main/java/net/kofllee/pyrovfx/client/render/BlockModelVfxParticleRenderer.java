@@ -3,7 +3,7 @@ package net.kofllee.pyrovfx.client.render;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import net.kofllee.pyrovfx.client.vfx.ClientVfxParticle;
+import net.kofllee.pyrovfx.client.vfx.VfxSpriteParticleView;
 import net.kofllee.pyrovfx.vfx.definition.VfxModelRenderDefinition;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.minecraft.client.Camera;
@@ -36,7 +36,7 @@ public final class BlockModelVfxParticleRenderer {
     private static final Map<VfxModelRenderDefinition, BlockState> BLOCK_STATE_CACHE = new HashMap<>();
 
     public static void render(
-            ClientVfxParticle particle,
+            VfxSpriteParticleView particle,
             PoseStack poseStack,
             MultiBufferSource bufferSource,
             Camera camera,

@@ -51,6 +51,12 @@ public class VfxVec3Expression implements VfxExpression<VfxVec3> {
                 && z.isSharedParticleAgeOnly();
     }
 
+    /** Each component can be evaluated once at emitter birth, with no RNG. */
+    public boolean isEmitterBirthOnly() {
+        return x.isEmitterBirthOnly() && y.isEmitterBirthOnly()
+                && z.isEmitterBirthOnly();
+    }
+
     public boolean isGpuBirthOrAgeOnly() {
         return x.isGpuBirthOrAgeOnly() && y.isGpuBirthOrAgeOnly()
                 && z.isGpuBirthOrAgeOnly();

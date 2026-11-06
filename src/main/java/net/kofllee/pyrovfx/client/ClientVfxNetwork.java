@@ -24,6 +24,7 @@ import java.util.UUID;
  * backends. Network callbacks run on the Minecraft main thread via NeoForge payload registration.
  */
 public final class ClientVfxNetwork {
+    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
     private static final int SOURCE_GRACE_TICKS = 80;
     private static final Map<UUID, Remote> REMOTES = new HashMap<>();
     private static ClientLevel world;
@@ -86,13 +87,31 @@ public final class ClientVfxNetwork {
             if (tryStart(remote)) continue;
             remote.elapsedTicks = Math.min(VfxPackets.Start.MAX_ELAPSED_TICKS,
                     remote.elapsedTicks + 1);
-            if (++remote.waitTicks > SOURCE_GRACE_TICKS) it.remove();
+            if (++remote.waitTicks == 20) {
+                var anchor = remote.anchor;
+                Entity entity = anchor.kind() == VfxPackets.Anchor.ENTITY
+                        ? world.getEntity(anchor.entityId()) : null;
+                LOGGER.warn("VFX remote {} for {} unresolved after 20 ticks: kind={} entityId={} entityPresent={} uuidMatches={} socket={} socketPresent={}",
+                        remote.id, remote.effect, anchor.kind(), anchor.entityId(),
+                        entity != null,
+                        entity != null && entity.getUUID().equals(anchor.entityUuid()),
+                        anchor.socket(),
+                        entity != null && (anchor.socket().isEmpty()
+                                || net.kofllee.pyrovfx.client.vfx.VfxSockets.vanillaParts(entity, 1.0f)
+                                        .contains(anchor.socket())));
+            }
+            if (remote.waitTicks > SOURCE_GRACE_TICKS) it.remove();
         }
     }
 
     public static void start(VfxPackets.Start message) {
         ensureWorld();
         if (!current(message.dimension()) || REMOTES.containsKey(message.id())) return;
+        if (net.kofllee.pyrovfx.vfx.resource.VfxRegistry.get(message.effect()) == null) {
+            LOGGER.warn("Ignoring remote VFX {}: client does not have effect definition {}",
+                    message.id(), message.effect());
+            return;
+        }
         Remote remote = new Remote(message);
         REMOTES.put(message.id(), remote);
         tryStart(remote);
@@ -102,6 +121,9 @@ public final class ClientVfxNetwork {
         VfxTransformProvider source = resolve(remote);
         if (source == null) return false;
         remote.handle = ClientVfxAccess.play(remote.effect, source, remote.parameters, remote.elapsedTicks);
+        if (remote.handle == 0 && remote.waitTicks == 0)
+            LOGGER.warn("VFX remote {} resolved its source but local runtime rejected effect {}",
+                    remote.id, remote.effect);
         if (remote.handle != 0) {
             while (!remote.pendingEvents.isEmpty())
                 ClientVfxManager.triggerHandle(remote.handle, remote.pendingEvents.removeFirst());

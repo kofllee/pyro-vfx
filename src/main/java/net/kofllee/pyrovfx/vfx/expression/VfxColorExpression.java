@@ -47,6 +47,13 @@ public class VfxColorExpression implements VfxExpression<VfxColor>{
                 && b.isSharedParticleAgeOnly() && a.isSharedParticleAgeOnly();
     }
 
+    /** Solid and cutout meshes may vary RGB over time, but their alpha must
+     * remain opaque because those render layers write depth without blending.
+     */
+    public boolean hasConstantOpaqueAlpha() {
+        return a.isConstant() && a.evaluateDouble(null) == 1.0;
+    }
+
     public boolean isGpuBirthOrAgeOnly() {
         return r.isGpuBirthOrAgeOnly() && g.isGpuBirthOrAgeOnly()
                 && b.isGpuBirthOrAgeOnly() && a.isGpuBirthOrAgeOnly();

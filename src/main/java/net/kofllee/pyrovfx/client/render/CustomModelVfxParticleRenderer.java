@@ -2,7 +2,7 @@ package net.kofllee.pyrovfx.client.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.kofllee.pyrovfx.client.vfx.ClientVfxParticle;
+import net.kofllee.pyrovfx.client.vfx.VfxSpriteParticleView;
 import net.kofllee.pyrovfx.vfx.type.VfxModelSourceType;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.minecraft.client.Camera;
@@ -24,7 +24,7 @@ public final class CustomModelVfxParticleRenderer {
     private CustomModelVfxParticleRenderer() {}
 
     public static void render(
-            ClientVfxParticle particle,
+            VfxSpriteParticleView particle,
             PoseStack poseStack,
             MultiBufferSource bufferSource,
             Camera camera,

@@ -15,6 +15,7 @@ import net.kofllee.pyrovfx.vfx.type.VfxRenderType;
 import net.kofllee.pyrovfx.vfx.type.VfxModelRenderLayer;
 import net.kofllee.pyrovfx.vfx.type.VfxModelSourceType;
 import net.kofllee.pyrovfx.vfx.type.VfxRotationMode;
+import net.kofllee.pyrovfx.vfx.type.VfxTriggerType;
 import net.kofllee.pyrovfx.vfx.value.VfxColor;
 import net.kofllee.pyrovfx.vfx.value.VfxVec3;
 import net.minecraft.client.Camera;
@@ -27,9 +28,9 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Ordered, capacity-reused SoA for sprites and models without particle
- * callbacks. Movement, collision and rotation channels are allocated only
- * when those components are enabled.
+ * Ordered, capacity-reused SoA for sprites and baked models, including
+ * synchronous on_collision callbacks. Movement, collision and rotation
+ * channels are allocated only when those components are enabled.
  *
  * One reusable expression scope per emitter tick; no per-particle Java object
  * or temporary Vec3 is created by physics or compaction.
@@ -104,7 +105,11 @@ public final class VfxDenseParticlePool {
                 && definition.render().model().source() != VfxModelSourceType.ENTITY;
         return !Boolean.getBoolean("pyrovfx.cpu.forceLegacy")
                 && (sprite || model)
-                && definition.particleTriggers().isEmpty()
+                && (definition.particleTriggers().isEmpty()
+                    || definition.motion().mode() == VfxMotionMode.DYNAMIC
+                    && definition.motion().collision().collide()
+                    && definition.particleTriggers().stream()
+                        .allMatch(trigger -> trigger.type() == VfxTriggerType.ON_COLLISION))
                 && (!definition.motion().collision().collide()
                     || definition.motion().mode() == VfxMotionMode.DYNAMIC);
     }
@@ -135,7 +140,9 @@ public final class VfxDenseParticlePool {
         void append(double x, double y, double z, float sizeX, float sizeY,
                     float r, float g, float b, float a,
                     float u0, float v0, float u1, float v1,
-                    float rotationX, float rotationY, float rotationZ);
+                    float rotationX, float rotationY, float rotationZ,
+                    float blockLight, float skyLight,
+                    float velocityX, float velocityY, float velocityZ);
     }
 
     @FunctionalInterface
@@ -165,6 +172,14 @@ public final class VfxDenseParticlePool {
         }
     }
 
+    /** Cheap scale sample for conservative foreground occlusion routing. */
+    public Vec3 interpolatedScale(int i, float partialTick) {
+        if (i < 0 || i >= size) throw new IndexOutOfBoundsException(i);
+        return new Vec3(prevScaleX[i] + (scaleX[i] - prevScaleX[i]) * partialTick,
+                prevScaleY[i] + (scaleY[i] - prevScaleY[i]) * partialTick,
+                prevScaleZ[i] + (scaleZ[i] - prevScaleZ[i]) * partialTick);
+    }
+
     public boolean fullyOpaque(float partialTick) {
         for (int i = 0; i < size; i++) {
             double alpha = prevA[i] + (a[i] - prevA[i]) * partialTick;
@@ -187,11 +202,22 @@ public final class VfxDenseParticlePool {
             float ca = (float) (prevA[i] + (a[i] - prevA[i]) * partialTick);
             cursor.index = i;
             VfxSpriteUvRect rect = VfxSpriteUvSampler.sample(cursor);
+            // World light is sampled once per instance, not once per quad
+            // vertex; the per-frame block-position light cache is shared
+            // with the Minecraft RenderType path and model instancing.
+            int light = definition.render().environmentLighting()
+                    ? net.kofllee.pyrovfx.client.render.VfxRenderLight.getParticleLight(x, y, z)
+                    : net.minecraft.client.renderer.LightTexture.FULL_BRIGHT;
             writer.append(x, y, z, sx, sy, cr, cg, cb, ca,
                     rect.u0(), rect.v0(), rect.u1(), rect.v1(),
                     rotating ? (float) (prevRx[i] + (rx[i] - prevRx[i]) * partialTick) : 0,
                     rotating ? (float) (prevRy[i] + (ry[i] - prevRy[i]) * partialTick) : 0,
-                    rotating ? (float) (prevRz[i] + (rz[i] - prevRz[i]) * partialTick) : 0);
+                    rotating ? (float) (prevRz[i] + (rz[i] - prevRz[i]) * partialTick) : 0,
+                    (((light >> 4) & 15) + 0.5f) / 16f,
+                    (((light >> 20) & 15) + 0.5f) / 16f,
+                    dynamic ? (float) vx[i] : 0,
+                    dynamic ? (float) vy[i] : 0,
+                    dynamic ? (float) vz[i] : 0);
         }
     }
 
@@ -298,12 +324,29 @@ public final class VfxDenseParticlePool {
     }
 
     public void tick(ClientLevel level, VfxExpressionContext emitterContext) {
-        if (size == 0) return;
+        tick(level, emitterContext, null);
+    }
+
+    /** Called synchronously after the colliding particle's state update.
+     * Event execution may append births to this same pool; such births
+     * are retained but must not advance until the next emitter tick.
+     */
+    @FunctionalInterface
+    public interface CollisionEventSink {
+        void onCollision(double x, double y, double z);
+    }
+
+    public void tick(ClientLevel level, VfxExpressionContext emitterContext,
+                     CollisionEventSink collisionSink) {
         collisionContactsLastTick = 0;
+        if (size == 0) return;
         VfxExpressionContext scope = emitterContext.child();
         int out = 0;
-        for (int i = 0, end = size; i < end; i++) {
+        final int end = size;
+        for (int i = 0; i < end; i++) {
             boolean expiredOnCollision = false;
+            boolean collisionEvent = false;
+            double collisionX = 0, collisionY = 0, collisionZ = 0;
             prevScaleX[i] = scaleX[i];
             prevScaleY[i] = scaleY[i];
             prevScaleZ[i] = scaleZ[i];
@@ -337,6 +380,10 @@ public final class VfxDenseParticlePool {
                         vx[i] = collision.vx(); vy[i] = collision.vy(); vz[i] = collision.vz();
                         expiredOnCollision = collision.dead();
                         collisionContactsLastTick++;
+                        collisionEvent = true;
+                        collisionX = collision.x();
+                        collisionY = collision.y();
+                        collisionZ = collision.z();
                     }
                 } else {
                     px[i] += vx[i]; py[i] += vy[i]; pz[i] += vz[i];
@@ -377,6 +424,19 @@ public final class VfxDenseParticlePool {
                 if (out != i) copy(i, out);
                 out++;
             }
+            // Legacy invokes on_collision after completing this particle's
+            // appearance/age update and before visiting the next particle.
+            // Draining here keeps parameter changes and RNG draws ordered.
+            if (collisionEvent && collisionSink != null)
+                collisionSink.onCollision(collisionX, collisionY, collisionZ);
+        }
+        // Reentrant event "emit" may append particles at [end, size).
+        // Move them behind the surviving original particles, preserving the
+        // append/RNG order without giving them an extra tick of simulation.
+        int all = size;
+        for (int i = end; i < all; i++) {
+            if (out != i) copy(i, out);
+            out++;
         }
         Arrays.fill(uv, out, size, null);
         size = out;
@@ -498,13 +558,26 @@ public final class VfxDenseParticlePool {
 
     public void render(PoseStack stack, MultiBufferSource buffer, Camera camera, float partialTick) {
         for (int i = 0; i < size; i++) {
-            cursor.index = i;
-            if (model()) {
-                ModelVfxParticleRenderer.render(snapshot(i), stack, buffer, camera, partialTick);
-            } else {
-                SpriteVfxParticleRenderer.render(cursor, stack, buffer, camera, partialTick);
-            }
+            renderIndex(i, stack, buffer, camera, partialTick);
         }
+    }
+
+    /** Render one Dense entry after transparent depth-sorting, without
+     * creating a snapshot or exposing the mutable internal cursor.
+     */
+    public void renderIndex(int i, PoseStack stack, MultiBufferSource buffer,
+                            Camera camera, float partialTick) {
+        if (i < 0 || i >= size) throw new IndexOutOfBoundsException(i);
+        cursor.index = i;
+        if (model()) ModelVfxParticleRenderer.render(cursor, stack, buffer, camera, partialTick);
+        else SpriteVfxParticleRenderer.render(cursor, stack, buffer, camera, partialTick);
+    }
+
+    public Vec3 interpolatedPosition(int i, float partialTick) {
+        if (i < 0 || i >= size) throw new IndexOutOfBoundsException(i);
+        return new Vec3(moving ? prevX[i] + (px[i] - prevX[i]) * partialTick : px[i],
+                moving ? prevY[i] + (py[i] - prevY[i]) * partialTick : py[i],
+                moving ? prevZ[i] + (pz[i] - prevZ[i]) * partialTick : pz[i]);
     }
 
     /** Compatibility/debug-only accessor. Materializes a legacy read-only snapshot on demand. */

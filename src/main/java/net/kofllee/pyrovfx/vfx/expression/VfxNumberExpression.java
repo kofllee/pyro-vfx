@@ -41,6 +41,24 @@ public class VfxNumberExpression implements VfxExpression<Double> {
                                 || v.equals("particle.lifetime")));
     }
 
+    /** Safe to evaluate once at each emitter birth, before any particle exists. */
+    public boolean isEmitterBirthOnly() {
+        return isConstant || (info != null && !info.randomCall()
+                && info.variables().stream().allMatch(v ->
+                    v.startsWith("param.") || v.startsWith("effect.")
+                    || v.startsWith("emitter.")));
+    }
+
+    /** One immutable lifetime per particle: the already-sampled birth random
+     * is allowed, but no additional RNG calls or mutable runtime variables.
+     */
+    public boolean isPerParticleBirthLifetime() {
+        return !isConstant && info != null && !info.randomCall()
+                && !info.parameterDependent()
+                && info.variables().contains("particle.random")
+                && info.variables().stream().allMatch(v -> v.equals("particle.random"));
+    }
+
     /** GPU subset emitted from the same compiled expression tree, or null. */
     public String glsl() {
         return isConstant ? VfxGpuExpressionNode.literal(constant)

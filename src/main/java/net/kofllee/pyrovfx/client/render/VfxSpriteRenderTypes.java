@@ -37,6 +37,7 @@ public final class VfxSpriteRenderTypes extends RenderStateShard {
                 .setTextureState(new TextureStateShard(texture, false, false))
                 .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
                 .setCullState(NO_CULL)
+                .setWriteMaskState(COLOR_WRITE)
                 .setLightmapState(LIGHTMAP)
                 .setOverlayState(NO_OVERLAY)
                 .createCompositeState(true);
@@ -58,6 +59,7 @@ public final class VfxSpriteRenderTypes extends RenderStateShard {
                 .setTextureState(new TextureStateShard(texture, false, false))
                 .setTransparencyState(RenderStateShard.ADDITIVE_TRANSPARENCY)
                 .setCullState(NO_CULL)
+                .setWriteMaskState(COLOR_WRITE)
                 .setLightmapState(LIGHTMAP)
                 .setOverlayState(NO_OVERLAY)
                 .createCompositeState(true);

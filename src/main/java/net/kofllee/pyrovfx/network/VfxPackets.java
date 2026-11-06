@@ -115,6 +115,12 @@ public final class VfxPackets {
 
     static void writeParameters(FriendlyByteBuf b, Map<String, Double> parameters) {
         if (parameters.size() > 32) throw new IllegalArgumentException("Too many VFX parameters");
+        for (var entry : parameters.entrySet()) {
+            if (entry.getKey() == null || entry.getKey().isBlank()
+                    || entry.getKey().length() > 64 || entry.getValue() == null
+                    || !Double.isFinite(entry.getValue()))
+                throw new IllegalArgumentException("Invalid outbound VFX parameter");
+        }
         b.writeVarInt(parameters.size());
         for (var entry : parameters.entrySet()) {
             b.writeUtf(entry.getKey(), 64);
@@ -129,7 +135,8 @@ public final class VfxPackets {
         for (int i = 0; i < size; i++) {
             String name = b.readUtf(64);
             double value = b.readDouble();
-            if (!Double.isFinite(value) || values.putIfAbsent(name, value) != null)
+            if (name.isBlank() || !Double.isFinite(value)
+                    || values.putIfAbsent(name, value) != null)
                 throw new IllegalArgumentException("Invalid VFX parameter");
         }
         return Map.copyOf(values);
@@ -141,8 +148,19 @@ public final class VfxPackets {
         // at the 10-minute maximum for *finite* leases.
         public static final int MAX_ELAPSED_TICKS = 2_000_000_000;
         public Start {
-            if (elapsedTicks < 0 || elapsedTicks > MAX_ELAPSED_TICKS)
-                throw new IllegalArgumentException("Invalid remote VFX elapsed ticks");
+            if (id == null || dimension == null || effect == null || anchor == null
+                    || parameters == null || parameters.size() > 32
+                    || elapsedTicks < 0 || elapsedTicks > MAX_ELAPSED_TICKS)
+                throw new IllegalArgumentException("Invalid remote VFX start packet");
+            for (var entry : parameters.entrySet()) {
+                if (entry.getKey() == null || entry.getKey().isBlank()
+                        || entry.getKey().length() > 64 || entry.getValue() == null
+                        || !Double.isFinite(entry.getValue()))
+                    throw new IllegalArgumentException("Invalid remote VFX start parameter");
+            }
+            // A late parameter update may be emitted on the next server tick.
+            // Snapshot the initial map before the packet enters the send queue.
+            parameters = Map.copyOf(parameters);
         }
         public Start(UUID id, ResourceLocation dimension, ResourceLocation effect, Anchor anchor,
                      Map<String, Double> parameters) {

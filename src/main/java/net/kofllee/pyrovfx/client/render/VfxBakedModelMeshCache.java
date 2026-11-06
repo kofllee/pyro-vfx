@@ -118,11 +118,14 @@ final class VfxBakedModelMeshCache {
         meshData.flip();
         int oldArray = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
         int geometry = GL15.glGenBuffers();
+        boolean uploaded = false;
         try {
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, geometry);
             GL15.glBufferData(GL15.GL_ARRAY_BUFFER, meshData, GL15.GL_STATIC_DRAW);
+            uploaded = true;
         } finally {
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, oldArray);
+            if (!uploaded) GL15.glDeleteBuffers(geometry);
         }
         return new Mesh(geometry, quads.size() * 6);
     }

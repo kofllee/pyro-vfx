@@ -5,9 +5,10 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.kofllee.pyrovfx.PyroVfx;
 import net.kofllee.pyrovfx.client.render.VfxRenderer;
 import net.kofllee.pyrovfx.client.render.VfxGpuTelemetry;
-import net.kofllee.pyrovfx.client.render.VfxInstancedSpriteRenderer;
-import net.kofllee.pyrovfx.client.render.VfxInstancedModelRenderer;
-import net.kofllee.pyrovfx.client.render.VfxAnalyticSpriteRenderer;
+import net.kofllee.pyrovfx.client.render.VfxNativeSpriteBatcher;
+import net.kofllee.pyrovfx.client.render.VfxNativeModelRenderer;
+import net.kofllee.pyrovfx.client.render.VfxGpuBirthBuffers;
+import net.kofllee.pyrovfx.client.render.VfxNativeGpuGeometryBridge;
 import net.kofllee.pyrovfx.client.vfx.ClientVfxManager;
 import net.kofllee.pyrovfx.client.vfx.sampling.VfxModelSpawnShapeSampler;
 import net.kofllee.pyrovfx.vfx.resource.VfxReloadListener;
@@ -33,9 +34,10 @@ public final class PyroVfxClient {
     public static void registerReloadListeners(RegisterClientReloadListenersEvent event) {
         event.registerReloadListener(new VfxReloadListener(() -> {
             VfxModelSpawnShapeSampler.clearCache();
-            VfxInstancedSpriteRenderer.invalidateAfterReload();
-            VfxInstancedModelRenderer.invalidateAfterReload();
-            VfxAnalyticSpriteRenderer.invalidateAfterReload();
+            VfxNativeSpriteBatcher.invalidateAfterReload();
+            VfxNativeModelRenderer.invalidateAfterReload();
+            VfxGpuBirthBuffers.invalidateAfterReload();
+            VfxNativeGpuGeometryBridge.invalidateAfterReload();
             VfxGpuTelemetry.requestReset();
         }));
     }
@@ -45,17 +47,40 @@ public final class PyroVfxClient {
         long start = VfxDevHooks.beforeTick();
         ClientVfxNetwork.tick();
         ClientVfxManager.tick();
+        // Tick still fires after disconnecting to the title screen. Release
+        // world-bound native geometry even if no later world render occurs.
+        if (RenderSystem.isOnRenderThread()) {
+            VfxGpuBirthBuffers.maintain();
+            VfxNativeGpuGeometryBridge.maintain();
+            VfxNativeModelRenderer.maintain();
+            VfxNativeSpriteBatcher.maintain();
+        }
         VfxDevHooks.afterTick(start);
     }
 
     @SubscribeEvent
     public static void renderLevel(RenderLevelStageEvent event) {
-        // AFTER_PARTICLES is before vanilla's clouds/weather composite in 1.21.1,
-        // causing clouds behind alpha smoke to paint over it. Render against
-        // the finished world depth/color, before hand and HUD instead.
-        if(event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES) {
+            // Preserve the fog Minecraft computed while rendering world
+            // geometry; AFTER_LEVEL may clear FogStart before our late pass.
+            net.kofllee.pyrovfx.client.render.VfxGpuFog.captureWorldFog();
+            VfxRenderer.beginWorldFrame();
+        }
+        // Geometry is routed by material semantics, not scene raycasts,
+        // camera occluders, glass/water IDs or a special cloud-depth pass.
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES
+                && event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) {
             return;
         }
+        boolean early = event.getStage() == RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES;
+        float partial = event.getPartialTick().getGameTimeDeltaPartialTick(false);
+        // Each material selects its supported NeoForge stage and native
+        // material state independently of the particle's source backend.
+        if (!VfxRenderer.hasActiveForStage(event.getCamera(), partial, early)) {
+            if (!early) VfxGpuBirthBuffers.maintain();
+            return;
+        }
+        VfxRenderer.markWorldStage(early);
 
         long start = VfxDevHooks.beforeRender();
         // AFTER_LEVEL is dispatched after LevelRenderer has unwound the
@@ -68,12 +93,11 @@ public final class PyroVfxClient {
         // and restore Minecraft's original stack even if rendering fails.
         var viewStack = RenderSystem.getModelViewStack();
         viewStack.pushMatrix();
-        try {
+        try (var restoredFog = net.kofllee.pyrovfx.client.render.VfxGpuFog.openWorldPass()) {
             viewStack.identity().rotate(
                     net.kofllee.pyrovfx.vfx.math.VfxCameraRelativeView.rotation(event.getCamera().rotation()));
             RenderSystem.applyModelViewMatrix();
-            VfxRenderer.render(new PoseStack(), event.getCamera(),
-                    event.getPartialTick().getGameTimeDeltaPartialTick(false));
+            VfxRenderer.render(new PoseStack(), event.getCamera(), partial, early);
         } finally {
             viewStack.popMatrix();
             RenderSystem.applyModelViewMatrix();
