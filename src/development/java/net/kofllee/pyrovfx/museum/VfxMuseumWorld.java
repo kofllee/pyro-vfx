@@ -39,6 +39,23 @@ public final class VfxMuseumWorld {
             VfxMuseumCatalog.ORIGIN_Z + VfxMuseumCatalog.rows() * VfxMuseumCatalog.CELL_Z + 16;
     public static final int TRANSPARENCY_X = VfxMuseumCatalog.ORIGIN_X + 7;
     public static final int TRANSPARENCY_SPACING = 21;
+    public static final int EXPERIMENT_LANES = 8;
+    // Deliberately at the actual vanilla cloud altitude (Y=192..196).
+    // The ordinary gallery at Y~140 cannot validate cloud layer occlusion.
+    public static final int CLOUD_LAB_X = TRANSPARENCY_X + EXPERIMENT_LANES * TRANSPARENCY_SPACING + 12;
+    public static final int CLOUD_LAB_Y = 183;
+    private static final String[] SAMPLE_LABELS = {
+            "ALPHA WORLD-LIT", "ALPHA ANALYTIC", "ADDITIVE ANALYTIC", "ADDITIVE LIT",
+            "CAMERA HORIZONTAL", "WORLD-Z BILLBOARD", "SPINNING SPRITES", "SOLID BLOCK MODEL",
+            "MODEL CUTOUT / ITEM", "MODEL ADDITIVE", "MODEL TRANSLUCENT", "MODEL ENTITY"
+    };
+    private static final double[] SAMPLE_COLUMNS = {-4.6,-1.55,1.55,4.6};
+    private static final double[] SAMPLE_ROWS = {-0.65,1.95,4.55};
+    public static void visitCloudLab(net.minecraft.server.level.ServerPlayer player) {
+        player.connection.teleport(CLOUD_LAB_X + 12.5, CLOUD_LAB_Y + 2,
+                TRANSPARENCY_Z + 3.5, 0f, -23f);
+        player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+    }
 
     public static Vec3 transparencyOrigin(int lane) {
         return new Vec3(TRANSPARENCY_X + lane * TRANSPARENCY_SPACING + 6.5,
@@ -52,6 +69,11 @@ public final class VfxMuseumWorld {
         // client retains its previous save-camera rotation.
         player.connection.teleport(pos.x, VfxMuseumCatalog.FLOOR_Y + 2.0,
                 TRANSPARENCY_Z + 3.5, 0f, -5f);
+    }
+
+    public static void visitExperiment(net.minecraft.server.level.ServerPlayer player, int lane) {
+        teleportTransparency(player, lane);
+        player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
     }
 
     private VfxMuseumWorld() {}
@@ -118,6 +140,40 @@ public final class VfxMuseumWorld {
                             teleportTransparency(ctx.getSource().getPlayerOrException(), 5);
                             return 1;
                         })))
+                .then(literal("experiments")
+                        .then(literal("build").requires(src -> src.hasPermission(2))
+                                .executes(ctx -> {
+                                    buildTransparencyShowcase(ctx.getSource().getLevel());
+                                    visitExperiment(ctx.getSource().getPlayerOrException(), 1);
+                                    return 1;
+                                }))
+                        .then(literal("clear").executes(ctx -> {
+                            visitExperiment(ctx.getSource().getPlayerOrException(), 0); return 1;
+                        }))
+                        .then(literal("glass").executes(ctx -> {
+                            visitExperiment(ctx.getSource().getPlayerOrException(), 1); return 1;
+                        }))
+                        .then(literal("water").executes(ctx -> {
+                            visitExperiment(ctx.getSource().getPlayerOrException(), 2); return 1;
+                        }))
+                        .then(literal("inside").executes(ctx -> {
+                            visitExperiment(ctx.getSource().getPlayerOrException(), 3); return 1;
+                        }))
+                        .then(literal("underwater").executes(ctx -> {
+                            visitExperiment(ctx.getSource().getPlayerOrException(), 4); return 1;
+                        }))
+                        .then(literal("tinted").executes(ctx -> {
+                            visitExperiment(ctx.getSource().getPlayerOrException(), 5); return 1;
+                        }))
+                        .then(literal("opaque").executes(ctx -> {
+                            visitExperiment(ctx.getSource().getPlayerOrException(), 6); return 1;
+                        }))
+                        .then(literal("overlap").executes(ctx -> {
+                            visitExperiment(ctx.getSource().getPlayerOrException(), 7); return 1;
+                        }))
+                        .then(literal("clouds").executes(ctx -> {
+                            visitCloudLab(ctx.getSource().getPlayerOrException()); return 1;
+                        })))
                 .then(literal("network").requires(src -> src.hasPermission(2))
                         .then(literal("static").executes(ctx ->
                                 VfxNetworkMuseum.start(ctx.getSource().getPlayerOrException(), "static")))
@@ -159,7 +215,8 @@ public final class VfxMuseumWorld {
             buildExhibit(level, exhibit);
         }
         buildGlobalConsole(level);
-        if (Boolean.getBoolean("pyrovfx.museum.runtimeShowcase"))
+        if (Boolean.getBoolean("pyrovfx.museum.runtimeShowcase")
+                || Boolean.getBoolean("pyrovfx.museum.visualOnly"))
             buildTransparencyShowcase(level);
         place(level, VfxMuseumCatalog.MARKER, Blocks.LODESTONE.defaultBlockState());
         place(level, VfxMuseumCatalog.MARKER.above(), Blocks.SEA_LANTERN.defaultBlockState());
@@ -167,11 +224,33 @@ public final class VfxMuseumWorld {
                 VfxMuseumCatalog.FLOOR_Y + 2, VfxMuseumCatalog.ORIGIN_Z + 4), 180f);
     }
 
+    /** Rendering compatibility gallery: no legacy exhibits,
+     * controls, global console or comparison labels.
+     * Launched only in its own dedicated developer world. */
+    public static void buildVisualOnly(ServerLevel level) {
+        buildTransparencyShowcase(level);
+        level.setDayTime(6000L);
+        level.setDefaultSpawnPos(new BlockPos(TRANSPARENCY_X+6,
+                VfxMuseumCatalog.FLOOR_Y+2, TRANSPARENCY_Z+4), 0f);
+    }
+
     /** Developer-only walkable visibility comparison, never added to the
      * production VFX block set or to regular user worlds. */
     private static void buildTransparencyShowcase(ServerLevel level) {
         int y0 = VfxMuseumCatalog.FLOOR_Y;
-        for (int lane = 0; lane < 6; lane++) {
+        if (Boolean.getBoolean("pyrovfx.museum.visualOnly")) {
+            // Rebuilding on every lab client launch used to accumulate TextDisplay
+            // entities in the dedicated save. Clean only this lab's marked area.
+            for (int cx=TRANSPARENCY_X>>4;cx<=(CLOUD_LAB_X+25)>>4;cx++)
+                for (int cz=TRANSPARENCY_Z>>4;cz<=(TRANSPARENCY_Z+25)>>4;cz++)
+                    level.getChunk(cx,cz);
+            var area=new AABB(TRANSPARENCY_X-1, y0-2, TRANSPARENCY_Z-2,
+                    CLOUD_LAB_X+26, CLOUD_LAB_Y+34, TRANSPARENCY_Z+26);
+            for (var label:level.getEntitiesOfClass(Display.TextDisplay.class,area,
+                    entity -> entity.getTags().contains("pyrovfx_museum")))
+                label.discard();
+        }
+        for (int lane = 0; lane < EXPERIMENT_LANES; lane++) {
             int x0 = TRANSPARENCY_X + lane * TRANSPARENCY_SPACING;
             int z0 = TRANSPARENCY_Z;
             for (int cx = x0 >> 4; cx <= (x0 + 14) >> 4; cx++)
@@ -230,6 +309,13 @@ public final class VfxMuseumWorld {
                     for (int dy = 2; dy <= 9; dy++)
                         place(level, new BlockPos(x0 + dx, y0 + dy, z0 + 9),
                                 Blocks.TINTED_GLASS.defaultBlockState());
+            } else if (lane == 6) {
+                // Zero special-case depth hacks: ordinary opaque blocks must
+                // fully cover both prototype alpha and native model geometry.
+                for (int dx = 1; dx <= 13; dx++)
+                    for (int dy = 2; dy <= 9; dy++)
+                        place(level, new BlockPos(x0 + dx,y0 + dy,z0 + 9),
+                                Blocks.STONE.defaultBlockState());
             } else if (lane == 3 || lane == 4) {
                 // For these stages the colored particles are physically
                 // INSIDE the fluid. Lane 3 is viewed through the water from
@@ -250,19 +336,78 @@ public final class VfxMuseumWorld {
                                     Blocks.WATER.defaultBlockState());
             }
             String name = switch (lane) {
-                case 0 -> "CLEAR VIEW - CONTROL";
+                case 0 -> "CLEAR AIR";
                 case 1 -> "BEHIND GLASS";
                 case 2 -> "BEHIND WATER";
                 case 3 -> "PARTICLES INSIDE WATER - VIEW FROM AIR";
                 case 4 -> "CAMERA + PARTICLES INSIDE WATER";
-                default -> "HALF TINTED GLASS - WALK SIDEWAYS";
+                case 5 -> "HALF TINTED GLASS - WALK SIDEWAYS";
+                case 6 -> "OPAQUE WALL - NOTHING VISIBLE THROUGH STONE";
+                default -> "INTERSECTING SPRITES + TRANSLUCENT MODELS";
             };
             Display.TextDisplay sign = new Display.TextDisplay(EntityType.TEXT_DISPLAY, level);
             sign.setPos(x0 + 7.5, y0 + 11.2, z0 + 11);
             VfxMuseumText.configure(sign, name, 0.85f, 180f, 320);
             sign.addTag("pyrovfx_museum");
             level.addFreshEntity(sign);
+            if (Boolean.getBoolean("pyrovfx.museum.visualOnly")) {
+                buildSampleLabels(level,transparencyOrigin(lane));
+            }
         }
+        if (Boolean.getBoolean("pyrovfx.museum.visualOnly"))
+            buildCloudLab(level);
+    }
+
+    private static void buildSampleLabels(ServerLevel level, Vec3 center) {
+        for (int i=0;i<SAMPLE_LABELS.length;i++) {
+            Display.TextDisplay tag=new Display.TextDisplay(EntityType.TEXT_DISPLAY,level);
+            tag.setPos(center.x + SAMPLE_COLUMNS[i%4],
+                    center.y + SAMPLE_ROWS[i/4] + 0.83,
+                    center.z + 3.7);
+            VfxMuseumText.configure(tag,SAMPLE_LABELS[i],0.23f,180f,190);
+            tag.addTag("pyrovfx_museum");
+            tag.addTag("pyrovfx_render_matrix");
+            level.addFreshEntity(tag);
+        }
+    }
+
+    private static void buildCloudLab(ServerLevel level) {
+        int x0=CLOUD_LAB_X, z0=TRANSPARENCY_Z, y0=CLOUD_LAB_Y;
+        for (int cx=x0>>4;cx<=(x0+24)>>4;cx++)
+            for (int cz=z0>>4;cz<=(z0+24)>>4;cz++) level.getChunk(cx,cz);
+        // No fake cloud meshes: the real moving vanilla clouds cross Y=192..196.
+        // The near emitters are BELOW that layer and the far ones ABOVE it.
+        for (int dx=0;dx<=24;dx++)
+            for (int dz=0;dz<=24;dz++) {
+                var floor=(dx==0||dx==24||dz==0||dz==24)
+                        ? Blocks.PURPLE_CONCRETE : Blocks.SMOOTH_STONE;
+                place(level,new BlockPos(x0+dx,y0,z0+dz),floor.defaultBlockState());
+            }
+        Display.TextDisplay label=new Display.TextDisplay(EntityType.TEXT_DISPLAY,level);
+        label.setPos(x0+12.5,y0+5,z0+5);
+        VfxMuseumText.configure(label,
+                "REAL MINECRAFT CLOUDS / Y=192..196\n"
+                + "12 PARTICLE TYPES ON EACH SIDE OF CLOUD HEIGHT\n"
+                + "NEAR: BELOW CLOUDS | FAR: ABOVE CLOUDS",
+                0.57f,180f,450);
+        label.addTag("pyrovfx_museum");
+        level.addFreshEntity(label);
+        Vec3 near=new Vec3(x0+7.0,186.3,z0+16.5);
+        Vec3 far=new Vec3(x0+17.0,198.5,z0+16.5);
+        buildSampleLabels(level,near);
+        buildSampleLabels(level,far);
+        Display.TextDisplay nearSign=new Display.TextDisplay(EntityType.TEXT_DISPLAY,level);
+        nearSign.setPos(x0+7.0,y0+2.5,z0+12);
+        VfxMuseumText.configure(nearSign,"12 TYPES / NEAR (BELOW CLOUDS)",
+                0.37f,180f,280);
+        nearSign.addTag("pyrovfx_museum");
+        level.addFreshEntity(nearSign);
+        Display.TextDisplay farSign=new Display.TextDisplay(EntityType.TEXT_DISPLAY,level);
+        farSign.setPos(x0+17.0,y0+13.2,z0+12);
+        VfxMuseumText.configure(farSign,"12 TYPES / FAR (ABOVE CLOUDS)",
+                0.37f,180f,280);
+        farSign.addTag("pyrovfx_museum");
+        level.addFreshEntity(farSign);
     }
 
     private static void preloadMuseumChunks(ServerLevel level) {
@@ -281,7 +426,7 @@ public final class VfxMuseumWorld {
         AABB region = new AABB(VfxMuseumCatalog.ORIGIN_X - 4, VfxMuseumCatalog.FLOOR_Y - 4,
                 VfxMuseumCatalog.ORIGIN_Z - 4,
                 Math.max(VfxMuseumCatalog.ORIGIN_X + 90,
-                        TRANSPARENCY_X + 6 * TRANSPARENCY_SPACING + 15),
+                        TRANSPARENCY_X + EXPERIMENT_LANES * TRANSPARENCY_SPACING + 15),
                 VfxMuseumCatalog.FLOOR_Y + 18,
                 VfxMuseumCatalog.ORIGIN_Z + 245);
         for (Entity entity : level.getEntities((Entity) null, region)) {

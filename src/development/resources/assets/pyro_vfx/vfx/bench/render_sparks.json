@@ -1,0 +1,117 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX / Visual Lab",
+    "description": "Explicit foreground and background 2D additive sparks for comparison against intersecting alpha smoke."
+  },
+  "lifetime": {
+    "mode": "looping",
+    "active_ticks": 280,
+    "sleep_ticks": 0,
+    "loops": 0
+  },
+  "emitters": [
+    {
+      "id": "gold_sparks_front",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 260,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 30
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.5
+      },
+      "offset": [
+        -0.8,
+        0,
+        -2.1
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 250
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": [
+          1,
+          0.85,
+          0.12,
+          0.9
+        ],
+        "scale": [
+          0.4,
+          0.4,
+          1
+        ]
+      }
+    },
+    {
+      "id": "magenta_sparks_behind",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 260,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 30
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.5
+      },
+      "offset": [
+        0.8,
+        0,
+        2.1
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 250
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": [
+          0.96,
+          0.2,
+          1,
+          0.9
+        ],
+        "scale": [
+          0.4,
+          0.4,
+          1
+        ]
+      }
+    }
+  ]
+}

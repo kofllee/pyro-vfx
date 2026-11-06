@@ -626,13 +626,34 @@ public final class VfxNativeGpuGeometryBridge {
     /**
      * Renders an already sorted, compatible CPU sprite batch through the native
      * Minecraft particle ShaderInstance. Transform Feedback performs vertex
-     * expansion from 21 floats/instance on the GPU, retaining CPU-side batching
+     * expansion from 22 floats/instance on the GPU, retaining CPU-side batching
      * and global far-to-near alpha order. No GPU readback occurs.
      */
     public static boolean renderInstances(ByteBuffer instances, int count,
                                           ResourceLocation texture, VfxFacingMode facing,
                                           boolean rotating, boolean worldLit, boolean alpha,
                                           Camera camera) {
+        return renderInstancePass(instances, count, texture, facing, rotating,
+                worldLit, alpha, camera, false);
+    }
+
+    /**
+     * Separate nearest-depth pass. This runs AFTER all
+     * translucent color blending, so model/sprite self-overlap is unaffected.
+     * Minecraft's own particle shader discards low-alpha texels.
+     */
+    public static boolean renderInstancesDepthOnly(ByteBuffer instances, int count,
+                                                   ResourceLocation texture, VfxFacingMode facing,
+                                                   boolean rotating, boolean worldLit, boolean alpha,
+                                                   Camera camera) {
+        return renderInstancePass(instances, count, texture, facing, rotating,
+                worldLit, alpha, camera, true);
+    }
+
+    private static boolean renderInstancePass(ByteBuffer instances, int count,
+                                             ResourceLocation texture, VfxFacingMode facing,
+                                             boolean rotating, boolean worldLit, boolean alpha,
+                                             Camera camera, boolean depthOnly) {
         RenderSystem.assertOnRenderThread();
         // The CPU sprite batch uses the same native vertex output storage.
         // Never overwrite geometry still awaiting its additive material draw.
@@ -703,10 +724,17 @@ public final class VfxNativeGpuGeometryBridge {
             }
             GL30.glBindVertexArray(outputVao);
             shader.apply();
+            if (depthOnly) {
+                GL11.glDisable(GL11.GL_BLEND);
+                GL11.glColorMask(false,false,false,false);
+                GL11.glDepthMask(true);
+            }
             GL11.glDrawElements(GL11.GL_TRIANGLES,INDICES_PER_PARTICLE*count,GL11.GL_UNSIGNED_INT,0L);
             submitted=true;
-            frameInstanceDrawCalls++;
-            totalInstanceDrawCalls++;
+            if (!depthOnly) {
+                frameInstanceDrawCalls++;
+                totalInstanceDrawCalls++;
+            }
             shader.clear();
         } catch (RuntimeException failure) {
             unavailable = true;

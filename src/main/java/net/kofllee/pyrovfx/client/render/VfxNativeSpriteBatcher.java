@@ -52,7 +52,7 @@ public final class VfxNativeSpriteBatcher {
     private static boolean batchAlpha;
     private static boolean batchWorldLit;
     private record AlphaMaterial(ResourceLocation texture, VfxFacingMode facing,
-                                 boolean rotating, boolean worldLit) {}
+                                 boolean rotating, boolean worldLit, boolean alpha) {}
     private static final List<AlphaMaterial> ALPHA_MATERIALS = new ArrayList<>();
     private static final java.util.Map<AlphaMaterial, Integer> ALPHA_MATERIAL_IDS =
             new java.util.HashMap<>();
@@ -64,6 +64,13 @@ public final class VfxNativeSpriteBatcher {
     private static int alphaCount;
     private record AlphaModel(long key, Runnable draw) {}
     private static final List<AlphaModel> ALPHA_MODELS = new ArrayList<>();
+    // Retain compact native sprite batches for the Fabulous particle-depth
+    // replay after visible alpha/additive color and model blending.
+    private record CloudDepthSprite(ByteBuffer data, int count, ResourceLocation texture,
+                                    VfxFacingMode facing, boolean rotating, boolean lit,
+                                    boolean alpha) {}
+    private static final List<CloudDepthSprite> CLOUD_DEPTH_SPRITES = new ArrayList<>();
+    private static final List<Runnable> CLOUD_DEPTH_MODELS = new ArrayList<>();
     private static boolean collectingAlpha;
     private static int collectingMaterial;
     private static int count;
@@ -119,6 +126,8 @@ public final class VfxNativeSpriteBatcher {
             ALPHA_MATERIALS.clear();
             ALPHA_MATERIAL_IDS.clear();
             ALPHA_MODELS.clear();
+            CLOUD_DEPTH_SPRITES.clear();
+            CLOUD_DEPTH_MODELS.clear();
             reloadPending = false;
             lastWorld = world;
         }
@@ -149,6 +158,8 @@ public final class VfxNativeSpriteBatcher {
         ALPHA_MATERIALS.clear();
         ALPHA_MATERIAL_IDS.clear();
         ALPHA_MODELS.clear();
+        CLOUD_DEPTH_SPRITES.clear();
+        CLOUD_DEPTH_MODELS.clear();
     }
 
     public static boolean matches(VfxEmitterDefinition definition) {
@@ -161,15 +172,26 @@ public final class VfxNativeSpriteBatcher {
     public static int subpixelCulledParticles() { return subpixelCulled; }
     public static void resetFrameStats() { drawCalls = submitted = culled = subpixelCulled = 0; }
 
+    /** Only the native Fabulous particle target needs depth-only replay. */
+    public static boolean supportsCloudDepthReplay() {
+        return Minecraft.getInstance().levelRenderer.getParticlesTarget() != null
+                && compatibleEnvironment();
+    }
+
+    public static void registerCloudDepthModel(Runnable depthOnly) {
+        if (supportsCloudDepthReplay()) CLOUD_DEPTH_MODELS.add(depthOnly);
+    }
+
     public static void append(VfxDenseParticlePool pool) {
         VfxEmitterDefinition definition = pool.definition();
         ResourceLocation texture = definition.render().sprite().texture();
         VfxFacingMode facing = definition.render().facing();
         boolean rotating = definition.rotation().mode() != net.kofllee.pyrovfx.vfx.type.VfxRotationMode.NONE;
         boolean worldLit = definition.render().environmentLighting();
-        if (definition.render().sprite().blendMode() == VfxBlendMode.ALPHA) {
+        boolean alpha = definition.render().sprite().blendMode() == VfxBlendMode.ALPHA;
+        if (alpha || definition.render().sprite().blendMode() == VfxBlendMode.ADDITIVE) {
             collectingMaterial = materialIndex(new AlphaMaterial(
-                    texture, facing, rotating, worldLit));
+                    texture, facing, rotating, worldLit, alpha));
             collectingAlpha = true;
             try {
                 pool.writeInstances(VfxNativeSpriteBatcher::put, camera, partialTick);
@@ -233,15 +255,31 @@ public final class VfxNativeSpriteBatcher {
      * CPU and Dense smoke clouds could blend in the wrong order.
      */
     public static void appendAlpha(VfxSpriteParticleView particle) {
+        appendSortedSprite(particle, false);
+    }
+
+    /** Additive and standard ALPHA sprites share one stable
+     * far-to-near queue; their distinct blend equations remain intact. */
+    public static void appendSortedAdditive(VfxSpriteParticleView particle) {
+        appendSortedSprite(particle, true);
+    }
+
+    public static void appendAnalyticSortedAdditive(
+            net.kofllee.pyrovfx.client.vfx.VfxAnalyticParticlePool pool) {
+        pool.forEachSpriteView(partialTick, VfxNativeSpriteBatcher::appendSortedAdditive);
+    }
+
+    private static void appendSortedSprite(VfxSpriteParticleView particle, boolean additive) {
         var render = particle.emitterDefinition().render();
-        if (render.sprite() == null || render.sprite().blendMode() != VfxBlendMode.ALPHA)
-            throw new IllegalArgumentException("Only alpha sprites belong in the sorted queue");
+        if (render.sprite() == null || render.sprite().blendMode()
+                != (additive ? VfxBlendMode.ADDITIVE : VfxBlendMode.ALPHA))
+            throw new IllegalArgumentException("Unexpected sprite blend mode for sorted queue");
         var color = particle.interpolatedColor(partialTick);
         collectingMaterial = materialIndex(new AlphaMaterial(render.sprite().texture(),
                 render.facing(),
                 particle.emitterDefinition().rotation().mode()
                         != net.kofllee.pyrovfx.vfx.type.VfxRotationMode.NONE,
-                render.environmentLighting()));
+                render.environmentLighting(), !additive));
         collectingAlpha = true;
         try {
             var position = particle.interpolatedPosition(partialTick);
@@ -264,6 +302,16 @@ public final class VfxNativeSpriteBatcher {
         } finally {
             collectingAlpha = false;
         }
+    }
+
+    /** Analytic closed-form simulation with CPU depth-sorted alpha submission
+     * and GPU Transform Feedback vertex expansion. Not GPU radix sorting. */
+    public static void appendAnalyticAlpha(
+            net.kofllee.pyrovfx.client.vfx.VfxAnalyticParticlePool pool) {
+        if (pool.definition().render().sprite() == null
+                || pool.definition().render().sprite().blendMode() != VfxBlendMode.ALPHA)
+            throw new IllegalArgumentException("Hybrid alpha requires an alpha sprite");
+        pool.forEachSpriteView(partialTick, VfxNativeSpriteBatcher::appendAlpha);
     }
 
     /**
@@ -438,13 +486,14 @@ public final class VfxNativeSpriteBatcher {
             AlphaMaterial spec = ALPHA_MATERIALS.get(material);
             if (previousMaterial != material && previousMaterial >= 0) {
                 AlphaMaterial prev = ALPHA_MATERIALS.get(previousMaterial);
-                if (!prev.texture().equals(spec.texture())) flush();
+                if (!prev.texture().equals(spec.texture())
+                        || prev.alpha() != spec.alpha()) flush();
             }
             if (count == MAX_BATCH) flush();
             batchTexture = spec.texture();
             batchFacing = spec.facing();
             batchRotating = spec.rotating();
-            batchAlpha = true;
+            batchAlpha = spec.alpha();
             batchWorldLit = spec.worldLit();
             ensureCapacity(count + 1);
             for (int channel = 0; channel < INSTANCE_FLOATS; channel++) {
@@ -479,9 +528,19 @@ public final class VfxNativeSpriteBatcher {
         input.flip();
         int drawn = count;
         try {
-            if (!VfxNativeGpuGeometryBridge.renderInstances(input, count,
-                    batchTexture, batchFacing, batchRotating, batchWorldLit, batchAlpha, camera)) {
+            boolean nativeDrawn = VfxNativeGpuGeometryBridge.renderInstances(input, count,
+                    batchTexture, batchFacing, batchRotating, batchWorldLit, batchAlpha, camera);
+            if (!nativeDrawn) {
                 drawMinecraftBatch(input, drawn);
+            } else if (supportsCloudDepthReplay()) {
+                // Only material confirmed to have drawn through the native
+                // Minecraft particle shader in the late shared alpha/additive
+                // pass; preserve its alpha-cutout geometry.
+                ByteBuffer copy = ByteBuffer.allocateDirect(input.remaining())
+                        .order(ByteOrder.nativeOrder());
+                copy.put(input.duplicate()).flip();
+                CLOUD_DEPTH_SPRITES.add(new CloudDepthSprite(copy, drawn, batchTexture,
+                        batchFacing, batchRotating, batchWorldLit, batchAlpha));
             }
             drawCalls++;
         } finally {
@@ -559,11 +618,14 @@ public final class VfxNativeSpriteBatcher {
         try {
             flush();
             flushSortedAlpha();
+            replayCloudDepth();
         } finally {
             alphaCount = 0;
             ALPHA_MATERIALS.clear();
             ALPHA_MATERIAL_IDS.clear();
             ALPHA_MODELS.clear();
+            CLOUD_DEPTH_SPRITES.clear();
+            CLOUD_DEPTH_MODELS.clear();
             batchTexture = null;
             batchRotating = false;
             batchAlpha = false;
@@ -574,12 +636,28 @@ public final class VfxNativeSpriteBatcher {
         }
     }
 
+    private static void replayCloudDepth() {
+        if (!supportsCloudDepthReplay()) return;
+        // Every color draw has finished. Only update the PARTICLES target
+        // depth for vanilla Fabulous' later cloud/particle composition.
+        // This cannot reorder colors already blended inside a single target.
+        for (var sprite : CLOUD_DEPTH_SPRITES)
+            VfxNativeGpuGeometryBridge.renderInstancesDepthOnly(
+                    sprite.data().duplicate().order(ByteOrder.nativeOrder()), sprite.count(),
+                    sprite.texture(), sprite.facing(), sprite.rotating(), sprite.lit(),
+                    sprite.alpha(), camera);
+        for (var model : CLOUD_DEPTH_MODELS) model.run();
+    }
+
     /** Only parameters we touch: state is captured before render and restored in a finally block. */
     static final class GlState {
         int program, vao, array, activeTexture, texture0, texture2, texture3d, blendRgbSrc, blendRgbDst,
                 blendAlphaSrc, blendAlphaDst, blendEquationRgb, blendEquationAlpha, depthFunc, colorMask;
+        float blendColorR, blendColorG, blendColorB, blendColorA;
         boolean blend, depth, cull, depthMask;
         private static final ByteBuffer CHANNEL_MASK = ByteBuffer.allocateDirect(4);
+        private static final java.nio.FloatBuffer BLEND_COLOR_QUERY =
+                org.lwjgl.BufferUtils.createFloatBuffer(4);
 
         private static int colorMaskBits() {
             CHANNEL_MASK.clear();
@@ -614,6 +692,12 @@ public final class VfxNativeSpriteBatcher {
             blendAlphaDst = GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA);
             blendEquationRgb = GL11.glGetInteger(GL20.GL_BLEND_EQUATION_RGB);
             blendEquationAlpha = GL11.glGetInteger(GL20.GL_BLEND_EQUATION_ALPHA);
+            BLEND_COLOR_QUERY.clear();
+            GL11.glGetFloatv(0x8005 /* GL_BLEND_COLOR */,BLEND_COLOR_QUERY);
+            blendColorR=BLEND_COLOR_QUERY.get(0);
+            blendColorG=BLEND_COLOR_QUERY.get(1);
+            blendColorB=BLEND_COLOR_QUERY.get(2);
+            blendColorA=BLEND_COLOR_QUERY.get(3);
         }
 
         void restore() {
@@ -632,6 +716,7 @@ public final class VfxNativeSpriteBatcher {
             GL13.glActiveTexture(activeTexture);
             GL14.glBlendFuncSeparate(blendRgbSrc,blendRgbDst,blendAlphaSrc,blendAlphaDst);
             GL20.glBlendEquationSeparate(blendEquationRgb, blendEquationAlpha);
+            GL14.glBlendColor(blendColorR,blendColorG,blendColorB,blendColorA);
             if (blend) GL11.glEnable(GL11.GL_BLEND); else GL11.glDisable(GL11.GL_BLEND);
             if (depth) GL11.glEnable(GL11.GL_DEPTH_TEST); else GL11.glDisable(GL11.GL_DEPTH_TEST);
             if (cull) GL11.glEnable(GL11.GL_CULL_FACE); else GL11.glDisable(GL11.GL_CULL_FACE);

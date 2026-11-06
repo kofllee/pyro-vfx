@@ -1,0 +1,117 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX / Visual Lab",
+    "description": "Interpenetrating translucent baked cubes; baseline RenderType globally sorted against alpha vs experimental GPU native per-instance sorted callbacks."
+  },
+  "lifetime": {
+    "mode": "looping",
+    "active_ticks": 280,
+    "sleep_ticks": 0,
+    "loops": 0
+  },
+  "emitters": [
+    {
+      "id": "blue_cubes",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 260,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 10
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 1.35
+      },
+      "offset": [
+        -0.45,
+        0,
+        0
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 250
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "model",
+        "environment_lighting": false,
+        "model": {
+          "source": "custom",
+          "model": "pyro_vfx:vfx/ember_cube",
+          "render_layer": "translucent"
+        },
+        "color": [
+          0.2,
+          0.65,
+          1,
+          0.38
+        ],
+        "scale": [
+          1.15,
+          1.15,
+          1.15
+        ]
+      }
+    },
+    {
+      "id": "orange_cubes",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 260,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 10
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 1.35
+      },
+      "offset": [
+        0.45,
+        0,
+        0
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 250
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "model",
+        "environment_lighting": false,
+        "model": {
+          "source": "custom",
+          "model": "pyro_vfx:vfx/ember_cube",
+          "render_layer": "translucent"
+        },
+        "color": [
+          1,
+          0.48,
+          0.12,
+          0.32
+        ],
+        "scale": [
+          1.15,
+          1.15,
+          1.15
+        ]
+      }
+    }
+  ]
+}

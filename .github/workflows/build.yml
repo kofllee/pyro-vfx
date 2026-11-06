@@ -25,6 +25,9 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
 
+      - name: Check repository and documentation integrity
+        run: python3 tools/check_repo_integrity.py
+
       - name: Build
         run: ./gradlew build developmentJar verifyReleaseJar --stacktrace
 

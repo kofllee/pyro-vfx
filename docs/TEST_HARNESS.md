@@ -10,7 +10,7 @@ Pyro VFX has separate `src/main` (release engine) and `src/development` (GameTes
 python tools/test_compare_bench.py
 ```
 
-CI checks the release JAR for development-content leaks and runs the development GameTests. Run them after Java changes; for documentation and retained benchmark selection, link validation and `git diff --check` are sufficient. The latest executed verification (5 November 2026) passed **96/96 GameTests** with `verifyReleaseJar`; earlier same-day verification passed three consecutive 91/91 suites. New tests cover GPU analytic birth-expression/RNG parity, independent parameter lifetimes, shared parametric offsets and rotating sprites, as well as safe same-tick cohort merge eligibility and Dense synchronous collision-event routing. An earlier run intermittently failed because delayed tests compared the shared level's total VFX lease count while other tests were active; those delayed checks now verify their own UUID leases, without weakening the immediate population checks. Newly added server tests check analytic world-plane facing, GPU-eligible LOOPING/MANUAL emission schedules and discard of saturated steady spawn debt. These test policy/simulation; they do not render into a GPU framebuffer.
+CI checks the release JAR for development-content leaks and runs the development GameTests. Run them after Java changes; for documentation and retained benchmark selection, link validation and `git diff --check` are sufficient. The latest executed verification (6 November 2026) passed **104/104 GameTests** with `verifyReleaseJar`; earlier same-day verification passed three consecutive 91/91 suites. New tests cover GPU analytic birth-expression/RNG parity, independent parameter lifetimes, shared parametric offsets and rotating sprites, as well as safe same-tick cohort merge eligibility and Dense synchronous collision-event routing. An earlier run intermittently failed because delayed tests compared the shared level's total VFX lease count while other tests were active; those delayed checks now verify their own UUID leases, without weakening the immediate population checks. Newly added server tests check analytic world-plane facing, GPU-eligible LOOPING/MANUAL emission schedules and discard of saturated steady spawn debt. These test policy/simulation; they do not render into a GPU framebuffer.
 
 The expanded [5 November client evidence](benchmarks/runtime-expansion-2026-11-05/README.md) includes actual GPU LOOPING/MANUAL cohorts (13/9 uploads), GPU world-lit Dense sprite instancing vs same-hash RenderType (0.0278% changed pixels), and snapshot-free Dense model rendering. `python tools/verify_m5.py` validates a coherent historical campaign rather than 731 mixed reports; use `--after YYYYMMDD-HHMMSS` to require fresh evidence (exit 2 means incomplete). Run `python tools/test_verify_m5.py` for campaign-selection unit tests. The additional [runtime extensions evidence](benchmarks/runtime-extensions-2026-11-05/README.md) contains real-client Legacy-vs-Dense collision event ordering, self-emission, GPU-vs-Dense shared-age parametric motion/rotation and two-upload coalesced manual bursts. The full current-code M5 campaign and 35-stand visual acceptance remain pending.
 
@@ -21,6 +21,9 @@ Six additional 5 November real-client checks exercised GPU Analytic sprites, res
 ```powershell
 # Interactive museum save and effect stands
 .\gradlew.bat runClientMuseum
+
+# Actual renderer: 12 sample groups across water, glass, stone, clouds
+.\gradlew.bat runClientRenderGallery
 
 # Real client timing; requires an existing local benchmark world
 .\gradlew.bat runClientBench '-PbenchScenario=sprite_10k'
@@ -55,3 +58,11 @@ These scripts **validate saved evidence**, not the current executable, and do no
 ```
 
 Start the localhost-only server first, then clients as separate processes. See [Networking](NETWORKING.md) for isolated `127.0.0.1:25575` setup, test-only offline mode and prior 8/8 results from each client. This is intentionally **not** part of a documentation cleanup, standard Gradle build or routine GameTests.
+
+## Iris visual profiles (optional)
+
+The separate Gradle profiles `runClientVisualIris` and `runClientVisualComplementary` use ignored directories `run-visual-iris/` and `run-visual-complementary/`. They are not release dependencies and are **not** run by CI.
+
+To reproduce them, install compatible NeoForge 1.21.1 Iris + Sodium jars under each profile's `mods/`, and place Complementary Reimagined in `run-visual-complementary/shaderpacks/`. For the latter profile, set `config/iris.properties` to `enableShaders=true` and `shaderPack=<pack filename>`. Start one client per profile. Both use independent `Pyro VFX Render Lab` saves. Shaderpack warnings must be evaluated against the actual scene, not treated as automatic proof of compatibility or failure.
+
+In a normal, modded world no gallery/client profile is required: runtime renderer selection is capability-based and uses the same code. The gallery has no A/B rendering toggles. `/pyrovfxmuseum experiments clouds` takes the camera to the real vanilla cloud layer in the developer world.

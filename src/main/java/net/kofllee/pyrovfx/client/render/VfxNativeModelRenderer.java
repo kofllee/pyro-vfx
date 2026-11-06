@@ -102,7 +102,7 @@ public final class VfxNativeModelRenderer {
 
     private static ByteBuffer instances;
     private static int program, instanceVbo, vao, analyticVao, vertexVbo;
-    private static int nativeVao, nativeVbo, nativeCapacityVertices;
+    private static int nativeVao, nativeEntityVao, nativeVbo, nativeCapacityVertices;
     private static final int NATIVE_VERTEX_STRIDE = 28, MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
     private static int capacity;
     private static boolean unavailable;
@@ -158,6 +158,19 @@ public final class VfxNativeModelRenderer {
     /** One birth-state VBO per cohort; model transforms are advanced by the vertex shader. */
     public static boolean renderAnalytic(VfxAnalyticParticlePool pool, PoseStack poses,
                                          Camera camera, float partialTick) {
+        return renderAnalyticPass(pool,poses,camera,partialTick,false);
+    }
+
+    /** Depth replay for resident additive meshes in Fabulous. */
+    public static boolean renderAnalyticDepthOnly(VfxAnalyticParticlePool pool, PoseStack poses,
+                                                   Camera camera, float partialTick) {
+        return pool.definition().render().model() != null
+                && pool.definition().render().model().renderLayer() == VfxModelRenderLayer.ADDITIVE
+                && renderAnalyticPass(pool,poses,camera,partialTick,true);
+    }
+
+    private static boolean renderAnalyticPass(VfxAnalyticParticlePool pool, PoseStack poses,
+                                              Camera camera, float partialTick, boolean depthOnly) {
         // Per-particle lifetime masks, birth expressions and world-light
         // probes need their own model attributes. Until supported in this
         // shader they must use the correct vanilla CPU model path.
@@ -197,11 +210,13 @@ public final class VfxNativeModelRenderer {
             int chunk = batchCapacity(mesh);
             for (int start = 0; start < pool.liveCount(); start += chunk) {
                 int count = Math.min(chunk, pool.liveCount() - start);
-                drawResident(mesh, mvp, count, resource.effectiveLayer(),
-                        pool, start, camera, partialTick);
+                drawModel(mesh,mvp,count,resource.effectiveLayer(),false,pool,start,camera,partialTick,
+                        depthOnly);
                 submitted = true;
-                lastDrawCalls++;
-                lastInstances += count;
+                if (!depthOnly) {
+                    lastDrawCalls++;
+                    lastInstances += count;
+                }
             }
             return true;
         } catch (RuntimeException ex) {
@@ -215,8 +230,21 @@ public final class VfxNativeModelRenderer {
     /** Render dense primitive model state directly, without materializing particle objects. */
     public static boolean renderDense(VfxDenseParticlePool pool, PoseStack poses,
                                       Camera camera, float partialTick) {
+        return renderDensePass(pool,poses,camera,partialTick,false);
+    }
+
+    public static boolean renderDenseDepthOnly(VfxDenseParticlePool pool, PoseStack poses,
+                                               Camera camera, float partialTick) {
+        return pool.definition().render().model() != null
+                && pool.definition().render().model().renderLayer() == VfxModelRenderLayer.ADDITIVE
+                && renderDensePass(pool,poses,camera,partialTick,true);
+    }
+
+    private static boolean renderDensePass(VfxDenseParticlePool pool, PoseStack poses,
+                                           Camera camera, float partialTick, boolean depthOnly) {
         if (pool.size() == 0 || !pool.model() || !accepts(pool.definition())
-                || !pool.fullyOpaque(partialTick)) return false;
+                || (!pool.fullyOpaque(partialTick) && !(pool.definition().render().model().renderLayer()
+                        == VfxModelRenderLayer.ADDITIVE))) return false;
         RenderSystem.assertOnRenderThread();
         maintain();
         VfxModelRenderDefinition resource = pool.definition().render().model();
@@ -254,10 +282,13 @@ public final class VfxNativeModelRenderer {
                 if (++batched[0] == chunk) {
                     instances.flip();
                     drawAttempted[0] = true;
-                    draw(readyMesh, mvp, batched[0], resource.effectiveLayer(),
-                            pool.definition().render().environmentLighting());
-                    lastDrawCalls++;
-                    lastInstances += batched[0];
+                    drawModel(readyMesh,mvp,batched[0],resource.effectiveLayer(),
+                            pool.definition().render().environmentLighting(),
+                            null,0,null,0f,depthOnly);
+                    if (!depthOnly) {
+                        lastDrawCalls++;
+                        lastInstances += batched[0];
+                    }
                     batched[0] = 0;
                     instances.clear();
                 }
@@ -265,10 +296,13 @@ public final class VfxNativeModelRenderer {
             if (batched[0] > 0) {
                 instances.flip();
                 drawAttempted[0] = true;
-                draw(mesh, mvp, batched[0], resource.effectiveLayer(),
-                        pool.definition().render().environmentLighting());
-                lastDrawCalls++;
-                lastInstances += batched[0];
+                drawModel(mesh,mvp,batched[0],resource.effectiveLayer(),
+                        pool.definition().render().environmentLighting(),
+                        null,0,null,0f,depthOnly);
+                if (!depthOnly) {
+                    lastDrawCalls++;
+                    lastInstances += batched[0];
+                }
             }
             return true;
         } catch (RuntimeException ex) {
@@ -278,6 +312,79 @@ public final class VfxNativeModelRenderer {
             // A pre-draw failure must fall back immediately. If a draw was
             // attempted, it might have submitted pixels before the error.
             return drawAttempted[0];
+        }
+    }
+
+    /**
+     * Native translucent baked-model route. Retains the shared Pyro
+     * depth-sorted callback order by drawing each model at its sorted
+     * position. This does not sort the individual faces of a model.
+     */
+    public static boolean renderTranslucentSingle(VfxDenseParticlePool pool, int index,
+                                                   PoseStack poses, Camera camera, float partialTick) {
+        return renderTranslucentSinglePass(pool, index, poses, camera, partialTick, false);
+    }
+
+    /** Only the depth component of the model, after every visible color pass.
+     * Unlike enabling depth writes during blending, this does not hide the
+     * rear transparent faces of the model itself. */
+    public static boolean renderTranslucentDepthOnly(VfxDenseParticlePool pool, int index,
+                                                     PoseStack poses, Camera camera, float partialTick) {
+        return renderTranslucentSinglePass(pool, index, poses, camera, partialTick, true);
+    }
+
+    private static boolean renderTranslucentSinglePass(VfxDenseParticlePool pool, int index,
+                                                      PoseStack poses, Camera camera, float partialTick,
+                                                      boolean depthOnly) {
+        if (!pool.model() || unavailable || !GL.getCapabilities().OpenGL33
+                || !VfxNativeSpriteBatcher.compatibleEnvironment()
+                || pool.definition().render().model() == null
+                || pool.definition().render().model().renderLayer() != VfxModelRenderLayer.TRANSLUCENT
+                || pool.definition().render().model().source() == VfxModelSourceType.ENTITY)
+            return false;
+        RenderSystem.assertOnRenderThread();
+        maintain();
+        var resource = pool.definition().render().model();
+        Mesh mesh = VfxBakedModelMeshCache.get(resource);
+        if (mesh == null || mesh.vertexCount() * (long)NATIVE_VERTEX_STRIDE > MAX_OUTPUT_BYTES)
+            return false;
+        boolean submitted = false;
+        try {
+            if (program == 0) initialize();
+            Matrix4f mvp = new Matrix4f(RenderSystem.getProjectionMatrix())
+                    .mul(RenderSystem.getModelViewMatrix()).mul(poses.last().pose());
+            Vec3 view = camera.getPosition();
+            ensureCapacity(1);
+            instances.clear();
+            pool.writeModelInstance(index, (x,y,z,sx,sy,sz,r,g,b,a,rx,ry,rz) -> {
+                instances.putFloat((float)(x-view.x)).putFloat((float)(y-view.y))
+                        .putFloat((float)(z-view.z));
+                instances.putFloat(sx).putFloat(sy).putFloat(sz);
+                instances.putFloat(r).putFloat(g).putFloat(b).putFloat(a);
+                ROTATION.rotationXYZ((float)Math.toRadians(rx),
+                        (float)Math.toRadians(ry), (float)Math.toRadians(rz));
+                instances.putFloat(ROTATION.x).putFloat(ROTATION.y)
+                        .putFloat(ROTATION.z).putFloat(ROTATION.w);
+                int light = pool.definition().render().environmentLighting()
+                        ? VfxRenderLight.getParticleLight(x,y,z) : LightTexture.FULL_BRIGHT;
+                instances.putFloat((((light >> 4)&15)+0.5f)/16f);
+                instances.putFloat((((light >> 20)&15)+0.5f)/16f);
+            }, partialTick);
+            instances.flip();
+            submitted = true;
+            drawModel(mesh, mvp, 1, VfxModelRenderLayer.TRANSLUCENT,
+                    pool.definition().render().environmentLighting(), null, 0, null, 0f,
+                    depthOnly);
+            if (!depthOnly) {
+                lastDrawCalls++;
+                lastInstances++;
+            }
+            return true;
+        } catch (RuntimeException error) {
+            unavailable = true;
+            com.mojang.logging.LogUtils.getLogger().warn(
+                    "Native translucent model rendering failed; preserving Minecraft fallback", error);
+            return submitted; // Avoid double-blending if the draw was partly submitted.
         }
     }
 
@@ -375,6 +482,13 @@ public final class VfxNativeModelRenderer {
                                   VfxModelRenderLayer layer, boolean worldLit,
                                   VfxAnalyticParticlePool resident, int start,
                                   Camera camera, float partialTick) {
+        drawModel(mesh, mvp, count, layer, worldLit, resident, start, camera, partialTick, false);
+    }
+
+    private static void drawModel(Mesh mesh, Matrix4f mvp, int count,
+                                  VfxModelRenderLayer layer, boolean worldLit,
+                                  VfxAnalyticParticlePool resident, int start,
+                                  Camera camera, float partialTick, boolean depthOnly) {
         // Only geometry generation belongs to Pyro. The final fragment pass
         // is always Minecraft's ShaderInstance, including with shaderpacks.
         var state = new VfxNativeSpriteBatcher.GlState();
@@ -389,6 +503,7 @@ public final class VfxNativeModelRenderer {
         int prevReadFbo = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
         int prevShaderLight = RenderSystem.getShaderTexture(2);
         int prevTexture = RenderSystem.getShaderTexture(0);
+        int prevOverlay = RenderSystem.getShaderTexture(1);
         var prevShader = RenderSystem.getShader();
         try {
             int vertices = Math.multiplyExact(mesh.vertexCount(), count);
@@ -463,28 +578,76 @@ public final class VfxNativeModelRenderer {
             }
 
             var mc = Minecraft.getInstance();
+            // Lab: baked SOLID/CUTOUT block/item quads must go through the
+            // Minecraft entity material shader, not the particle shader.
+            // Iris without a shaderpack can otherwise sample their block
+            // atlas/lightmap incorrectly (black block/item silhouettes).
+            boolean bakedEntityMaterial = (layer == VfxModelRenderLayer.SOLID
+                    || layer == VfxModelRenderLayer.CUTOUT);
             mc.gameRenderer.lightTexture().turnOnLightLayer();
-            RenderSystem.setShader(net.minecraft.client.renderer.GameRenderer::getParticleShader);
+            if (bakedEntityMaterial) {
+                mc.gameRenderer.overlayTexture().setupOverlayColor();
+                RenderSystem.setShader(layer == VfxModelRenderLayer.CUTOUT
+                        ? net.minecraft.client.renderer.GameRenderer::getRendertypeEntityCutoutShader
+                        : net.minecraft.client.renderer.GameRenderer::getRendertypeEntitySolidShader);
+            } else RenderSystem.setShader(
+                    net.minecraft.client.renderer.GameRenderer::getParticleShader);
             RenderSystem.setShaderTexture(0,InventoryMenu.BLOCK_ATLAS);
             var shader = RenderSystem.getShader();
             shader.setDefaultUniforms(com.mojang.blaze3d.vertex.VertexFormat.Mode.TRIANGLES,
                     RenderSystem.getModelViewMatrix(),RenderSystem.getProjectionMatrix(),
                     mc.getWindow());
-            if (layer == VfxModelRenderLayer.ADDITIVE) {
+            if (layer == VfxModelRenderLayer.TRANSLUCENT) {
                 GL11.glEnable(GL11.GL_BLEND);
-                org.lwjgl.opengl.GL14.glBlendFuncSeparate(GL11.GL_SRC_ALPHA,GL11.GL_ONE,
+                org.lwjgl.opengl.GL14.glBlendFuncSeparate(
+                        GL11.GL_SRC_ALPHA,GL11.GL_ONE_MINUS_SRC_ALPHA,
                         GL11.GL_ONE,GL11.GL_ONE_MINUS_SRC_ALPHA);
+            } else if (layer == VfxModelRenderLayer.ADDITIVE) {
+                GL11.glEnable(GL11.GL_BLEND);
+                if (!depthOnly
+                        && Minecraft.getInstance().levelRenderer.getParticlesTarget() != null) {
+                    // Fabulous' final composite interprets particle-target
+                    // alpha as occlusion: dst * (1 - alpha) + premultiplied RGB.
+                    // Standard additive alpha here would incorrectly darken
+                    // the world behind each glowing mesh. Preserve the exact
+                    // SRC_ALPHA, ONE RGB sum but carry only a small nonzero
+                    // coverage alpha for the layer to be composited at all.
+                    // GL_MAX prevents hundreds of overlapping additive faces
+                    // from accumulating artificial opacity.
+                    org.lwjgl.opengl.GL14.glBlendColor(0f,0f,0f,0.015f);
+                    org.lwjgl.opengl.GL20.glBlendEquationSeparate(
+                            org.lwjgl.opengl.GL14.GL_FUNC_ADD,org.lwjgl.opengl.GL14.GL_MAX);
+                    org.lwjgl.opengl.GL14.glBlendFuncSeparate(
+                            GL11.GL_SRC_ALPHA,GL11.GL_ONE,
+                            org.lwjgl.opengl.GL14.GL_CONSTANT_ALPHA,GL11.GL_ONE);
+                } else {
+                    org.lwjgl.opengl.GL14.glBlendFuncSeparate(
+                            GL11.GL_SRC_ALPHA,GL11.GL_ONE,
+                            GL11.GL_ONE,GL11.GL_ONE_MINUS_SRC_ALPHA);
+                }
             } else GL11.glDisable(GL11.GL_BLEND);
             GL11.glEnable(GL11.GL_DEPTH_TEST);
             GL11.glDepthFunc(GL11.GL_LEQUAL);
-            GL11.glDepthMask(layer != VfxModelRenderLayer.ADDITIVE);
+            GL11.glDepthMask(layer != VfxModelRenderLayer.ADDITIVE
+                    && layer != VfxModelRenderLayer.TRANSLUCENT);
             GL11.glDisable(GL11.GL_CULL_FACE);
-            GL30.glBindVertexArray(nativeVao);
+            GL30.glBindVertexArray(bakedEntityMaterial ? nativeEntityVao : nativeVao);
+            if (bakedEntityMaterial) {
+                // Generic attribute values are context state, not VAO state.
+                GL30.glVertexAttribI2i(3,0,10);
+                GL20.glVertexAttrib3f(5,0f,1f,0f);
+            }
             shader.apply();
+            if (depthOnly) {
+                GL11.glDisable(GL11.GL_BLEND);
+                GL11.glColorMask(false,false,false,false);
+                GL11.glDepthMask(true);
+            }
             try {
                 GL11.glDrawArrays(GL11.GL_TRIANGLES,0,vertices);
             } finally {
                 shader.clear();
+                if (bakedEntityMaterial) mc.gameRenderer.overlayTexture().teardownOverlayColor();
             }
         } finally {
             if(prevDiscard) GL11.glEnable(GL30.GL_RASTERIZER_DISCARD);
@@ -498,6 +661,7 @@ public final class VfxNativeModelRenderer {
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER,prevArray);
             if(prevShader != null) RenderSystem.setShader(()->prevShader);
             RenderSystem.setShaderTexture(0,prevTexture);
+            RenderSystem.setShaderTexture(1,prevOverlay);
             RenderSystem.setShaderTexture(2,prevShaderLight);
             state.restore();
             if(Boolean.getBoolean("pyrovfx.render.stateAudit")){
@@ -545,6 +709,7 @@ public final class VfxNativeModelRenderer {
             vao = GL30.glGenVertexArrays();
             analyticVao = GL30.glGenVertexArrays();
             nativeVao = GL30.glGenVertexArrays();
+            nativeEntityVao = GL30.glGenVertexArrays();
             nativeVbo = GL15.glGenBuffers();
             vertexVbo = GL15.glGenBuffers();
             instanceVbo = GL15.glGenBuffers();
@@ -571,6 +736,20 @@ public final class VfxNativeModelRenderer {
             GL20.glVertexAttribPointer(1,2,GL11.GL_FLOAT,false,NATIVE_VERTEX_STRIDE,12L);
             GL20.glVertexAttribPointer(2,4,GL11.GL_UNSIGNED_BYTE,true,NATIVE_VERTEX_STRIDE,20L);
             GL30.glVertexAttribIPointer(3,2,GL11.GL_UNSIGNED_SHORT,NATIVE_VERTEX_STRIDE,24L);
+            // Same 28-byte native output, interpreted as NEW_ENTITY by
+            // Minecraft's entity solid/cutout shaders. Overlay and normal
+            // are constant because the TF payload does not contain them.
+            GL30.glBindVertexArray(nativeEntityVao);
+            GL20.glEnableVertexAttribArray(0);
+            GL20.glEnableVertexAttribArray(1);
+            GL20.glEnableVertexAttribArray(2);
+            GL20.glEnableVertexAttribArray(4);
+            GL20.glVertexAttribPointer(0,3,GL11.GL_FLOAT,false,NATIVE_VERTEX_STRIDE,0L);
+            GL20.glVertexAttribPointer(1,4,GL11.GL_UNSIGNED_BYTE,true,NATIVE_VERTEX_STRIDE,20L);
+            GL20.glVertexAttribPointer(2,2,GL11.GL_FLOAT,false,NATIVE_VERTEX_STRIDE,12L);
+            GL30.glVertexAttribIPointer(4,2,GL11.GL_UNSIGNED_SHORT,NATIVE_VERTEX_STRIDE,24L);
+            GL30.glVertexAttribI2i(3,0,10); // OverlayTexture.NO_OVERLAY
+            GL20.glVertexAttrib3f(5,0f,1f,0f);
         } finally {
             GL30.glBindVertexArray(oldVao);
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, oldArray);
@@ -604,8 +783,9 @@ public final class VfxNativeModelRenderer {
         if (vao != 0) GL30.glDeleteVertexArrays(vao);
         if (analyticVao != 0) GL30.glDeleteVertexArrays(analyticVao);
         if (nativeVao != 0) GL30.glDeleteVertexArrays(nativeVao);
+        if (nativeEntityVao != 0) GL30.glDeleteVertexArrays(nativeEntityVao);
         if (program != 0) GL20.glDeleteProgram(program);
-        vertexVbo=instanceVbo=vao=analyticVao=nativeVao=nativeVbo=program=0;
+        vertexVbo=instanceVbo=vao=analyticVao=nativeVao=nativeEntityVao=nativeVbo=program=0;
         nativeCapacityVertices=0;
     }
 }

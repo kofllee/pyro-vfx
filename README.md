@@ -1,26 +1,31 @@
 # Pyro VFX
 
-**JSON-driven visual effects runtime for Minecraft 1.21.1 / NeoForge 21.1.229 / Java 21.** Pyro VFX creates sprites and Minecraft-style 3D model particles from resource-pack definitions, with expressions, curves, events, collisions, emitter shapes, transform attachments and networking. It is an **experimental engine**, not a production-certified release. The next development phase is a visual editor; no editor is implemented yet.
+**JSON-defined effects runtime for Minecraft 1.21.1 / NeoForge 21.1.229 / Java 21.**
 
-## Start here
+Pyro VFX handles sprite and Minecraft-model particles, parameters, expressions, curves, event triggers, block collision, attachments, multiplayer synchronization and adaptive resource budgets. Its rendering backends are chosen by **effect capabilities**: GPU Analytic for supported closed-form simulation; CPU Dense/Legacy for world-dependent or stateful behavior; Minecraft-native GPU geometry with RenderType fallback for drawing.
 
-| Need | Read |
+This is a **runtime prototype**, not a certified multi-driver or shaderpack release. The next development phase is the visual editor.
+
+## Documentation
+
+| Topic | Reference |
 |---|---|
-| Capabilities, verified scope, limitations | [Status](docs/STATUS.md) |
-| Runtime, CPU/GPU rendering, transforms, architecture decisions | [Architecture](docs/ARCHITECTURE.md) |
-| JSON fields and expressions | [JSON format](docs/JSON_FORMAT.md), [expressions and curves](docs/EXPRESSIONS.md) |
-| Trigger an effect from another mod | [Public API](docs/PUBLIC_API.md) |
-| Server/client synchronization | [Networking](docs/NETWORKING.md) |
-| Examples and in-game preview | [Examples](docs/EXAMPLES.md), [Test Harness](docs/TEST_HARNESS.md) |
-| Measured performance and retained evidence | [Performance](docs/PERFORMANCE.md) |
-| Tested graphics configurations | [Compatibility](docs/COMPATIBILITY_MATRIX.md) |
-| Next stage: visual editor | [Roadmap](docs/ROADMAP.md) |
+| Implemented functionality, open limitations and verification | [Current status](docs/STATUS.md) |
+| Subsystems, ownership and design decisions | [Architecture](docs/ARCHITECTURE.md) |
+| GPU/CPU rendering, blending and depth | [Native render bridge](docs/NATIVE_RENDER_BRIDGE.md) |
+| JSON definitions and expressions | [JSON format](docs/JSON_FORMAT.md), [expressions](docs/EXPRESSIONS.md) |
+| Public use from another mod | [API](docs/PUBLIC_API.md), [examples](docs/EXAMPLES.md) |
+| Multiplayer and attachment identities | [Networking](docs/NETWORKING.md) |
+| Graphics compatibility and remaining issues | [Compatibility](docs/COMPATIBILITY_MATRIX.md), [open work](docs/RENDERING_AND_OPTIMIZATION_BACKLOG.md) |
+| Actual measurements (historical and current baselines) | [Performance](docs/PERFORMANCE.md) |
+| Build, developer gallery and test commands | [Test harness](docs/TEST_HARNESS.md) |
+| Next implementation stage | [Visual editor roadmap](docs/ROADMAP.md) |
 
-## How it works
+## Effect definitions
 
-Definitions live at `assets/<namespace>/vfx/<path>.json`; their resource location becomes the effect ID (for example `example_mod:smoke/burst`). `format` must be `pyro_vfx:1`. See the [working examples](src/development/resources/assets/pyro_vfx/vfx/examples/) and the full [format reference](docs/JSON_FORMAT.md).
+Place JSON resources at `assets/<namespace>/vfx/<path>.json`. The identifier becomes `namespace:path` and the required format is `pyro_vfx:1`. Examples are in [the development resources](src/development/resources/assets/pyro_vfx/vfx/examples/).
 
-Code in a consuming mod uses the public side-aware API:
+The side-aware public API exposes play, parameters, triggers and stop:
 
 ```java
 import net.kofllee.pyrovfx.api.Vfx;
@@ -34,25 +39,31 @@ trail.trigger("burst");
 trail.stop();
 ```
 
-`Vfx.play` on the logical server broadcasts to eligible clients; on the client it creates a local effect. Do not call it on both logical sides for the same gameplay event. Built-in Entity/BlockEntity sources and named sockets synchronize by identity; arbitrary server callbacks can stream sampled poses. The server never simulates visual particles. [Full API contract](docs/PUBLIC_API.md).
+Call `Vfx.play` on the **logical server** for one multiplayer gameplay event. It distributes effect instructions to eligible clients; the server never simulates visual particles. Use client-local playback for purely local UI or preview effects.
 
-## Build and inspect
-
-On Windows:
+## Build and verify
 
 ```powershell
-.\gradlew.bat build
+.\gradlew.bat build developmentJar verifyReleaseJar --no-daemon
 .\gradlew.bat runGameTestServer --no-daemon
 ```
 
-On Unix-like systems, use `./gradlew`. Output: `build/libs/`. The release uses only `src/main`; `src/development` holds the museum, GameTests, diagnostics and benchmark fixtures. Use `developmentJar verifyReleaseJar` to build the optional developer JAR and verify the release. For interactive museum and optional client benchmarks, see [Test Harness](docs/TEST_HARNESS.md). Neither Minecraft clients nor benchmark runs are needed for documentation-only changes.
+Use `./gradlew` on Unix. Release artifacts appear in `build/libs`. Only `src/main` ships in the release JAR; `src/development` contains the separate visual gallery, benchmark fixtures, debug commands and GameTests. The release-JAR verifier rejects leaked developer fixtures.
 
-Development-only client commands include `/pyrovfx list`, `/pyrovfx play <id>`, `/pyrovfx play_at <id> <pos>`, `/pyrovfx stop_all`, `/pyrovfx sockets` and `/pyrovfx backend`. Client resource reload refreshes effect definitions.
+For a **single-purpose rendering gallery** (glass, water, tinted glass, opaque walls, overlapping alpha and real vanilla clouds), run:
 
-## Important boundaries
+```powershell
+.\gradlew.bat runClientRenderGallery
+```
 
-CPU Dense/Legacy and GPU Analytic/instanced paths are selected by effect capabilities and graphics environment. Active shaderpacks use conservative Minecraft rendering fallback. GPU Compute has deliberately **not** been added; complex collision, event and stateful effects retain CPU processing. Particle admission budgets limit resource use but are not VRAM or FPS guarantees.
+This developer client uses its own `Pyro VFX Render Lab` save and always exercises the regular renderer; no old/new switches are required. The optional Iris and Complementary client profiles use separate ignored run directories and require compatible locally installed graphics mods/shaderpacks. See [test harness](docs/TEST_HARNESS.md).
 
-The 35-exhibit development-only technical museum, targeted GameTests, and two independent localhost clients provide useful development evidence, **not** proof of cross-driver, high-player-count, 4K or long-running modpack stability. Details and source measurements are in the links above.
+## Rendering boundaries
 
-Licensed under the [MIT License](LICENSE).
+- Alpha and additive sprites use shared depth-sorted submission among **Pyro-owned** sprites. GPU Analytic Alpha is a hybrid: closed-form simulation with CPU depth ordering and native GPU geometry; it is not a GPU sorting implementation.
+- Opaque/cutout and additive baked models use native GPU mesh processing when eligible. Translucent baked models use ordered GPU submissions with CPU sorting; animated entity models and unsupported material semantics retain Minecraft RenderType.
+- Fabulous can use a late **depth-only replay** to compare effects with real Minecraft clouds. Additive model RGB uses additive blending, but the final Fabulous blend is an approximation because its transparency compositor also uses layer alpha.
+- Iris and shaderpack behavior remains configuration-specific. Passing GameTests does not certify visual correctness on all shaders, GPUs or modpacks.
+- GPU Compute is intentionally not implemented.
+
+The code and documentation are licensed under the [MIT License](LICENSE).

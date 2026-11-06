@@ -110,6 +110,32 @@ neoForge {
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
+        // Dedicated interactive graphics compatibility gallery.
+        clientRenderGallery {
+            client()
+            programArguments.addAll '--quickPlaySingleplayer', 'Pyro VFX Render Lab'
+            systemProperty 'pyrovfx.museum.autoStart', 'true'
+            systemProperty 'pyrovfx.museum.visualOnly', 'true'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+        // Separate temporary visual verification environments for Iris.
+        clientVisualIris {
+            client()
+            gameDirectory = project.file('run-visual-iris')
+            programArguments.addAll '--quickPlaySingleplayer', 'Pyro VFX Render Lab',
+                    '--username', 'PyroIris', '--width', '1120', '--height', '700'
+            systemProperty 'pyrovfx.museum.autoStart', 'true'
+            systemProperty 'pyrovfx.museum.visualOnly', 'true'
+        }
+        clientVisualComplementary {
+            client()
+            gameDirectory = project.file('run-visual-complementary')
+            programArguments.addAll '--quickPlaySingleplayer', 'Pyro VFX Render Lab',
+                    '--username', 'PyroComp', '--width', '1120', '--height', '700'
+            systemProperty 'pyrovfx.museum.autoStart', 'true'
+            systemProperty 'pyrovfx.museum.visualOnly', 'true'
+        }
+
         server {
             server()
             programArgument '--nogui'

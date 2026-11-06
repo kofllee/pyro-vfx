@@ -1,5 +1,15 @@
 # Performance and retained benchmark evidence
 
+**Publication note (6 November 2026):** The figures below are retained measurements of
+earlier render configurations and their original workloads. The new unified
+alpha/additive stage, translucent GPU model ordering and Fabulous depth replay
+were promoted afterward. **No matched speedup or regression measurement of that
+final combination has yet been established.** In particular, previously
+measured tiny-cohort optimization paths may be bypassed when the unified
+sorting route is active. Do not present the old FPS or draw-call reductions as
+current production performance. The remaining verification is tracked in
+[Rendering work](RENDERING_AND_OPTIMIZATION_BACKLOG.md).
+
 ## 6 November 2026: real museum frame cost and Fabulous depth
 
 The original material-cohort GPU batching reduced final ShaderInstance

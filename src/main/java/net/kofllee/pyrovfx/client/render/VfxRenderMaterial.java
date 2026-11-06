@@ -35,13 +35,16 @@ public record VfxRenderMaterial(Kind kind, ResourceLocation texture,
     }
 
     public Pass pass() {
-        // Native solid geometry writes depth before world transparency.
-        // Additive light is also composited behind the translucent-world pass;
-        // Alpha uses the native particle target, where Fabulous has copied
-        // opaque world depth, before it performs the final transparency composite.
+        // All Pyro translucent materials use the late particle stage; this
+        // preserves cross-emitter alpha/additive ordering and cloud depth.
+        if (kind == Kind.ADDITIVE)
+            return Pass.AFTER_PARTICLES;
+        // Opaque/cutout geometry uses the earlier native depth target.
         return kind == Kind.ALPHA ? Pass.AFTER_PARTICLES : Pass.BEFORE_TRANSLUCENT_WORLD;
     }
 
-    public boolean requiresSorting() { return kind == Kind.ALPHA; }
+    public boolean requiresSorting() {
+        return kind == Kind.ALPHA || (kind == Kind.ADDITIVE && texture != null);
+    }
     public boolean writesDepth() { return kind == Kind.OPAQUE || kind == Kind.CUTOUT; }
 }

@@ -1,0 +1,641 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX / Rendering Visual Lab",
+    "description": "12 small labeled renderer sample groups in every glass/water/stone/cloud fixture. Scene-only; no benchmark use."
+  },
+  "lifetime": {
+    "mode": "looping",
+    "active_ticks": 270,
+    "sleep_ticks": 0,
+    "loops": 0
+  },
+  "emitters": [
+    {
+      "id": "sprite_alpha_lit",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 240,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 8
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.28
+      },
+      "offset": [
+        -4.6,
+        -0.65,
+        3.7
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 235
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": true,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": [
+          0.92,
+          0.92,
+          0.98,
+          0.45
+        ],
+        "scale": [
+          0.42,
+          0.42,
+          1
+        ]
+      }
+    },
+    {
+      "id": "sprite_alpha_hybrid",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 240,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 8
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.28
+      },
+      "offset": [
+        -1.55,
+        -0.65,
+        3.7
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 235
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": [
+          0.22,
+          0.85,
+          0.95,
+          0.5
+        ],
+        "scale": [
+          0.42,
+          0.42,
+          1
+        ]
+      }
+    },
+    {
+      "id": "sprite_additive_gpu",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 240,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 18
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.28
+      },
+      "offset": [
+        1.55,
+        -0.65,
+        3.7
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 235
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": [
+          1,
+          0.68,
+          0.15,
+          1
+        ],
+        "scale": [
+          0.22,
+          0.22,
+          1
+        ]
+      }
+    },
+    {
+      "id": "sprite_additive_lit",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 240,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 8
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.28
+      },
+      "offset": [
+        4.6,
+        -0.65,
+        3.7
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 235
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": true,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": [
+          0.35,
+          1,
+          0.45,
+          0.92
+        ],
+        "scale": [
+          0.25,
+          0.25,
+          1
+        ]
+      }
+    },
+    {
+      "id": "sprite_horizontal",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 240,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 8
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.28
+      },
+      "offset": [
+        -4.6,
+        1.95,
+        3.7
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 235
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera_horizontal",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": [
+          0.9,
+          0.3,
+          0.95,
+          0.88
+        ],
+        "scale": [
+          0.2,
+          0.33,
+          1
+        ]
+      }
+    },
+    {
+      "id": "sprite_world_z",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 240,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 8
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.28
+      },
+      "offset": [
+        -1.55,
+        1.95,
+        3.7
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 235
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "world_z",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": [
+          0.95,
+          0.55,
+          0.2,
+          0.55
+        ],
+        "scale": [
+          0.35,
+          0.35,
+          1
+        ]
+      }
+    },
+    {
+      "id": "sprite_rotating",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 240,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 8
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.28
+      },
+      "offset": [
+        1.55,
+        1.95,
+        3.7
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 235
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "dynamic",
+        "dynamic": {
+          "start_rotation": [
+            0,
+            0,
+            0
+          ],
+          "angular_velocity": [
+            15,
+            45,
+            90
+          ],
+          "angular_drag": 0.1
+        }
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "additive"
+        },
+        "color": [
+          0.95,
+          0.9,
+          0.25,
+          0.88
+        ],
+        "scale": [
+          0.24,
+          0.36,
+          1
+        ]
+      }
+    },
+    {
+      "id": "model_solid",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 240,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 4
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.25
+      },
+      "offset": [
+        4.6,
+        1.95,
+        3.7
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 235
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "model",
+        "environment_lighting": false,
+        "model": {
+          "source": "block",
+          "model": "minecraft:stone",
+          "block_state": "minecraft:stone",
+          "render_layer": "solid"
+        },
+        "color": [
+          0.9,
+          0.75,
+          0.35,
+          1
+        ],
+        "scale": [
+          0.34,
+          0.34,
+          0.34
+        ]
+      }
+    },
+    {
+      "id": "model_cutout",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 240,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 3
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.25
+      },
+      "offset": [
+        -4.6,
+        4.55,
+        3.7
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 235
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "model",
+        "environment_lighting": false,
+        "model": {
+          "source": "item",
+          "model": "minecraft:iron_ingot",
+          "render_layer": "cutout"
+        },
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "scale": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      }
+    },
+    {
+      "id": "model_additive",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 240,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 4
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.25
+      },
+      "offset": [
+        -1.55,
+        4.55,
+        3.7
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 235
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "model",
+        "environment_lighting": false,
+        "model": {
+          "source": "custom",
+          "model": "pyro_vfx:vfx/ember_cube",
+          "render_layer": "additive"
+        },
+        "color": [
+          0.4,
+          0.6,
+          1,
+          0.78
+        ],
+        "scale": [
+          0.31,
+          0.31,
+          0.31
+        ]
+      }
+    },
+    {
+      "id": "model_translucent",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 240,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 4
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.25
+      },
+      "offset": [
+        1.55,
+        4.55,
+        3.7
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 235
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "model",
+        "environment_lighting": false,
+        "model": {
+          "source": "custom",
+          "model": "pyro_vfx:vfx/ember_cube",
+          "render_layer": "translucent"
+        },
+        "color": [
+          0.9,
+          0.3,
+          0.8,
+          0.42
+        ],
+        "scale": [
+          0.37,
+          0.37,
+          0.37
+        ]
+      }
+    },
+    {
+      "id": "model_entity",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 240,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 2
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 0.25
+      },
+      "offset": [
+        4.6,
+        4.55,
+        3.7
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 235
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "model",
+        "environment_lighting": false,
+        "model": {
+          "source": "entity",
+          "model": "minecraft:pig",
+          "render_layer": "solid"
+        },
+        "color": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "scale": [
+          0.32,
+          0.32,
+          0.32
+        ]
+      }
+    }
+  ]
+}

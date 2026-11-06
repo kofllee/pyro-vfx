@@ -1,0 +1,117 @@
+{
+  "format": "pyro_vfx:1",
+  "metadata": {
+    "author": "Pyro VFX / Visual Lab",
+    "description": "Two interpenetrating alpha clouds; baseline CPU Dense vs experimental analytic hybrid with globally sorted GPU-expanded vertices."
+  },
+  "lifetime": {
+    "mode": "looping",
+    "active_ticks": 280,
+    "sleep_ticks": 0,
+    "loops": 0
+  },
+  "emitters": [
+    {
+      "id": "amber",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 260,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 75
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 1.5
+      },
+      "offset": [
+        -0.65,
+        0,
+        0
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 250
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": [
+          1,
+          0.37,
+          0.18,
+          0.32
+        ],
+        "scale": [
+          0.72,
+          0.72,
+          1
+        ]
+      }
+    },
+    {
+      "id": "cyan",
+      "emitter_lifetime": {
+        "mode": "looping",
+        "active_ticks": 1,
+        "sleep_ticks": 260,
+        "loops": 0
+      },
+      "spawn_amount": {
+        "mode": "instant",
+        "amount": 75
+      },
+      "spawn_shape": {
+        "type": "sphere",
+        "radius": 1.5
+      },
+      "offset": [
+        0.65,
+        0,
+        0
+      ],
+      "particle_lifetime": {
+        "max_age_ticks": 250
+      },
+      "motion": {
+        "mode": "static"
+      },
+      "rotation": {
+        "mode": "none"
+      },
+      "render": {
+        "type": "sprite",
+        "facing": "camera",
+        "environment_lighting": false,
+        "sprite": {
+          "texture": "minecraft:textures/particle/generic_0.png",
+          "blend_mode": "alpha"
+        },
+        "color": [
+          0.19,
+          0.78,
+          1,
+          0.33
+        ],
+        "scale": [
+          0.72,
+          0.72,
+          1
+        ]
+      }
+    }
+  ]
+}

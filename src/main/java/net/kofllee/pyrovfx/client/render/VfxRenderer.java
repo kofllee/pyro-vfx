@@ -130,6 +130,46 @@ public final class VfxRenderer {
                             culledAnalyticParticles += analytic.liveCount();
                             continue;
                         }
+                        // Retain analytic simulation, but feed
+                        // additive sprites through the SAME globally sorted
+                        // alpha/model queue. Do not draw unsorted resident
+                        // additive geometry into an earlier framebuffer stage.
+                        if (!earlyStage && !analytic.model()
+                                && analytic.definition().render().sprite() != null
+                                && analytic.definition().render().sprite().blendMode()
+                                    == net.kofllee.pyrovfx.vfx.type.VfxBlendMode.ADDITIVE
+                                && VfxNativeSpriteBatcher.matches(analytic.definition())) {
+                            if (!sharedBufferFlushed || queuedVanilla) {
+                                bufferSource.endBatch();
+                                sharedBufferFlushed = true;
+                                queuedVanilla = false;
+                            }
+                            if (!gpuFrame) {
+                                VfxNativeSpriteBatcher.begin(poseStack, camera, partialTick);
+                                gpuFrame = true;
+                            }
+                            VfxNativeSpriteBatcher.appendAnalyticSortedAdditive(analytic);
+                            emitter.recordRenderer("Native depth-sorted additive + alpha sprites");
+                            continue;
+                        }
+                        if (!earlyStage && !analytic.model()
+                                && analytic.definition().render().sprite() != null
+                                && analytic.definition().render().sprite().blendMode()
+                                    == net.kofllee.pyrovfx.vfx.type.VfxBlendMode.ALPHA
+                                && VfxNativeSpriteBatcher.matches(analytic.definition())) {
+                            if (!sharedBufferFlushed || queuedVanilla) {
+                                bufferSource.endBatch();
+                                sharedBufferFlushed = true;
+                                queuedVanilla = false;
+                            }
+                            if (!gpuFrame) {
+                                VfxNativeSpriteBatcher.begin(poseStack, camera, partialTick);
+                                gpuFrame = true;
+                            }
+                            VfxNativeSpriteBatcher.appendAnalyticAlpha(analytic);
+                            emitter.recordRenderer("Analytic alpha: CPU depth sort + native GPU vertices");
+                            continue;
+                        }
                         // Generating four GPU vertices for each of a few particles
                         // costs more driver work than emitting the equivalent
                         // instances into the existing shared native sprite batch.
@@ -181,6 +221,18 @@ public final class VfxRenderer {
                             emitter.recordRenderer(nativeDrawn ? "Native Minecraft GPU geometry bridge"
                                     : analytic.model() ? "GPU analytic model (resident birth data)"
                                     : "GPU analytic sprite (resident birth data)");
+                            if (!earlyStage && analytic.model()
+                                    && VfxNativeSpriteBatcher.supportsCloudDepthReplay()
+                                    && analytic.definition().render().model().renderLayer()
+                                    == net.kofllee.pyrovfx.vfx.type.VfxModelRenderLayer.ADDITIVE) {
+                                if (!gpuFrame) {
+                                    VfxNativeSpriteBatcher.begin(poseStack,camera,partialTick);
+                                    gpuFrame=true;
+                                }
+                                VfxNativeSpriteBatcher.registerCloudDepthModel(
+                                        () -> VfxNativeModelRenderer.renderAnalyticDepthOnly(
+                                                analytic,poseStack,camera,partialTick));
+                            }
                         }
                     }
                     var pool = emitter.densePool();
@@ -230,9 +282,15 @@ public final class VfxRenderer {
                                     VfxNativeSpriteBatcher.appendTransparentModel(
                                             pool.interpolatedPosition(index, partialTick),
                                             () -> {
-                                                pool.renderIndex(index, poseStack, bufferSource,
-                                                        camera, partialTick);
-                                                bufferSource.endBatch();
+                                                if (!VfxNativeModelRenderer.renderTranslucentSingle(
+                                                        pool, index, poseStack, camera, partialTick)) {
+                                                    pool.renderIndex(index, poseStack, bufferSource,
+                                                            camera, partialTick);
+                                                    bufferSource.endBatch();
+                                                }
+                                                VfxNativeSpriteBatcher.registerCloudDepthModel(
+                                                        () -> VfxNativeModelRenderer.renderTranslucentDepthOnly(
+                                                                pool,index,poseStack,camera,partialTick));
                                             });
                                 }
                                 emitter.recordRenderer("Minecraft translucent model (globally sorted)");
@@ -247,6 +305,17 @@ public final class VfxRenderer {
                                         pool, poseStack, camera, partialTick);
                                 if (modelInstanced) {
                                     emitter.recordRenderer("Native Minecraft GPU baked model (batched)");
+                                    if (!earlyStage && VfxNativeSpriteBatcher.supportsCloudDepthReplay()
+                                            && pool.definition().render().model().renderLayer()
+                                            == net.kofllee.pyrovfx.vfx.type.VfxModelRenderLayer.ADDITIVE) {
+                                        if (!gpuFrame) {
+                                            VfxNativeSpriteBatcher.begin(poseStack,camera,partialTick);
+                                            gpuFrame=true;
+                                        }
+                                        VfxNativeSpriteBatcher.registerCloudDepthModel(
+                                                () -> VfxNativeModelRenderer.renderDenseDepthOnly(
+                                                        pool,poseStack,camera,partialTick));
+                                    }
                                 }
                             }
                             if (!modelInstanced) {
@@ -268,8 +337,11 @@ public final class VfxRenderer {
                         // Do not batch those particles by emitter or their
                         // relative depths can be inverted.
                         if (emitter.definition().render().type() == VfxRenderType.SPRITE
-                                && emitter.definition().render().sprite().blendMode()
+                                && (emitter.definition().render().sprite().blendMode()
                                    == net.kofllee.pyrovfx.vfx.type.VfxBlendMode.ALPHA
+                                   || (!earlyStage
+                                       && emitter.definition().render().sprite().blendMode()
+                                       == net.kofllee.pyrovfx.vfx.type.VfxBlendMode.ADDITIVE))
                                 && VfxNativeSpriteBatcher.matches(emitter.definition())) {
                             if (!gpuFrame) {
                                 if (!sharedBufferFlushed || queuedVanilla) {
@@ -280,9 +352,13 @@ public final class VfxRenderer {
                                 VfxNativeSpriteBatcher.begin(poseStack, camera, partialTick);
                                 gpuFrame = true;
                             }
+                            boolean additive = emitter.definition().render().sprite().blendMode()
+                                    == net.kofllee.pyrovfx.vfx.type.VfxBlendMode.ADDITIVE;
                             for (ClientVfxParticle particle : legacy)
-                                VfxNativeSpriteBatcher.appendAlpha(particle);
-                            emitter.recordRenderer("Native Minecraft alpha sprite batch (legacy CPU)");
+                                if (additive) VfxNativeSpriteBatcher.appendSortedAdditive(particle);
+                                else VfxNativeSpriteBatcher.appendAlpha(particle);
+                            emitter.recordRenderer(additive ? "Native sorted additive + alpha sprites"
+                                    : "Native Minecraft alpha sprite batch (legacy CPU)");
                             continue;
                         }
                         boolean transparentModel = emitter.definition().render().type() == VfxRenderType.MODEL

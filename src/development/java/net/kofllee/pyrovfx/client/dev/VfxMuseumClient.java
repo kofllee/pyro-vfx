@@ -134,9 +134,15 @@ public final class VfxMuseumClient {
             server.execute(() -> {
                 var player = server.getPlayerList().getPlayer(playerId);
                 if (player == null) return;
-                net.kofllee.pyrovfx.museum.VfxMuseumWorld.build(player.serverLevel());
+                if (Boolean.getBoolean("pyrovfx.museum.visualOnly"))
+                    net.kofllee.pyrovfx.museum.VfxMuseumWorld.buildVisualOnly(player.serverLevel());
+                else
+                    net.kofllee.pyrovfx.museum.VfxMuseumWorld.build(player.serverLevel());
                 player.serverLevel().setDayTime(6000);
-                if (Boolean.getBoolean("pyrovfx.museum.runtimeShowcase")) {
+                if (Boolean.getBoolean("pyrovfx.museum.visualOnly")) {
+                    player.setGameMode(net.minecraft.world.level.GameType.CREATIVE);
+                    net.kofllee.pyrovfx.museum.VfxMuseumWorld.visitExperiment(player,0);
+                } else if (Boolean.getBoolean("pyrovfx.museum.runtimeShowcase")) {
                     // Showcase is isolated to the dedicated developer save.
                     // Creative mode allows inspecting a submerged effect
                     // indefinitely without drowning or accidental block loss.

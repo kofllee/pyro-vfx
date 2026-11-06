@@ -1636,11 +1636,13 @@ public final class PyroVfxGameTests {
             var material = VfxRenderMaterial.of(definition.emitters().get(i));
             if (material.kind() != expected[i])
                 throw new AssertionError("Incorrect native material kind at " + i);
-            boolean alpha = expected[i] == VfxRenderMaterial.Kind.ALPHA;
-            if (material.requiresSorting() != alpha
+            boolean transparent = expected[i] == VfxRenderMaterial.Kind.ALPHA
+                    || expected[i] == VfxRenderMaterial.Kind.ADDITIVE;
+            boolean sorted = i == 0 || i == 1 || i == 4;
+            if (material.requiresSorting() != sorted
                     || (material.pass()
                         == VfxRenderMaterial.Pass.AFTER_PARTICLES)
-                        != alpha
+                        != transparent
                     || material.writesDepth() != (i == 2 || i == 3))
                 throw new AssertionError("Native pass must use material semantics: " + material);
         }
@@ -1983,8 +1985,8 @@ public final class PyroVfxGameTests {
                             // voxel lightmap; if the volume is too large the
                             // renderer chooses the CPU lit fallback per draw.
                             // World-lit models still remain on CPU.
-                            boolean expectedGpu = !collision && !translucent
-                                    && (!lit || !model);
+                            boolean expectedGpu = !collision && (!lit || !model)
+                                    && (!model || !translucent);
                             if (VfxAnalyticPlan.analyse(emitter, true).supported() != expectedGpu) {
                                 throw new AssertionError("Incorrect GPU eligibility: " + model + "/"
                                         + lit + "/" + collision + "/" + rotation + "/" + translucent);

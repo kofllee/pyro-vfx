@@ -1,18 +1,35 @@
 {
-  "recommended_commit": "Document and preserve Pyro VFX prototype",
-  "recommended_tag": "0.1.0-prototype",
-  "files": [
-    ".github/workflows/build.yml",
+  "description": "Pyro VFX runtime prototype: documentation and release gate index (not a generated file inventory)",
+  "version": "0.1.0-prototype",
+  "release_artifact": "build/libs/pyro_vfx-0.1.0-prototype.jar",
+  "source_sets": {
+    "release": "src/main",
+    "development": "src/development"
+  },
+  "documentation": [
+    "README.md",
     "CHANGELOG.md",
     "LICENSE",
-    "README.md",
+    "docs/STATUS.md",
     "docs/ARCHITECTURE.md",
-    "docs/EXAMPLES.md",
-    "docs/EXPRESSIONS.md",
+    "docs/NATIVE_RENDER_BRIDGE.md",
+    "docs/COMPATIBILITY_MATRIX.md",
     "docs/JSON_FORMAT.md",
+    "docs/EXPRESSIONS.md",
+    "docs/PUBLIC_API.md",
+    "docs/NETWORKING.md",
+    "docs/EXAMPLES.md",
+    "docs/TEST_HARNESS.md",
     "docs/PERFORMANCE.md",
-    "docs/REPOSITORY_CHANGES.md",
-    "docs/ROADMAP.md",
-    "docs/STATUS.md"
-  ]
+    "docs/RENDERING_AND_OPTIMIZATION_BACKLOG.md",
+    "docs/ROADMAP.md"
+  ],
+  "verification": [
+    "build",
+    "developmentJar",
+    "verifyReleaseJar",
+    "runGameTestServer",
+    "tools/check_repo_integrity.py"
+  ],
+  "note": "Historical benchmark JSON/PNG stays under docs/benchmarks; test tools and development resources are not in release JAR."
 }

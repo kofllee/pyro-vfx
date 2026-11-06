@@ -4,7 +4,18 @@ All notable changes to Pyro VFX are recorded here.
 
 ## 0.1.0-prototype
 
-This version preserves the current experimental runtime as a documented prototype.
+This version preserves the current integrated runtime as a documented prototype.
+
+### 6 November rendering consolidation
+
+- Unified material pass selection: opaque/cutout early and Pyro alpha/additive later with shared depth ordering among supported sprites.
+- Promoted analytic alpha hybrid submission and sorted translucent baked-model GPU drawing from the visual-only experiment into normal capability-based routing.
+- Added native Fabulous particle-target depth replay for eligible sprites and baked models when a particles depth target exists; this addresses vanilla sky-cloud ordering but is not general OIT.
+- Preserved additive model RGB blending while limiting layer alpha accumulation in Fabulous. The final cloud/compositor result remains an approximation, not guaranteed exact additive across shaderpacks.
+- Added a native entity-material shader/vertex route for baked solid and cutout models. Iris/no-shaderpack visual parity requires renewed confirmation.
+- Kept CPU Dense/Legacy and Minecraft RenderType fallback for unsupported events, collisions, animated entity models, GL failures and model semantics.
+- Consolidated the development-only render gallery: 12 compact sample groups across glass, water, underwater, opaque/tinted materials and the actual cloud height, with no A/B toggles.
+- Updated routing GameTests for the unified materials; **104/104** required server tests passed.
 
 ### Resource system
 

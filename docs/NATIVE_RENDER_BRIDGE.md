@@ -1,141 +1,47 @@
-# Native Render Bridge
+# Native render bridge
 
-**Runtime target:** Minecraft 1.21.1, NeoForge 21.1.229, Java 21. The Pyro VFX
-effect format, simulation ownership, event ordering, networking and public API
-remain unchanged. This document describes the production rendering route as
-of 6 November 2026, not the earlier standalone proof of concept.
+**Target:** Minecraft 1.21.1 / NeoForge 21.1.229 / Java 21. This is the **current routing design**, not an experimental comparison suite. The mod produces its own geometry but uses Minecraft-managed final fragment shaders.
 
-## Render pipeline
+## Data path
 
 ```text
-VFX definitions -> effect/emitter lifecycle -> existing simulation pools
-                  |
-                  +-- GPU Analytic: resident cohort birth VBO, GPU motion/appearance
-                  |
-                  +-- CPU Dense/Legacy: compact sorted sprite instances
-                  |
-                  +-- baked block/item/custom model: cached Minecraft mesh + instances
-                  |
-                  v
-          GL 3.3 Transform Feedback: geometry only
-                  |
-                  v
-          Minecraft vertex format and native ShaderInstance
-                  |
-                  v
-          Minecraft/NeoForge world composition (including Iris, when supported)
+JSON definition -> emitter -> simulation selection
+  GPU Analytic: compact immutable per-birth VBO + closed-form motion
+  CPU Dense/Legacy: ordered per-particle state, events and world queries
+       |
+       v
+VfxRenderMaterial: opaque/cutout early, alpha/additive late
+       |
+       +-- native sprite batching + shared depth queue (Pyro-owned)
+       +-- cached baked-model mesh + native transform-feedback vertex expansion
+       +-- translucent baked-model callbacks ordered with Pyro alpha geometry
+       +-- Minecraft RenderType fallback for unsupported capabilities/geometry
+       |
+       v
+native Minecraft ShaderInstance + Minecraft/NeoForge frame composition
 ```
 
-Pyro does **not** use a separate fragment shader or framebuffer for its final
-color. It does not create Minecraft Particle objects for every GPU-resident
-particle. GPU birth data is uploaded on creation/reload, not per animation
-frame. CPU Dense/Legacy instances upload per frame by design.
+## Backends
 
-## Owned components
+- `VfxAnalyticPlan` performs conservative eligibility checks. Closed-form sprite/model motion uses resident birth buffers when safe. Alpha sprites remain hybrid because sorting requires per-view positions on the CPU.
+- `VfxNativeSpriteBatcher` performs global center-depth ordering of alpha/additive sprites across Pyro emitters and interleaves opaque-compatible transparent model callbacks. CPU Dense/Legacy instances are compacted, sorted and expanded using native GPU geometry.
+- `VfxNativeGpuGeometryBridge` generates Minecraft-compatible sprite vertices via OpenGL Transform Feedback. Tiny analytic cohorts can reuse CPU instance batching to avoid disproportionate driver submissions.
+- `VfxNativeModelRenderer` caches baked block/item/custom geometry. Solid/cutout models use the native entity material shader and correctly mapped light/overlay/UV attributes; translucent models are submitted individually in global center-depth order. Dynamic entity-model rendering uses Minecraft RenderType instead.
+- `VfxRenderMaterial` chooses **early** `AFTER_BLOCK_ENTITIES` for opaque/cutout and **late** `AFTER_PARTICLES` for transparent alpha/additive materials. Material selection does not raycast for particular glass/water block IDs.
+- `VfxGpuFog` preserves world fog state over late draws, including underwater rendering. Resource reload/world exit invalidates geometry caches, shaders and buffers.
 
-- `VfxRenderer`: the single renderer router, transforms, visibility gates,
-  shared BufferSource boundaries and material pass selection.
-- `VfxRenderMaterial`: material semantics; solid/cutout/additive before world
-  translucency, sorted alpha during Minecraft's native AFTER_PARTICLES pass.
-  Fabulous keeps its opaque depth in the particles target until this pass.
-  No glass/water block IDs, camera
-  raycasts, special cloud depth writes or always-off depth testing.
-- `VfxNativeGpuGeometryBridge`: GPU analytic sprite vertex generation and
-  CPU batched sprite expansion into native Minecraft particle vertices.
-  Consecutive additive GPU cohorts with the same texture now append their
-  individually computed vertices into non-overlapping Transform Feedback
-  buffer ranges. A whole compatible run needs one Minecraft fragment draw,
-  rather than one shader apply/draw/state restore per cohort.
-- `VfxNativeSpriteBatcher`: same-mesh/material batching, cross-emitter stable
-  depth sorting of CPU/Dense alpha and ordered translucent-model callbacks.
-  Per-instance sprite facing, rotation, and lighting flags permit different
-  sprite variants sharing a texture to use a single native draw while retaining
-  cross-emitter depth order and correct fallback rendering.
-  This retains sorting when the native GL path cannot be used.
-- `VfxNativeModelRenderer`: transforms stable Minecraft baked meshes on GPU
-  using bounded Transform Feedback output and native final ShaderInstance.
-  Dynamic entity models and other unsupported model semantics use RenderType.
-- `VfxGpuBirthBuffers`: GPU birth VBO generations and deferred retirement.
-  No separate GPU Analytic sprite final renderer exists.
-- `VfxGpuFog`: temporarily restores Minecraft's world fog for native or
-  RenderType late-stage submissions, then restores the caller's fog state.
+## Transparency, clouds and limits
 
-Small compatible additive GPU Analytic cohorts (12 or fewer particles by
-default) avoid one Transform Feedback launch per cohort: their existing CPU
-birth state is expanded into the shared native instance batch. Large cohorts,
-individual birth-expression programs, and incompatible features still use
-their original GPU or RenderType routes. The routing threshold can be
-configured with `-Dpyrovfx.render.tinyAnalyticThreshold=0..64` (0 disables
-this CPU-side tiny-cohort optimization). No separate fragment renderer is
-introduced.
+Alpha uses back-to-front center sorting. Mixed alpha/additive sprites share one Pyro queue while retaining separate GL blend factors. This does **not** reorder vanilla particles or foreign translucent renderers.
 
-Shaders used by Transform Feedback only calculate **geometry and vertex
-attributes**. Their dummy fragment stage never draws a pixel.
+In Fabulous, Minecraft draws clouds and particle layers into separate targets and later combines them according to depth. Transparent GPU drawing can blend color without recording depth. The native renderer therefore replays eligible sprites and baked alpha/additive models with color writes disabled and depth writes enabled **after their visible color passes**, only when the native particles depth target exists. The replay is a compositor aid, not a physically exact multi-layer depth solution.
 
-The bounded native batch flushes on texture change, full output capacity,
-incompatible model/CPU/fallback work, or end of the material pass. Cohort
-motion, source transforms, birth expressions, light probes, UV, and appearance
-still run with independent per-cohort uniforms on the GPU. No CPU readback
-or expanded per-particle vertex upload is introduced for GPU-resident large
-cohorts. The tiny-cohort fast path uploads compact sprite instances, not
-expanded quads; alpha depth sorting and native model paths are unchanged.
-Frame counters separately expose TF generation
-calls and final Minecraft material submissions.
+Fabulous combines targets as `result = background * (1 - layerAlpha) + layerRGB`. The `Model Additive` GPU path retains RGB factors `SRC_ALPHA, ONE` and limits layer alpha accumulation for a near-additive result. This is **not mathematically exact** through every shaderpack/compositor. Some effects or lightmap combinations use a CPU/RenderType fallback for semantics; overlapping translucent faces are not sorted per triangle.
 
-## Correctness and fallback rules
+The bridge requires compatible OpenGL 3.3 and uses GL state capture/restore around native submissions (framebuffers, transform feedback, shader, texture/light units, blend state, vertex arrays, masks). Shaderpack activation alone does not disable GPU; real shaderpack compatibility remains scene-specific.
 
-GPU Analytic fast path supports additive sprites with shared-time size/color,
-supported birth expressions, local/world transforms, rotation and facing modes,
-random UV starts, per-particle expiry masking, and exact bounded Minecraft
-lightmap sampling. Wide world-lit clouds that exceed the exact light-volume
-budget use the Minecraft RenderType fallback instead of approximated light.
+## Evidence and development tools
 
-Alpha sprites are sorted by camera depth on the CPU across eligible Dense and
-Legacy pools, with transparent model callbacks interleaved in depth order.
-Unsorted GPU Analytic alpha is intentionally **not** enabled. Models retain
-native batching for deterministic baked quads; tint-dependent entity geometry,
-translucent models, unsupported light/appearance combinations and animated
-models use the existing CPU/RenderType semantics.
+Source-level and dedicated-server tests cover routing eligibility, basic material semantics and API behavior. Historical actual-client benchmarks are in [Performance](PERFORMANCE.md); the separate developer [render gallery](TEST_HARNESS.md) provides visual cases for glass, water, tinted glass, opaque walls, translucent intersections and vanilla clouds.
 
-Graphics without OpenGL 3.3 or after an initialization failure use the
-CPU/RenderType route. The fallback is part of the **single architecture**, not
-an independent competing custom GPU fragment pipeline.
-
-GL state, indexed transform-feedback buffers, framebuffers, shader bindings,
-VAOs, texture units, blend/depth/cull states and the shader reload generation
-are restored or invalidated on the render thread.
-
-## Validation and limits
-
-At 1280×720 on the RTX 4090 Laptop test machine, short real-client native
-scenarios covered 1k/10k/100k analytic sprites, alpha smoke, baked models
-(including rotating, block and item), local/UV/motion expressions, world
-lighting, model reload and GPU-expression reload with GL state auditing.
-The dedicated GameTest server passed all 104 required tests. A three-scenario native Iris + Complementary museum profile completed, with original renderer settings restored afterward. Release JAR and
-development compilation succeeded. Reports are generated under the ignored
-`run/pyrovfx-benchmarks/` directory; retained baseline evidence is described
-in `PERFORMANCE.md`.
-
-The exact material intersection order of arbitrary alpha geometry against
-glass/water/clouds is not pixel-perfect, and Minecraft/Iris shaderpacks impose
-their own compositing limits. The original PoC found that in Complementary
-Reimagined even genuine vanilla CLOUD particles are invisible in a particular
-sealed underwater tank. This is not evidence that arbitrary shaderpacks are
-universally correct. GPU time for native TF generation **plus** the final draw
-must be compared with matched settings; successful rendering or low draw counts
-alone are not proof of a performance improvement.
-
-The isolated 6 November 2026 research is historical evidence, not the
-production implementation. Retest Vanilla Fast/Fancy/Fabulous and the active
-Iris shaderpack pipeline when changing native vertex layout or stage routing.
-
-## Safe runtime checks
-
-```powershell
-.\gradlew.bat compileDevelopmentJava verifyReleaseJar runGameTestServer --offline --no-daemon
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/run-client-bench-secondary.ps1 -Scenario 'analytic_uv_1k,sprite_alpha_smoke_1k,model_1k' -Width 1280 -Height 720 -RenderStateAudit
-```
-
-The Windows benchmark launcher targets only newly created Java/GLFW Minecraft
-windows on the secondary **physical monitor**. It does not restore browser
-focus or activate another Windows virtual desktop.
+**Not yet demonstrated:** matched performance improvement of the newly unified transparency paths on multiple GPUs, all shaderpacks, order-independent transparency, GPU-only alpha sorting, or long stress stability. GPU Compute remains deferred rather than implemented.

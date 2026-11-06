@@ -24,7 +24,8 @@ public record VfxAnalyticPlan(boolean supported, String reason,
                 && !d.render().environmentLighting();
         boolean sprite = d.render().type() == VfxRenderType.SPRITE
                 && d.render().sprite() != null
-                && d.render().sprite().blendMode() == VfxBlendMode.ADDITIVE
+                && (d.render().sprite().blendMode() == VfxBlendMode.ADDITIVE
+                    || d.render().sprite().blendMode() == VfxBlendMode.ALPHA)
                 // Shared point light is exact with one probe. Spatially
                 // spread and moving GPU sprites use an exact, bounded block
                 // light volume when its voxel cost is acceptable, otherwise
@@ -36,7 +37,7 @@ public record VfxAnalyticPlan(boolean supported, String reason,
                     || d.render().facing() == VfxFacingMode.WORLD_Z
                     || d.render().facing() == VfxFacingMode.VELOCITY);
         if (!sprite && !model)
-            return reject("GPU resident path requires an additive sprite or unlit baked opaque/cutout/additive model");
+            return reject("GPU analytic path requires a compatible alpha/additive sprite or an unlit baked opaque/cutout/additive model");
         if (model && (!d.render().appearance().color().isSharedParticleAgeOnly()
                 || d.render().model().renderLayer() != VfxModelRenderLayer.ADDITIVE
                 && !d.render().appearance().color().hasConstantOpaqueAlpha()))
@@ -84,6 +85,9 @@ public record VfxAnalyticPlan(boolean supported, String reason,
                 || !d.render().appearance().scale().isConstant()
                 || d.render().sprite().uv().mode() != VfxUvMode.FULL))
             return reject("random lifetimes require constant sprite appearance and full UV");
+        if (perParticleLifetime && d.render().sprite() != null
+                && d.render().sprite().blendMode() == VfxBlendMode.ALPHA)
+            return reject("analytic alpha requires shared lifetime for stable depth sorting");
         // Spawn geometry is sampled once on the CPU and uploaded as immutable
         // birth positions. It does NOT need to be constant or GLSL-compatible.
         // This includes expressions using emitter/param/particle.random values.

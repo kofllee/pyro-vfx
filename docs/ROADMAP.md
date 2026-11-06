@@ -1,6 +1,6 @@
 # Next phase: visual editor
 
-**Status:** Pyro VFX has a working runtime and public integration API. The next task is the **in-game visual editor and settings UI**, not another runtime overhaul. Treat [JSON format](JSON_FORMAT.md) and [Public API](PUBLIC_API.md) as existing contracts.
+**Status:** Pyro VFX has a working runtime and public integration API. The next task is the **in-game visual editor and settings UI**, not another runtime overhaul. The integrated renderer is a CPU/GPU hybrid with capability fallback; unresolved compositor and performance questions are recorded in [Rendering work](RENDERING_AND_OPTIMIZATION_BACKLOG.md). Treat [JSON format](JSON_FORMAT.md) and [Public API](PUBLIC_API.md) as existing contracts.
 
 ## First editor slice
 

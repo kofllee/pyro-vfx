@@ -20,6 +20,7 @@ hs_err_pid*
 # Common working directory
 run
 run-network-test-*/
+run-visual-*/
 
 # Python comparator bytecode
 __pycache__/

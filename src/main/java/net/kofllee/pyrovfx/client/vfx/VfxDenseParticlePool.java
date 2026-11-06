@@ -155,6 +155,13 @@ public final class VfxDenseParticlePool {
     /** Dense model stream: primitive arrays directly to packed instancing, no snapshots. */
     public void writeModelInstances(ModelInstanceConsumer writer, float partialTick) {
         for (int i = 0; i < size; i++) {
+            writeModelInstance(i, writer, partialTick);
+        }
+    }
+
+    /** Single sorted translucent model, without walking the full pool. */
+    public void writeModelInstance(int i, ModelInstanceConsumer writer, float partialTick) {
+        if (i < 0 || i >= size) throw new IndexOutOfBoundsException(i);
             double x = moving ? prevX[i] + (px[i] - prevX[i]) * partialTick : px[i];
             double y = moving ? prevY[i] + (py[i] - prevY[i]) * partialTick : py[i];
             double z = moving ? prevZ[i] + (pz[i] - prevZ[i]) * partialTick : pz[i];
@@ -169,7 +176,6 @@ public final class VfxDenseParticlePool {
                     rotating ? (float) (prevRx[i] + (rx[i] - prevRx[i]) * partialTick) : 0,
                     rotating ? (float) (prevRy[i] + (ry[i] - prevRy[i]) * partialTick) : 0,
                     rotating ? (float) (prevRz[i] + (rz[i] - prevRz[i]) * partialTick) : 0);
-        }
     }
 
     /** Cheap scale sample for conservative foreground occlusion routing. */

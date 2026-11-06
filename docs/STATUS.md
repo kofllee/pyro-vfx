@@ -1,40 +1,46 @@
-# Current status
+# Current runtime status
 
-**As of 6 November 2026:** Pyro VFX is an experimental, usable JSON VFX runtime for Minecraft 1.21.1, NeoForge 21.1.229 and Java 21. M0–M7 engine systems have been integrated; **visual editing and settings UI remain the next phase**. Passing targeted tests does not make this a production stability guarantee.
+**Checkpoint: 6 November 2026.** Minecraft 1.21.1 / NeoForge 21.1.229 / Java 21. Pyro VFX provides the integrated runtime for authoring and playing `pyro_vfx:1` effects. Its next major deliverable is the visual editor. **The engine is still a prototype**, not a production-certified cross-shaderpack release.
 
-## Implemented
+## Available functionality
 
-- **Definitions:** `pyro_vfx:1` resource loading and validation; numeric/vector/color expressions; compiled expression slots, named curves, parameters, event graphs; effect/emitter lifetimes and triggers; resource reload.
-- **Emission and particles:** eight spawn shapes (point, box, sphere, line, disc, ring, cone, model surface), bursts and steady spawning, dynamic/static/parametric motion, rotation, block collision and particle collision events. `on_collision` applies to particle triggers, not top-level effect or emitter triggers.
-- **Rendering:** Pyro-owned particle lifetimes; sprites, custom/block/item/entity models, UV-sheet animation, world lighting, alpha/additive materials; CPU Legacy/Dense and eligible GPU Analytic simulation, GPU geometry generation via Transform Feedback, native Minecraft ShaderInstance rendering for sprites/baked models, cross-emitter sorted alpha and Minecraft RenderType fallback. No standalone VFX final fragment shaders. See [Native Render Bridge](NATIVE_RENDER_BRIDGE.md).
-- **Transforms:** fixed positions, Entity/Block/BlockEntity, vanilla named model-part/chest sockets and custom resolvers, arbitrary callbacks, composable local offsets/rotations, world/local particle space. `travel_distance` and `travel_distance_looping` run on game-tick source movement; neither is merely parsed-only.
-- **Integration:** side-aware `Vfx.play`, `VfxOptions`, `VfxHandle`, attach/rebind/detach, parameter update, event trigger and stop. NeoForge v3 Start/Stop/Parameter/Trigger/Rebind/Pose payloads; dimension/source/audience filtering and bounded custom pose streaming. The server handles effect commands, not particle simulation.
-- **Development:** Test Harness, opt-in client scenarios, GameTests, 35-stand technical museum with combined feature comparisons, graphics profile tools, backend diagnostics and performance counters. No visual editor.
+- **Data:** JSON resources, validation, compiled numeric/vector/color expressions, named curves, scoped parameters, emitters, event graphs and resource reload.
+- **Particles:** point, sphere, box, line, disc, ring, cone and sampled-model spawn shapes; instant/steady/manual bursts; static/dynamic/parametric motion, rotation, block collision, particle events and lifetime rules.
+- **Runtime:** CPU Legacy, CPU Dense SoA and eligible GPU Analytic birth/cohort simulation, with budgets and deterministic fallback for collision/stateful effects.
+- **Rendering:** GPU geometry generation by OpenGL 3.3 Transform Feedback and Minecraft native ShaderInstance; sprites with alpha/additive blending; custom/block/item/entity model sources with solid, cutout, additive or translucent materials; lightmap, UV and multiple sprite facing modes.
+- **Transparency:** shared Pyro alpha/additive sprite ordering, CPU-sorted translucent model submissions through GPU where supported, and Fabulous particle-target depth replay for real vanilla cloud composition. This is not global cross-mod order-independent transparency.
+- **Transforms:** fixed, Entity, Block, BlockEntity, model-part/socket resolvers and callback transforms; local/world particle space and travel-distance triggers.
+- **Integration:** side-aware `Vfx.play` / `VfxHandle` API and NeoForge v3 synchronization for Start, Stop, Parameter, Trigger, Rebind and Pose. Server handles commands; client simulates visible particles.
 
-## Evidence and confidence
+The release JAR excludes all developer commands, fixtures and museum effects. There is no visual editor yet.
 
-The 6 November Fabulous correction moved alpha rendering into Minecraft's
-native particle-composition stage; opaque stone-wall tests passed for both
-alpha smoke and native additive sparks. The museum's tiny-cohort adaptive
-batching cut observed per-frame Transform Feedback generation calls from
-376 to 10 in controlled runs, raising full-client median FPS from 68 to 88
-with all exhibits enabled in the tested 1280x720 Fabulous scene. The
-no-exhibits controls were 99 and 97 FPS. Another short optimized run reached
-93 FPS. These are device-specific observations, not fixed FPS targets.
-See [Fabulous depth and tiny-cohort evidence](benchmarks/fabulous-depth-tiny-cohorts-2026-11-06/README.md).
+## Rendering choices
 
-The 6 November 2026 post-migration verification passed **104/104 required GameTests** following three earlier consecutive runs of 91/91 with `verifyReleaseJar` successful. This followed a flaky GameTest assertion that compared global lease counts across concurrently running tests; the corrected tests now check their own lease identities. Earlier checkpoints of **88/88** (visibility/regression) and **87/87** (M7) are retained historical evidence, not cumulative test totals. The new tests cover analytic facing eligibility, additional GPU birth schedules and saturated steady emission. Two independent localhost clients passed **8/8 acceptance checks each**, including audience exit/return, dimension changes, sockets and source removal. The current development-only technical museum has **35 exhibits**, reduced from 66. The earlier 88/88 and 87/87 results refer to prior checkpoints, not to the redesigned gallery.
+| Effect | Path |
+|---|---|
+| GPU-compatible additive/alpha sprite, supported closed-form motion | GPU Analytic simulation; alpha and mixed additive use CPU depth ordering + GPU geometry |
+| Lit/world-dependent sprites | CPU Dense simulation with native GPU geometry where compatible |
+| Solid, cutout, additive baked block/item/custom models | Native GPU mesh route where eligible; Minecraft RenderType fallback |
+| Translucent baked model | CPU-position sorting plus individual native GPU submission when supported |
+| Entity-model particles and animated/dynamic meshes | Existing Minecraft RenderType route |
+| Stateful collision, per-particle callbacks or unsupported expressions | CPU Dense/Legacy, preserving event order |
 
-On RTX 4090 Laptop hardware, short real-client checks were recorded for vanilla rendering and Sodium, Embeddium, Iris without shaders, and Iris with Complementary, BSL and Photon (shaderpack observations were recorded in older profiles; an active shaderpack does not force fallback in the current routing policy). See [compatibility ledger](COMPATIBILITY_MATRIX.md), [network contract](NETWORKING.md), and [performance evidence](PERFORMANCE.md). The native production bridge additionally passed three museum scenarios with Iris 1.8.12 + Complementary Reimagined r5.9.3 on 6 November 2026 (short local checks), and the earlier proof of concept separately covered Vanilla Fast/Fancy/Fabulous. These results are not universal shaderpack certification. Separately, six new 5 November vanilla/NVIDIA real-client rendering checks (GPU Analytic sprite/model, GPU instanced additive/alpha and matched RenderType baseline) completed with GL state audit; see [retained current audit](benchmarks/runtime-audit-2026-11-05/README.md). This is not a new shaderpack compatibility certification.
+These are **capability-dependent**, not guarantees that every definition selects GPU. Debug/backend overrides and hardware capability failures retain their established fallbacks. OpenGL 4.3 GPU Compute was not added.
 
-## Boundaries
+## Verification at this checkpoint
 
-- **No editor:** effect browser, inspector, curve/timeline gizmos, authoring workflow, JSON schema and integrated editor diagnostics are future work.
-- **Graphics:** no GPU Compute backend. Native CPU sprite batching and GPU Analytic geometry both support Minecraft lightmap sampling (bounded exact-volume probing for eligible resident cohorts). Translucent models, dynamic entity model animation, collision queries/stateful callbacks and GPU analytic alpha sorting remain CPU/RenderType paths. CPU Dense supports ordered on_collision events; GPU Analytic supports cohort-shared age-driven parametric offsets and deterministic dynamic sprite rotations. Active shaderpacks do not automatically force fallback; compositing parity across shaderpacks/mods remains unverified.
-- **Budgets:** defaults include 256 simultaneous effects, 80,000 live managed particles, 30,000 spawn requests/tick and 8,192 event evaluations/tick globally; per-effect caps remain 20,000 particles/spawns and 4,096 events/tick. Per-cost-class, adaptive and TOML controls also apply. Numbers are admission controls, not exact VRAM or frame-rate guarantees.
-- **Visibility:** frustum/size-aware draw rejection does not delete live particles, suppress events, or thin emissions by distance. No blanket distance-kill or tiered particle LOD.
-- **Networking:** late viewers join the current timeline phase without reconstructing earlier smoke or RNG state. Streams are bounded; nonlocal latency, many players, packet-byte throughput and deterministic pixel-identical replay are unverified.
-- **Lifecycle:** missing/unloaded source providers stop producing new particles; natural cleanup allows already spawned particles to expire. Remote Stop closes the effect immediately. Teleports exceeding 64 blocks per tick do not emit intervening distance triggers.
-- **Validation scope:** AMD/Intel graphics, large modpacks, live shaderpack switching, 4K, sustained 30-minute/multi-hour and realistic Internet multiplayer still require measurements.
+- **104/104 required dedicated server GameTests passed** after the unified material routing updates (6 November 2026).
+- `build developmentJar verifyReleaseJar` passed; the release JAR does not package development samples or debugging code.
+- Independent interactive Iris/Sodium and Iris/Sodium + Complementary Reimagined r5.9.3 clients opened the visual gallery. These are **manual observations**, not a pixel-perfect or sustained acceptance test.
+- Earlier performance measurements and per-driver observations are archived at [Performance](PERFORMANCE.md) and [Compatibility](COMPATIBILITY_MATRIX.md). They measured earlier commits: **do not quote them as the speedup of the finalized 6 November alpha/model routing**.
 
-See [Architecture](ARCHITECTURE.md) for design decisions, [Test Harness](TEST_HARNESS.md) for verification, [Rendering and Optimization Backlog](RENDERING_AND_OPTIMIZATION_BACKLOG.md) for confirmed fixes and remaining validation, and [Roadmap](ROADMAP.md) for the editor handoff.
+## Known limitations / honest release boundaries
+
+1. The current material ordering is center-depth sorting of Pyro submissions. Intersecting transparent faces, Minecraft glass/water, other mods' particles and shaderpack-provided passes cannot be guaranteed pixel-perfect.
+2. Fabulous merges transparency layers with a layer-alpha equation. The additive model color pass uses an alpha approximation to avoid darkening the world: exact cross-target additive equivalence is **not established**.
+3. Native depth replay adds geometry work. A matched performance campaign after promoting the new renderer is **not yet complete**.
+4. GPU Analytic requires supported expressions/lifetimes and no world collision or ordered stateful events. Translucent models still involve CPU sorting and per-model draw work.
+5. Shaderpack warnings and black/unlit baked model reports have occurred in testing; a native entity-material shader path was integrated, but **no final cross-profile visual confirmation has been recorded after that change**.
+6. AMD/Intel GPU behavior, long-duration stress, large modpacks, full live shaderpack toggles, 4K and public-server latency remain unverified.
+
+Future work is tracked in [Rendering work](RENDERING_AND_OPTIMIZATION_BACKLOG.md) and [Editor roadmap](ROADMAP.md). Testing instructions are in [Test harness](TEST_HARNESS.md).
