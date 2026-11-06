@@ -177,6 +177,12 @@ public final class VfxBenchHarness {
                     }
                 }
             }
+            if (scenario.name().startsWith("depth_opaque_")) {
+                for (int x = -5; x <= 5; x++)
+                    for (int y = 137; y <= 147; y++)
+                        placeBenchmarkBlock(run, player.serverLevel(),
+                                new BlockPos(x, y, -5), Blocks.STONE.defaultBlockState());
+            }
             boolean glassForeground = scenario.name().equals("alpha_world_overlap")
                     || scenario.name().equals("alpha_world_glass");
             boolean waterForeground = scenario.name().equals("alpha_world_overlap")
@@ -319,7 +325,11 @@ public final class VfxBenchHarness {
             }
             player.setGameMode(GameType.SPECTATOR);
             var museumExhibit = museumExhibit(scenario.name());
-            Vec3 camera = scenario.name().startsWith("alpha_cloud_layer")
+            Vec3 camera = scenario.name().startsWith("gallery_fps_")
+                    ? new Vec3(net.kofllee.pyrovfx.museum.VfxMuseumCatalog.ORIGIN_X + 6.5,
+                            net.kofllee.pyrovfx.museum.VfxMuseumCatalog.FLOOR_Y + 2.0,
+                            net.kofllee.pyrovfx.museum.VfxMuseumCatalog.ORIGIN_Z + 4.5)
+                    : scenario.name().startsWith("alpha_cloud_layer")
                     ? CAMERA.add(0, 40, 0) : museumExhibit == null ? CAMERA
                     : museumCamera(scenario.name(), museumExhibit);
             player.teleportTo(camera.x, camera.y, camera.z);
@@ -531,6 +541,9 @@ public final class VfxBenchHarness {
             }
             run.spawnNs = System.nanoTime() - start;
             run.spawned = true;
+            if (run.scenario.name().startsWith("gallery_fps_")) {
+                VfxMuseumClient.benchmarkAllEnabled(run.scenario.name().endsWith("_all"));
+            }
             if (run.scenario.name().equals("museum_source_block")
                     && ClientVfxManager.getActiveInstanceCount() == 0)
                 run.error = "Source block provider could not attach to the physical fixture";
@@ -571,6 +584,10 @@ public final class VfxBenchHarness {
         long elapsed = System.nanoTime() - startNs;
         long allocatedAfter = allocatedBytes();
         int index = run.elapsedTicks++;
+        if (index >= run.scenario.warmupTicks()
+                && index % 20 == 0 && run.minecraftFpsCount < run.minecraftFpsSamples.length) {
+            run.minecraftFpsSamples[run.minecraftFpsCount++] = Minecraft.getInstance().getFps();
+        }
         if (run.scenario.name().equals("m7_lifecycle_world_exit")
                 && index == 20 && !run.worldExitRequested) {
             if (ClientVfxManager.getActiveInstanceCount() != 1
@@ -726,8 +743,8 @@ public final class VfxBenchHarness {
             // visual evidence of world-compositor intersection limitations.
             if (transparencyScenario.startsWith("alpha_")
                     && !net.kofllee.pyrovfx.client.render.VfxRenderer.lastWorldStage()
-                            .equals("after_level"))
-                run.error = "Alpha material was routed outside the shared after-world pass";
+                            .equals("after_particles"))
+                run.error = "Alpha material was routed outside Minecraft's particle composite pass";
             if (run.lifecycle != null && !run.lifecycle.verified() && run.error == null)
                 run.error = "M7 lifecycle teardown did not complete";
             if (run.scenario.name().equals("m7_api_handles")
@@ -866,6 +883,12 @@ public final class VfxBenchHarness {
             // Capture the previous *completed* Minecraft frame, not an unfinished level pass.
             captureScreenshot(run);
             run.lastFrameNs = 0;
+        }
+        // The ALL OFF control contains no VFX render callback, so finalizing
+        // only in afterRender would leave this diagnostic scenario running.
+        if (run.finishedTick && run.scenario.name().startsWith("gallery_fps_")) {
+            if (run.screenshotPath == null) captureScreenshot(run);
+            finish(run);
         }
     }
 
@@ -1080,6 +1103,8 @@ public final class VfxBenchHarness {
         int tickCount;
         int renderCount;
         int frameCount;
+        final int[] minecraftFpsSamples = new int[64];
+        int minecraftFpsCount;
         int peakParticles;
         long peakHeapBytes = VfxBenchReport.usedHeap();
         long spawnNs;

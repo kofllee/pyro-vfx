@@ -1,5 +1,35 @@
 # Performance and retained benchmark evidence
 
+## 6 November 2026: real museum frame cost and Fabulous depth
+
+The original material-cohort GPU batching reduced final ShaderInstance
+submissions but did not remove the CPU/driver overhead of generating hundreds
+of *tiny* analytic cohorts in the 35-stand museum. The renderer now routes
+eligible additive cohorts of up to 12 particles through the native **shared
+sprite instance batch**, avoiding a separate Transform Feedback launch per tiny
+cohort. Each particle's facing, rotation and world-light policy is encoded
+per-instance, so sprites sharing one texture can be submitted together without
+erasing individual geometry semantics. Large/cohort-expression GPU work is
+unchanged.
+
+A controlled 1280x720 real-client gallery A/B with all exhibits enabled in
+Fabulous (uncapped FPS, fixed camera) recorded **375 TF launches, 66 Minecraft
+FPS median** before tiny-cohort routing, versus **10 TF launches, 93 FPS
+median** after. CPU VFX render median was 1.395 ms before and 0.485 ms
+after. In the latter same-client benchmark, the ALL OFF control was 101 FPS.
+This is a **short single-run comparison**, not a universal 93 FPS guarantee;
+the earlier run's baseline controls and frame conditions still differed.
+Retained JSON reports and depth evidence live under
+[Fabulous + tiny cohort comparison](benchmarks/fabulous-depth-tiny-cohorts-2026-11-06/README.md).
+
+Fabulous alpha particles had been drawn during AFTER_LEVEL, after Minecraft
+had already composited its independent particles target. Moving the alpha
+stage to `AFTER_PARTICLES`, while Minecraft has the target and copied opaque
+depth bound, fixes opaque-wall visibility in the tested alpha and additive
+stone-wall fixtures. Explicit `GL_LEQUAL` is required on native raw-GL
+submissions. Intersecting transparent glass/water and arbitrary shaderpack
+composition still require separate validation and are not claimed pixel-perfect.
+
 ## 6 November 2026: native GPU material batching
 
 The native bridge now accumulates consecutive additive GPU Analytic cohorts

@@ -118,6 +118,21 @@ public final class VfxBenchScenarios {
         add(scenarios, "sprite_alpha_smoke_10k", "bench/sprite_alpha_smoke", 10_000);
         add(scenarios, "sprite_alpha_smoke_100k", "bench/sprite_alpha_smoke", 100_000);
         add(scenarios, "analytic_uv_1k", "bench/analytic_uv", 1_000);
+        add(scenarios, "analytic_uv_tiny_8", "bench/analytic_uv", 8);
+        // Identical effects and camera; only the intervening opaque wall
+        // changes. Tests Fabulous depth against both native additive and
+        // sorted-alpha paths in a real GL client.
+        add(scenarios, "depth_clear_additive", "bench/analytic_uv", 1_000);
+        add(scenarios, "depth_opaque_additive", "bench/analytic_uv", 1_000);
+        add(scenarios, "depth_clear_alpha", "bench/sprite_alpha_smoke", 1_000);
+        add(scenarios, "depth_opaque_alpha", "bench/sprite_alpha_smoke", 1_000);
+        // Same built gallery and view, only museum exhibit playback differs.
+        scenarios.put("gallery_fps_all", new Scenario("gallery_fps_all",
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/event_order"),
+                0, 0xF20F2026L, 40, 160));
+        scenarios.put("gallery_fps_off", new Scenario("gallery_fps_off",
+                ResourceLocation.fromNamespaceAndPath("pyro_vfx", "bench/event_order"),
+                0, 0xF20F2026L, 40, 160));
         add(scenarios, "analytic_uv_10k", "bench/analytic_uv", 10_000);
         add(scenarios, "analytic_uv_100k", "bench/analytic_uv", 100_000);
         add(scenarios, "analytic_age_1k", "bench/analytic_age", 1_000);

@@ -66,10 +66,10 @@ public final class PyroVfxClient {
             net.kofllee.pyrovfx.client.render.VfxGpuFog.captureWorldFog();
             VfxRenderer.beginWorldFrame();
         }
-        // Geometry is routed by material semantics, not scene raycasts,
-        // camera occluders, glass/water IDs or a special cloud-depth pass.
+        // Fabulous composites translucent particles from a dedicated target
+        // with a copy of world depth. AFTER_LEVEL occurs after that composite.
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES
-                && event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) {
+                && event.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES) {
             return;
         }
         boolean early = event.getStage() == RenderLevelStageEvent.Stage.AFTER_BLOCK_ENTITIES;
@@ -83,10 +83,7 @@ public final class PyroVfxClient {
         VfxRenderer.markWorldStage(early);
 
         long start = VfxDevHooks.beforeRender();
-        // AFTER_LEVEL is dispatched after LevelRenderer has unwound the
-        // camera view transform. Using RenderSystem.getModelViewMatrix() here
-        // without restoring the view makes camera-relative particle positions
-        // appear glued to the screen as the player turns.
+        // Keep the same camera-relative convention for both world stages.
         //
         // Pyro geometry is already camera-relative (world - camera.position).
         // Reapply ONLY the inverse camera rotation, not camera translation,

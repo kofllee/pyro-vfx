@@ -14,8 +14,15 @@ import org.joml.Matrix4f;
 
 public final class VfxRenderer {
     private VfxRenderer() {}
+    // CPU instance generation wins below this cohort size because a separate
+    // TF launch, shader uniform update and GL state transition dominate.
+    private static final int TINY_ANALYTIC_THRESHOLD = Math.clamp(
+            Integer.getInteger("pyrovfx.render.tinyAnalyticThreshold", 12), 0, 64);
     private static int culledAnalyticCohorts;
     private static int culledAnalyticParticles;
+    private static int tinyAnalyticCohorts, tinyAnalyticParticles;
+    public static int tinyAnalyticCohorts() { return tinyAnalyticCohorts; }
+    public static int tinyAnalyticParticles() { return tinyAnalyticParticles; }
     private static String lastWorldStage = "none";
     private static boolean earlyRendered, lateRendered;
     private static long totalEarlyPasses, totalLatePasses, totalMixedFrames;
@@ -43,6 +50,7 @@ public final class VfxRenderer {
         VfxNativeModelRenderer.resetFrameStats();
         VfxNativeGpuGeometryBridge.resetFrameStats();
         culledAnalyticCohorts = culledAnalyticParticles = 0;
+        tinyAnalyticCohorts = tinyAnalyticParticles = 0;
     }
     public static void markWorldStage(boolean early) {
         if (early) {
@@ -54,7 +62,7 @@ public final class VfxRenderer {
             if (earlyRendered) totalMixedFrames++;
         }
         lastWorldStage = earlyRendered && lateRendered ? "mixed"
-                : early ? "before_translucent_world" : "after_level";
+                : early ? "before_translucent_world" : "after_particles";
     }
 
     /**
@@ -120,6 +128,34 @@ public final class VfxRenderer {
                         if (!analytic.mayBeVisible(frameMvp, camera.getPosition(), partialTick)) {
                             culledAnalyticCohorts++;
                             culledAnalyticParticles += analytic.liveCount();
+                            continue;
+                        }
+                        // Generating four GPU vertices for each of a few particles
+                        // costs more driver work than emitting the equivalent
+                        // instances into the existing shared native sprite batch.
+                        // Keep large/birth-expression cohorts GPU resident.
+                        boolean tinyAdditive = !analytic.model()
+                                && analytic.drawCount() <= TINY_ANALYTIC_THRESHOLD
+                                && !analytic.gpuBirthAppearance()
+                                && !analytic.individualLifetimes()
+                                && analytic.definition().render().sprite() != null
+                                && analytic.definition().render().sprite().blendMode()
+                                    == net.kofllee.pyrovfx.vfx.type.VfxBlendMode.ADDITIVE
+                                && VfxNativeSpriteBatcher.matches(analytic.definition());
+                        if (tinyAdditive) {
+                            if (!sharedBufferFlushed || queuedVanilla) {
+                                bufferSource.endBatch();
+                                sharedBufferFlushed = true;
+                                queuedVanilla = false;
+                            }
+                            if (!gpuFrame) {
+                                VfxNativeSpriteBatcher.begin(poseStack, camera, partialTick);
+                                gpuFrame = true;
+                            }
+                            VfxNativeSpriteBatcher.appendSmallAnalytic(analytic);
+                            tinyAnalyticCohorts++;
+                            tinyAnalyticParticles += analytic.liveCount();
+                            emitter.recordRenderer("Native Minecraft shared tiny-analytic sprite batch");
                             continue;
                         }
                         if (gpuFrame) VfxNativeSpriteBatcher.flush();

@@ -36,7 +36,9 @@ frame. CPU Dense/Legacy instances upload per frame by design.
 - `VfxRenderer`: the single renderer router, transforms, visibility gates,
   shared BufferSource boundaries and material pass selection.
 - `VfxRenderMaterial`: material semantics; solid/cutout/additive before world
-  translucency, sorted alpha after the world. No glass/water block IDs, camera
+  translucency, sorted alpha during Minecraft's native AFTER_PARTICLES pass.
+  Fabulous keeps its opaque depth in the particles target until this pass.
+  No glass/water block IDs, camera
   raycasts, special cloud depth writes or always-off depth testing.
 - `VfxNativeGpuGeometryBridge`: GPU analytic sprite vertex generation and
   CPU batched sprite expansion into native Minecraft particle vertices.
@@ -46,6 +48,9 @@ frame. CPU Dense/Legacy instances upload per frame by design.
   rather than one shader apply/draw/state restore per cohort.
 - `VfxNativeSpriteBatcher`: same-mesh/material batching, cross-emitter stable
   depth sorting of CPU/Dense alpha and ordered translucent-model callbacks.
+  Per-instance sprite facing, rotation, and lighting flags permit different
+  sprite variants sharing a texture to use a single native draw while retaining
+  cross-emitter depth order and correct fallback rendering.
   This retains sorting when the native GL path cannot be used.
 - `VfxNativeModelRenderer`: transforms stable Minecraft baked meshes on GPU
   using bounded Transform Feedback output and native final ShaderInstance.
@@ -55,6 +60,15 @@ frame. CPU Dense/Legacy instances upload per frame by design.
 - `VfxGpuFog`: temporarily restores Minecraft's world fog for native or
   RenderType late-stage submissions, then restores the caller's fog state.
 
+Small compatible additive GPU Analytic cohorts (12 or fewer particles by
+default) avoid one Transform Feedback launch per cohort: their existing CPU
+birth state is expanded into the shared native instance batch. Large cohorts,
+individual birth-expression programs, and incompatible features still use
+their original GPU or RenderType routes. The routing threshold can be
+configured with `-Dpyrovfx.render.tinyAnalyticThreshold=0..64` (0 disables
+this CPU-side tiny-cohort optimization). No separate fragment renderer is
+introduced.
+
 Shaders used by Transform Feedback only calculate **geometry and vertex
 attributes**. Their dummy fragment stage never draws a pixel.
 
@@ -62,8 +76,10 @@ The bounded native batch flushes on texture change, full output capacity,
 incompatible model/CPU/fallback work, or end of the material pass. Cohort
 motion, source transforms, birth expressions, light probes, UV, and appearance
 still run with independent per-cohort uniforms on the GPU. No CPU readback
-or per-particle vertex upload is introduced; alpha depth sorting and native
-model paths are unchanged. Frame counters separately expose TF generation
+or expanded per-particle vertex upload is introduced for GPU-resident large
+cohorts. The tiny-cohort fast path uploads compact sprite instances, not
+expanded quads; alpha depth sorting and native model paths are unchanged.
+Frame counters separately expose TF generation
 calls and final Minecraft material submissions.
 
 ## Correctness and fallback rules

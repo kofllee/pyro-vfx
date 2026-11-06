@@ -36,7 +36,9 @@ import java.util.List;
  * ShaderInstance submission; vanilla RenderType is the CPU-only fallback.
  */
 public final class VfxNativeSpriteBatcher {
-    private static final int INSTANCE_FLOATS = 21;
+    // Per-instance material flags let unlike facing/rotation/light sprite
+    // variants share a single GPU draw when their texture is identical.
+    private static final int INSTANCE_FLOATS = 22;
     private static final int STRIDE = INSTANCE_FLOATS * Float.BYTES;
     private static final int MAX_BATCH = 16_384;
     private static int bufferCapacity;
@@ -176,8 +178,7 @@ public final class VfxNativeSpriteBatcher {
             }
             return;
         }
-        if (batchTexture != null && (!batchTexture.equals(texture) || batchFacing != facing
-                || batchRotating != rotating || batchWorldLit != worldLit)) {
+        if (batchTexture != null && !batchTexture.equals(texture)) {
             flush();
         }
         batchTexture = texture;
@@ -186,6 +187,43 @@ public final class VfxNativeSpriteBatcher {
         batchAlpha = false;
         batchWorldLit = worldLit;
         pool.writeInstances(VfxNativeSpriteBatcher::put, camera, partialTick);
+    }
+
+    /** A handful of analytic particles cost less to expand on the CPU than
+     * to submit independent TF draws and uniforms for each tiny cohort.
+     * They still share the native Minecraft final material batch. */
+    public static void appendSmallAnalytic(
+            net.kofllee.pyrovfx.client.vfx.VfxAnalyticParticlePool pool) {
+        VfxEmitterDefinition definition = pool.definition();
+        ResourceLocation texture = definition.render().sprite().texture();
+        if (definition.render().sprite().blendMode() != VfxBlendMode.ADDITIVE)
+            throw new IllegalArgumentException("Tiny analytic fast path requires additive sprites");
+        if (batchTexture != null && !batchTexture.equals(texture)) flush();
+        batchTexture = texture;
+        batchFacing = definition.render().facing();
+        batchRotating = definition.rotation().mode()
+                != net.kofllee.pyrovfx.vfx.type.VfxRotationMode.NONE;
+        batchWorldLit = definition.render().environmentLighting();
+        batchAlpha = false;
+        pool.forEachSpriteView(partialTick, particle -> {
+            var color = particle.interpolatedColor(partialTick);
+            var position = particle.interpolatedPosition(partialTick);
+            var size = particle.interpolatedScale(partialTick);
+            var angles = particle.interpolatedRotation(partialTick);
+            var uv = VfxSpriteUvSampler.sample(particle);
+            var velocity = particle.velocity();
+            int light = batchWorldLit
+                    ? VfxRenderLight.getParticleLight(position.x, position.y, position.z)
+                    : net.minecraft.client.renderer.LightTexture.FULL_BRIGHT;
+            put(position.x, position.y, position.z,
+                    (float)size.x, (float)size.y,
+                    (float)color.r(), (float)color.g(), (float)color.b(), (float)color.a(),
+                    uv.u0(), uv.v0(), uv.u1(), uv.v1(),
+                    (float)angles.x, (float)angles.y, (float)angles.z,
+                    (((light >> 4) & 15) + 0.5f) / 16f,
+                    (((light >> 20) & 15) + 0.5f) / 16f,
+                    (float)velocity.x, (float)velocity.y, (float)velocity.z);
+        });
     }
 
     /**
@@ -251,6 +289,19 @@ public final class VfxNativeSpriteBatcher {
         });
     }
 
+    // Stable native vertex attribute: 0..5 facing, bit 3 rotation, bit 4 lightmap.
+    private static int materialFlags(VfxFacingMode facing, boolean rotating, boolean lit) {
+        int direction = switch (facing) {
+            case CAMERA -> 0;
+            case CAMERA_HORIZONTAL -> 1;
+            case WORLD_X -> 2;
+            case WORLD_Y -> 3;
+            case WORLD_Z -> 4;
+            case VELOCITY -> 5;
+        };
+        return direction | (rotating ? 8 : 0) | (lit ? 16 : 0);
+    }
+
     private static void put(double x, double y, double z, float sizeX, float sizeY,
                             float red, float green, float blue, float alpha,
                             float u0, float v0, float u1, float v1,
@@ -303,7 +354,9 @@ public final class VfxNativeSpriteBatcher {
             alphaData[offset++] = skyLight;
             alphaData[offset++] = velocityX;
             alphaData[offset++] = velocityY;
-            alphaData[offset] = velocityZ;
+            alphaData[offset++] = velocityZ;
+            AlphaMaterial spec = ALPHA_MATERIALS.get(collectingMaterial);
+            alphaData[offset] = materialFlags(spec.facing(), spec.rotating(), spec.worldLit());
             alphaCount++;
             submitted++;
             return;
@@ -317,6 +370,7 @@ public final class VfxNativeSpriteBatcher {
         staging.putFloat(rotationX).putFloat(rotationY).putFloat(rotationZ);
         staging.putFloat(blockLight).putFloat(skyLight);
         staging.putFloat(velocityX).putFloat(velocityY).putFloat(velocityZ);
+        staging.putFloat(materialFlags(batchFacing, batchRotating, batchWorldLit));
         count++;
         submitted++;
     }
@@ -384,7 +438,7 @@ public final class VfxNativeSpriteBatcher {
             AlphaMaterial spec = ALPHA_MATERIALS.get(material);
             if (previousMaterial != material && previousMaterial >= 0) {
                 AlphaMaterial prev = ALPHA_MATERIALS.get(previousMaterial);
-                if (!prev.equals(spec)) flush();
+                if (!prev.texture().equals(spec.texture())) flush();
             }
             if (count == MAX_BATCH) flush();
             batchTexture = spec.texture();
@@ -452,16 +506,17 @@ public final class VfxNativeSpriteBatcher {
             float u1 = buffer.get(o + 11), v1 = buffer.get(o + 12);
             float rx = buffer.get(o + 13), ry = buffer.get(o + 14), rz = buffer.get(o + 15);
             float block = buffer.get(o + 16), sky = buffer.get(o + 17);
+            int flags = (int)buffer.get(o + 21);
             var poses = framePose;
             poses.pushPose();
             poses.translate(x,y,z);
-            switch (batchFacing) {
-                case CAMERA -> poses.mulPose(view);
-                case CAMERA_HORIZONTAL ->
+            switch (flags & 7) {
+                case 0 -> poses.mulPose(view);
+                case 1 ->
                         poses.mulPose(com.mojang.math.Axis.YP.rotationDegrees(-camera.getYRot()));
-                case WORLD_X -> poses.mulPose(com.mojang.math.Axis.YP.rotationDegrees(90f));
-                case WORLD_Y -> poses.mulPose(com.mojang.math.Axis.XP.rotationDegrees(90f));
-                case VELOCITY -> {
+                case 2 -> poses.mulPose(com.mojang.math.Axis.YP.rotationDegrees(90f));
+                case 3 -> poses.mulPose(com.mojang.math.Axis.XP.rotationDegrees(90f));
+                case 5 -> {
                     float vx = buffer.get(o+18), vy = buffer.get(o+19), vz = buffer.get(o+20);
                     if (vx*vx+vy*vy+vz*vz < 1e-6f)
                         poses.mulPose(com.mojang.math.Axis.YP.rotationDegrees(90f));
@@ -470,7 +525,7 @@ public final class VfxNativeSpriteBatcher {
                 }
                 default -> { }
             }
-            if (batchRotating) {
+            if ((flags & 8) != 0) {
                 poses.mulPose(com.mojang.math.Axis.XP.rotationDegrees(rx));
                 poses.mulPose(com.mojang.math.Axis.YP.rotationDegrees(ry));
                 poses.mulPose(com.mojang.math.Axis.ZP.rotationDegrees(rz));
@@ -480,7 +535,7 @@ public final class VfxNativeSpriteBatcher {
             int g = Math.clamp((int)(green*255f),0,255);
             int b = Math.clamp((int)(blue*255f),0,255);
             int a = Math.clamp((int)(alpha*255f),0,255);
-            int packedLight = batchWorldLit ? (Math.clamp((int)(block*16f),0,15)<<4)
+            int packedLight = (flags & 16) != 0 ? (Math.clamp((int)(block*16f),0,15)<<4)
                     | (Math.clamp((int)(sky*16f),0,15)<<20)
                     : net.minecraft.client.renderer.LightTexture.FULL_BRIGHT;
             minecraftVertex(consumer,matrix,-sx,-sy,u0,v1,r,g,b,a,packedLight);

@@ -14,7 +14,7 @@ import net.minecraft.resources.ResourceLocation;
 public record VfxRenderMaterial(Kind kind, ResourceLocation texture,
                                 boolean environmentLighting) {
     public enum Kind { OPAQUE, CUTOUT, ALPHA, ADDITIVE }
-    public enum Pass { BEFORE_TRANSLUCENT_WORLD, AFTER_WORLD }
+    public enum Pass { BEFORE_TRANSLUCENT_WORLD, AFTER_PARTICLES }
 
     public static VfxRenderMaterial of(VfxEmitterDefinition definition) {
         var render = definition.render();
@@ -37,8 +37,9 @@ public record VfxRenderMaterial(Kind kind, ResourceLocation texture,
     public Pass pass() {
         // Native solid geometry writes depth before world transparency.
         // Additive light is also composited behind the translucent-world pass;
-        // alpha retains the existing post-world ordered particle pass.
-        return kind == Kind.ALPHA ? Pass.AFTER_WORLD : Pass.BEFORE_TRANSLUCENT_WORLD;
+        // Alpha uses the native particle target, where Fabulous has copied
+        // opaque world depth, before it performs the final transparency composite.
+        return kind == Kind.ALPHA ? Pass.AFTER_PARTICLES : Pass.BEFORE_TRANSLUCENT_WORLD;
     }
 
     public boolean requiresSorting() { return kind == Kind.ALPHA; }

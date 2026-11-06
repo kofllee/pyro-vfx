@@ -130,6 +130,10 @@ final class VfxBenchReport {
         root.addProperty("gpuModelResidentUploadsLastFrame", VfxNativeModelRenderer.residentUploads());
         root.addProperty("gpuModelResidentUploadBytesLastFrame", VfxNativeModelRenderer.residentUploadBytes());
         root.addProperty("gpuAnalyticDrawCallsLastFrame", net.kofllee.pyrovfx.client.render.VfxRenderer.analyticDrawCalls());
+        root.addProperty("tinyAnalyticCohortsBatchedLastFrame",
+                net.kofllee.pyrovfx.client.render.VfxRenderer.tinyAnalyticCohorts());
+        root.addProperty("tinyAnalyticParticlesBatchedLastFrame",
+                net.kofllee.pyrovfx.client.render.VfxRenderer.tinyAnalyticParticles());
         root.addProperty("gpuAnalyticInstancesLastFrame", net.kofllee.pyrovfx.client.render.VfxRenderer.analyticInstances());
         root.addProperty("gpuAnalyticUploadedBytesLastFrame", net.kofllee.pyrovfx.client.render.VfxRenderer.analyticUploadedBytes());
         root.addProperty("gpuAnalyticDatasetsUploadedLastFrame", net.kofllee.pyrovfx.client.render.VfxRenderer.analyticDatasetUploads());
@@ -224,6 +228,12 @@ final class VfxBenchReport {
         root.addProperty("p99FrameMs", finite(percentile(run.framesNs, run.frameCount, 0.99)));
         double medianFrame = percentile(run.framesNs, run.frameCount, 0.5);
         root.addProperty("medianFps", medianFrame > 0 && Double.isFinite(medianFrame) ? 1000.0 / medianFrame : null);
+        int[] fps = java.util.Arrays.copyOf(run.minecraftFpsSamples, run.minecraftFpsCount);
+        java.util.Arrays.sort(fps);
+        root.addProperty("minecraftReportedFpsMedian", fps.length == 0 ? null : fps[fps.length / 2]);
+        root.addProperty("minecraftReportedFpsMin", fps.length == 0 ? null : fps[0]);
+        root.addProperty("minecraftReportedFpsMax", fps.length == 0 ? null : fps[fps.length - 1]);
+        root.addProperty("minecraftReportedFpsSamples", fps.length);
         root.addProperty("medianSimulationMs", finite(percentile(run.simulationNs, run.tickCount, 0.5)));
         root.addProperty("p95SimulationMs", finite(percentile(run.simulationNs, run.tickCount, 0.95)));
         root.addProperty("medianRenderSubmissionMs", finite(percentile(run.renderNs, run.renderCount, 0.5)));
@@ -249,7 +259,7 @@ final class VfxBenchReport {
         root.addProperty("gpuTimingNote", run.gpuSamples > 0
                 ? "Asynchronous GL_TIME_ELAPSED queries around VfxRenderer.render, excludes the rest of the Minecraft frame."
                 : "No completed OpenGL timer queries; GPU time unavailable.");
-        root.addProperty("frameTimingNote", "Wall-clock interval between AFTER_LEVEL render-stage callbacks; not a GPU timer.");
+        root.addProperty("frameTimingNote", "Wall-clock interval between consecutive Pyro VFX render-stage callbacks; mixed early/late stages can occur within one frame. Use minecraftReportedFpsMedian for full-client FPS, not medianFrameMs.");
         root.addProperty("renderTimingNote", "CPU wall-clock time of VfxRenderer.render; may contain driver calls, not GPU execution.");
         root.addProperty("allocationNote", "Current render/tick thread allocations if supported by HotSpot ThreadMXBean.");
         root.addProperty("recordedAtUtc", Instant.now().toString());

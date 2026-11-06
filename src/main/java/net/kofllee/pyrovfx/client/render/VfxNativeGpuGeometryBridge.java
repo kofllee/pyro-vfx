@@ -139,7 +139,7 @@ public final class VfxNativeGpuGeometryBridge {
             """;
     /**
      * Native geometry from the existing CPU Dense/Legacy batching contract.
-     * 21 floats per instance match VfxNativeSpriteBatcher's staging layout.
+     * 22 floats per instance match VfxNativeSpriteBatcher's staging layout.
      * Vertex positions are camera-relative and the output is Minecraft's
      * POSITION_TEX_COLOR_LIGHTMAP vertex format, not a custom fragment shader.
      */
@@ -152,19 +152,22 @@ public final class VfxNativeGpuGeometryBridge {
             layout(location=4) in vec3 iRotation;
             layout(location=5) in vec2 iLight;
             layout(location=6) in vec3 iVelocity;
+            layout(location=7) in float iFlags;
             uniform vec3 uRight, uUp;
-            uniform int uHasRotation, uVelocityFacing, uUseLight;
+            uniform float uHorizontalAngle;
             out vec3 outPosition;
             out vec2 outUv;
             flat out uint outColor;
             flat out uint outLight;
             void main() {
+                int flags = int(iFlags + 0.5);
+                int facing = flags & 7;
                 int k = gl_VertexID % 4;
                 vec2 c = k == 0 ? vec2(-1.,-1.)
                        : k == 1 ? vec2(1.,-1.)
                        : k == 2 ? vec2(1.,1.) : vec2(-1.,1.);
                 vec3 corner = vec3(c * iSize * 0.5, 0.);
-                if (uHasRotation != 0) {
+                if ((flags & 8) != 0) {
                     vec3 radiansRotation = radians(iRotation);
                     vec3 z = sin(radiansRotation), q = cos(radiansRotation);
                     corner = vec3(q.z*corner.x-z.z*corner.y,
@@ -175,7 +178,16 @@ public final class VfxNativeGpuGeometryBridge {
                                   z.x*corner.y+q.x*corner.z);
                 }
                 vec3 right = uRight, up = uUp;
-                if (uVelocityFacing != 0) {
+                if (facing == 1) {
+                    right = vec3(cos(uHorizontalAngle),0.,-sin(uHorizontalAngle));
+                    up = vec3(0.,1.,0.);
+                } else if (facing == 2) {
+                    right = vec3(0.,0.,-1.); up = vec3(0.,1.,0.);
+                } else if (facing == 3) {
+                    right = vec3(1.,0.,0.); up = vec3(0.,0.,1.);
+                } else if (facing == 4) {
+                    right = vec3(1.,0.,0.); up = vec3(0.,1.,0.);
+                } else if (facing == 5) {
                     vec3 n = dot(iVelocity,iVelocity) < 1e-6
                             ? vec3(1,0,0) : normalize(iVelocity);
                     vec4 q = n.z < -0.99999 ? vec4(0,1,0,0)
@@ -192,7 +204,7 @@ public final class VfxNativeGpuGeometryBridge {
                              mix(iUvRect.w,iUvRect.y,t.y));
                 uvec4 rgba = uvec4(clamp(iColor,0.,1.)*255. + .5);
                 outColor = rgba.r | (rgba.g<<8u) | (rgba.b<<16u) | (rgba.a<<24u);
-                if (uUseLight != 0) {
+                if ((flags & 16) != 0) {
                     uvec2 light = uvec2(clamp(floor(iLight*16.),vec2(0.),vec2(15.)));
                     outLight = (light.x*16u) | ((light.y*16u)<<16u);
                 } else outLight = 240u | (240u<<16u);
@@ -568,6 +580,7 @@ public final class VfxNativeGpuGeometryBridge {
                         GL11.GL_ONE, GL11.GL_ONE);
                 GL11.glDisable(GL11.GL_CULL_FACE);
                 GL11.glEnable(GL11.GL_DEPTH_TEST);
+                GL11.glDepthFunc(GL11.GL_LEQUAL);
                 GL11.glDepthMask(false);
                 GL30.glBindVertexArray(outputVao);
                 nativeShader.apply();
@@ -655,23 +668,10 @@ public final class VfxNativeGpuGeometryBridge {
             GL20.glUseProgram(instanceGenerationProgram);
             var right = new Vector3f(1,0,0).rotate(camera.rotation());
             var up = new Vector3f(0,1,0).rotate(camera.rotation());
-            switch (facing) {
-                case WORLD_X -> { right.set(0,0,-1); up.set(0,1,0); }
-                case WORLD_Y -> { right.set(1,0,0); up.set(0,0,1); }
-                case WORLD_Z -> { right.set(1,0,0); up.set(0,1,0); }
-                case CAMERA_HORIZONTAL -> {
-                    float a = (float)Math.toRadians(-camera.getYRot());
-                    right.set((float)Math.cos(a),0,(float)-Math.sin(a));
-                    up.set(0,1,0);
-                }
-                default -> { }
-            }
             GL20.glUniform3f(instanceLoc("uRight"),right.x,right.y,right.z);
             GL20.glUniform3f(instanceLoc("uUp"),up.x,up.y,up.z);
-            GL20.glUniform1i(instanceLoc("uHasRotation"),rotating ? 1 : 0);
-            GL20.glUniform1i(instanceLoc("uVelocityFacing"),
-                    facing == VfxFacingMode.VELOCITY ? 1 : 0);
-            GL20.glUniform1i(instanceLoc("uUseLight"),worldLit ? 1 : 0);
+            GL20.glUniform1f(instanceLoc("uHorizontalAngle"),
+                    (float)Math.toRadians(-camera.getYRot()));
 
             mc.gameRenderer.lightTexture().turnOnLightLayer();
             RenderSystem.setShader(GameRenderer::getParticleShader);
@@ -772,8 +772,8 @@ public final class VfxNativeGpuGeometryBridge {
             instanceSourceVbo=GL15.glGenBuffers();
             GL30.glBindVertexArray(instanceSourceVao);
             GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER,instanceSourceVbo);
-            final int stride=21*Float.BYTES;
-            int[] channels={3,2,4,4,3,2,3};
+            final int stride=22*Float.BYTES;
+            int[] channels={3,2,4,4,3,2,3,1};
             int offset=0;
             for(int i=0;i<channels.length;i++){
                 GL20.glEnableVertexAttribArray(i);

@@ -511,6 +511,27 @@ public final class VfxAnalyticParticlePool {
         }
     }
 
+    /**
+     * Expose existing analytic birth state to the native sprite batcher for
+     * very small cohorts. This uses the same cursor as the RenderType fallback,
+     * and does not create one Minecraft particle object per instance.
+     * The callback must consume the cursor immediately; it is reused.
+     */
+    public void forEachSpriteView(float partial,
+                                  java.util.function.Consumer<VfxSpriteParticleView> consumer) {
+        if (model() || states == null || count == 0) return;
+        updateAppearance(partial);
+        double[] coefficients = plan.coefficients(age, partial);
+        FallbackCursor cursor = new FallbackCursor(coefficients[0], coefficients[1],
+                parametricOffset(partial));
+        for (int i = 0; i < count; i++) {
+            if (individualLifetimes && age >= states.getFloat(i * stride + lifetimeAttributeOffset()))
+                continue;
+            cursor.index = i;
+            consumer.accept(cursor);
+        }
+    }
+
     private final class FallbackCursor implements VfxSpriteParticleView {
         private final double cv, ca;
         private final Vec3 parametric;

@@ -13,6 +13,16 @@
 
 ## Evidence and confidence
 
+The 6 November Fabulous correction moved alpha rendering into Minecraft's
+native particle-composition stage; opaque stone-wall tests passed for both
+alpha smoke and native additive sparks. The museum's tiny-cohort adaptive
+batching cut observed per-frame Transform Feedback generation calls from
+376 to 10 in controlled runs, raising full-client median FPS from 68 to 88
+with all exhibits enabled in the tested 1280x720 Fabulous scene. The
+no-exhibits controls were 99 and 97 FPS. Another short optimized run reached
+93 FPS. These are device-specific observations, not fixed FPS targets.
+See [Fabulous depth and tiny-cohort evidence](benchmarks/fabulous-depth-tiny-cohorts-2026-11-06/README.md).
+
 The 6 November 2026 post-migration verification passed **104/104 required GameTests** following three earlier consecutive runs of 91/91 with `verifyReleaseJar` successful. This followed a flaky GameTest assertion that compared global lease counts across concurrently running tests; the corrected tests now check their own lease identities. Earlier checkpoints of **88/88** (visibility/regression) and **87/87** (M7) are retained historical evidence, not cumulative test totals. The new tests cover analytic facing eligibility, additional GPU birth schedules and saturated steady emission. Two independent localhost clients passed **8/8 acceptance checks each**, including audience exit/return, dimension changes, sockets and source removal. The current development-only technical museum has **35 exhibits**, reduced from 66. The earlier 88/88 and 87/87 results refer to prior checkpoints, not to the redesigned gallery.
 
 On RTX 4090 Laptop hardware, short real-client checks were recorded for vanilla rendering and Sodium, Embeddium, Iris without shaders, and Iris with Complementary, BSL and Photon (shaderpack observations were recorded in older profiles; an active shaderpack does not force fallback in the current routing policy). See [compatibility ledger](COMPATIBILITY_MATRIX.md), [network contract](NETWORKING.md), and [performance evidence](PERFORMANCE.md). The native production bridge additionally passed three museum scenarios with Iris 1.8.12 + Complementary Reimagined r5.9.3 on 6 November 2026 (short local checks), and the earlier proof of concept separately covered Vanilla Fast/Fancy/Fabulous. These results are not universal shaderpack certification. Separately, six new 5 November vanilla/NVIDIA real-client rendering checks (GPU Analytic sprite/model, GPU instanced additive/alpha and matched RenderType baseline) completed with GL state audit; see [retained current audit](benchmarks/runtime-audit-2026-11-05/README.md). This is not a new shaderpack compatibility certification.

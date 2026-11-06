@@ -1639,7 +1639,7 @@ public final class PyroVfxGameTests {
             boolean alpha = expected[i] == VfxRenderMaterial.Kind.ALPHA;
             if (material.requiresSorting() != alpha
                     || (material.pass()
-                        == VfxRenderMaterial.Pass.AFTER_WORLD)
+                        == VfxRenderMaterial.Pass.AFTER_PARTICLES)
                         != alpha
                     || material.writesDepth() != (i == 2 || i == 3))
                 throw new AssertionError("Native pass must use material semantics: " + material);

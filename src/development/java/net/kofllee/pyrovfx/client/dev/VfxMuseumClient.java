@@ -45,6 +45,7 @@ public final class VfxMuseumClient {
     };
     private static final Map<String, String> ORIGINAL_FLAGS = new HashMap<>();
     private static final Map<String, Long> HANDLES = new HashMap<>();
+    private static final Map<String, Long> NEXT_RETRY_TICK = new HashMap<>();
     private static final Map<Integer, Long> TRANSPARENCY_HANDLES = new HashMap<>();
     private static final Set<String> PREVIEW_EFFECTS = Set.of(
             "analytic_moving_light", "analytic_random_life", "analytic_random_uv",
@@ -286,6 +287,19 @@ public final class VfxMuseumClient {
         return 1;
     }
 
+    /** Exact same exhibit configuration as the interactive ALL ON/OFF
+     * buttons, but without UI side effects during controlled client A/B runs. */
+    static void benchmarkAllEnabled(boolean enabled) {
+        initializedEnabled = true;
+        solo = "";
+        ENABLED.clear();
+        if (enabled) {
+            for (var exhibit : VfxMuseumCatalog.exhibits()) ENABLED.add(exhibit.id());
+        } else {
+            stopManaged();
+        }
+    }
+
     private static void button(VfxMuseumCatalog.Exhibit e,VfxMuseumCatalog.Action action) {
         selected=e.id();
         switch(action) {
@@ -336,9 +350,14 @@ public final class VfxMuseumClient {
         for (var e:candidates) {
             long handle=HANDLES.getOrDefault(e.id(),0L);
             if (handle!=0 && ClientVfxManager.handleActive(handle)) continue;
+            if (mc.level.getGameTime() < NEXT_RETRY_TICK.getOrDefault(e.id(), 0L))
+                continue;
             HANDLES.remove(e.id());
             // The first tick after a finite effect finishes starts a new cycle.
             start(e,e.count());
+            if (!HANDLES.containsKey(e.id()))
+                NEXT_RETRY_TICK.put(e.id(), mc.level.getGameTime() + 20);
+            else NEXT_RETRY_TICK.remove(e.id());
         }
     }
 
@@ -347,7 +366,9 @@ public final class VfxMuseumClient {
         if (mc.level==null || VfxRegistry.get(e.effect())==null) return;
         var origin=Vec3.atCenterOf(e.effectOrigin());
         var source=providerFor(e.id(),origin,e.base().offset(6,1,5));
-        if (source==null) return;
+        // A freshly built stand may not yet be present in the client chunk.
+        // Do not submit a provider known to be unavailable (or spam warnings).
+        if (source==null || source.get(1f)==null) return;
         long handle=ClientVfxManager.playManaged(e.effect(),source,Map.of("count",(double)count));
         if (handle!=0) HANDLES.put(e.id(),handle);
         lastExhibit=e.id();
@@ -362,6 +383,7 @@ public final class VfxMuseumClient {
     }
     private static void leave() {
         stopManaged();
+        NEXT_RETRY_TICK.clear();
         restoreFlags();
         DISPLAYED.clear();
         POWERED_BUTTONS.clear();

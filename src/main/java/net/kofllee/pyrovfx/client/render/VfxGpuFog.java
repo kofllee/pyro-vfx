@@ -6,13 +6,13 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.world.level.material.FogType;
 
 /** Restores Minecraft's world fog for native ShaderInstance and RenderType
- * particle passes after the LevelRenderer has reset fog for its next stage.
+ * particle passes if the LevelRenderer has reset fog for the next stage.
  * Does not implement or override the fragment shader itself.
  */
 public final class VfxGpuFog {
-    // LevelRenderer disables fog at the end of the world pass by assigning
-    // Float.MAX_VALUE to FogStart, without clearing FogEnd/Color. Retain its
-    // actual fog settings before that reset for our AFTER_LEVEL GPU draws.
+    // Retain the fog computed for world geometry before Minecraft's
+    // BEFORE_TRANSLUCENT and AFTER_PARTICLES VFX stages. Some alternate
+    // render pipelines disable fog between intermediate world stages.
     private static float frameStart, frameEnd;
     private static float[] frameColor = {1, 1, 1};
     private static FogShape frameShape = FogShape.SPHERE;
