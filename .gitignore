@@ -25,3 +25,10 @@ run-visual-*/
 # Python comparator bytecode
 __pycache__/
 *.pyc
+
+# Local AI/agent tooling and editor state (not part of the distributable mod)
+.claude/
+
+# Generated UI visual acceptance snapshots and local runtime logs
+docs/screenshots/pyro-ui/
+pyro-ui/logs/
