@@ -4,7 +4,7 @@
 
 Pyro VFX handles sprite and Minecraft-model particles, parameters, expressions, curves, event triggers, block collision, attachments, multiplayer synchronization and adaptive resource budgets. Its rendering backends are chosen by **effect capabilities**: GPU Analytic for supported closed-form simulation; CPU Dense/Legacy for world-dependent or stateful behavior; Minecraft-native GPU geometry with RenderType fallback for drawing.
 
-This is a **runtime prototype**, not a certified multi-driver or shaderpack release. The next development phase is the visual editor.
+This is a **runtime prototype**, not a certified multi-driver or shaderpack release. Pyro UI is the first integrated native-Minecraft editor UI foundation; full JSON editing is a subsequent phase.
 
 ## Documentation
 
@@ -19,7 +19,26 @@ This is a **runtime prototype**, not a certified multi-driver or shaderpack rele
 | Graphics compatibility and remaining issues | [Compatibility](docs/COMPATIBILITY_MATRIX.md), [open work](docs/RENDERING_AND_OPTIMIZATION_BACKLOG.md) |
 | Actual measurements (historical and current baselines) | [Performance](docs/PERFORMANCE.md) |
 | Build, developer gallery and test commands | [Test harness](docs/TEST_HARNESS.md) |
+| Native editor UI foundation | [Pyro UI architecture](docs/PYRO_UI_ARCHITECTURE.md), [original icon geometry audit](docs/PYRO_UI_GRAPHICS_QUALITY_REPORT.md), [Ignition design tokens](docs/PYRO_UI_IGNITION.md) |
 | Next implementation stage | [Visual editor roadmap](docs/ROADMAP.md) |
+
+## Pyro UI showcase
+
+Enable the client config option `editor.enable_editor`, enter a Minecraft world, and run `/pyrovfx editor` to open the integrated dockable Pyro UI Showcase. The UI is an actual Java/NeoForge Minecraft screen, not a web or image mockup. Its interactive controls edit demonstration model data rather than writing VFX JSON yet. `:pyro-ui` is a standalone Minecraft-aware NeoForge UI mod with **vanilla Minecraft typography** and original Pixelarticons rendered with correct per-icon ink bounds. It is distributed inside the Pyro VFX release through NeoForge Jar-in-Jar; other mods can depend on Pyro UI without using Pyro VFX.
+
+For a direct development profile, use `.\\gradlew.bat runClientUiShowcase` (the optional `-PuiCapture=true -PuiAutoExit=true` produces true-client UI screenshots with a development-only probe).
+
+The Minecraft world is now a proper **dockable and resizable gameplay window**,
+not the UI backdrop: desktop gaps are opaque, and the native GPU-rendered world
+is visible only inside the `Minecraft` panel. Click its body to capture
+first-person gameplay input (WASD, mouse look, attack/use and hotbar); press
+`Esc` to release focus back to the editor. Vanilla inventory/chat screens
+return to the workspace when closed. The current viewport center-crops the
+native camera output to the dock aspect ratio; it does not perform a second
+perspective-correct world render. The docking workspace uses independent
+rectangular zones with local/outer-edge placement and live reflow previews.
+
+Use `/pyrovfx typography` or `.\\gradlew.bat runClientUiGallery` to inspect all 22 original Pixelarticons, their measured visible dimensions, and vanilla Mojangles font samples. The gallery supports icon/text scaling and an ink-bounds overlay toggled with `B`.
 
 ## Effect definitions
 
