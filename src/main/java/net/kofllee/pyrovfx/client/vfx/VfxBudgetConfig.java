@@ -28,6 +28,7 @@ public final class VfxBudgetConfig {
     private static final ModConfigSpec.BooleanValue GPU_TIMING_ENABLED;
     private static final ModConfigSpec.DoubleValue GPU_RENDER_BUDGET_MS;
     private static final ModConfigSpec.BooleanValue VRAM_PROBE;
+    private static final ModConfigSpec.BooleanValue ENABLE_EDITOR;
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -71,10 +72,20 @@ public final class VfxBudgetConfig {
                         "Unsupported GPUs return unknown. This extra GL query may have driver overhead.")
                 .define("nvidia_memory_probe", false);
         builder.pop();
+        builder.comment("Optional interactive VFX editor; disabling never changes effect playback.").push("editor");
+        ENABLE_EDITOR = builder.comment("Enable /pyrovfx editor and the integrated UI showcase.")
+                .define("enable_editor", true);
+        builder.pop();
         SPEC = builder.build();
     }
 
     private VfxBudgetConfig() {}
+
+    public static boolean editorEnabled() {
+        if (!FMLEnvironment.dist.isClient()) return false;
+        try { return ENABLE_EDITOR.get(); }
+        catch (IllegalStateException notLoadedYet) { return true; }
+    }
 
     // Client configs are not loaded by a dedicated server running GameTests.
     // The shared budget code must also work before the client config loads.

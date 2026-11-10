@@ -18,6 +18,10 @@ base {
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
+// Root development runs stage the UI subproject's JAR. Its tasks must be
+// configured before resolving the archive provider (ModDevGradle multiproject).
+evaluationDependsOn(':pyro-ui')
+
 // No separate mod: dev and release share identity, only main is published.
 sourceSets {
     development {
@@ -37,6 +41,13 @@ tasks.register('developmentJar', Jar) {
     dependsOn tasks.named('developmentClasses')
     from sourceSets.main.output
     from sourceSets.development.output
+    from(tasks.named('jarJar'))
+}
+// Preserve the supported NeoForge Jar-in-Jar metadata and embedded library.
+// Merely declaring jarJar(project(...)) does not include generated output in
+// the ordinary Jar task for this ModDevGradle configuration.
+tasks.named('jar', Jar) {
+    from(tasks.named('jarJar'))
 }
 tasks.register('verifyReleaseJar') {
     group = 'verification'
@@ -63,6 +74,49 @@ tasks.register('verifyReleaseJar') {
             }
             if (!forbidden.isEmpty()) throw new GradleException(
                 "Development files leaked into release jar:\n" + forbidden.join('\n'))
+            if (!names.contains('META-INF/jarjar/metadata.json') ||
+                !names.any { it.startsWith('META-INF/jarjar/') && it.endsWith('.jar') && it.contains('pyro-ui') }) {
+                throw new GradleException('Release jar is missing bundled Pyro UI Jar-in-Jar metadata or binary')
+            }
+            if (names.any { it.startsWith('net/kofllee/pyroui/') }) {
+                throw new GradleException('Pyro UI library classes were flattened instead of Jar-in-Jar packaged')
+            }
+            def nestedPath = names.find { it.startsWith('META-INF/jarjar/') &&
+                    it.endsWith('.jar') && it.contains('pyro-ui') }
+            def nestedNames = []
+            new java.util.zip.ZipInputStream(zip.getInputStream(zip.getEntry(nestedPath))).withCloseable { nested ->
+                def entry
+                while ((entry = nested.nextEntry) != null) nestedNames.add(entry.name)
+            }
+            def requiredUiFiles = [
+                'META-INF/neoforge.mods.toml',
+                'net/kofllee/pyroui/PyroUi.class',
+                'net/kofllee/pyroui/PyroScreen.class',
+                'net/kofllee/pyroui/MinecraftUiRenderer.class',
+                'net/kofllee/pyroui/PyroUiTypographyGalleryScreen.class',
+                'net/kofllee/pyroui/UiIconBounds.class',
+                'assets/pyro_ui/textures/gui/icons/pixelarticons.png',
+                'META-INF/licenses/pixelarticons-MIT.txt'
+            ]
+            if (!nestedNames.containsAll(requiredUiFiles)) {
+                throw new GradleException('Standalone Pyro UI JAR is missing files: ' +
+                    (requiredUiFiles - nestedNames))
+            }
+            if (names.contains('net/kofllee/pyrovfx/client/ui/MinecraftUiCanvas.class')) {
+                throw new GradleException('Obsolete Pyro VFX Minecraft UI renderer still packaged')
+            }
+            if (names.any { it.startsWith('assets/pyro_vfx/font/pyro_icons') }) {
+                throw new GradleException('Old Pyro VFX icon FontSet still packaged')
+            }
+            if (nestedNames.any { it.startsWith('net/kofllee/pyroui/font/')
+                    || it.startsWith('assets/pyro_ui/font/')
+                    || it.startsWith('assets/pyro_ui/font_atlas/')
+                    || it.startsWith('assets/pyro_ui/shaders/core/ui_sdf')
+                    || it.startsWith('assets/pyro_ui/shaders/core/ui_raster')
+                    || it.startsWith('assets/pyro_ui/textures/font/')
+                    || it.contains('lucide_hd') || it.contains('pixelarticons_hd') }) {
+                throw new GradleException('Removed custom fonts or third-party icon styles leaked into Pyro UI')
+            }
             task.logger.lifecycle('Verified release jar {} ({} entries)', jarFile.name, names.size())
         } finally { zip.close() }
     }
@@ -80,9 +134,33 @@ neoForge {
     // This line is optional. Access Transformers are automatically detected
     // accessTransformers.add('src/main/resources/META-INF/accesstransformer.cfg')
 
+    // Only Pyro VFX's own source sets belong to this Gradle project.
+    // Pyro UI is a separate, independently built NeoForge mod. Mapping its
+    // source set here gives ModDevGradle incorrect *root-project* output paths
+    // under fml.modFolders (and prevents NeoForge from discovering pyro_ui).
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+            sourceSet(sourceSets.development)
+        }
+    }
+
     // Default run configurations.
     // These can be tweaked, removed, or duplicated as needed.
     runs {
+        // Install the separately built Pyro UI mod into each run's own mods/
+        // directory. This also works for visual/network run profiles that
+        // use a different gameDirectory. Do not treat it as a root source set.
+        configureEach { runModel ->
+            def uiModJar = rootProject.project(":pyro-ui").tasks.named("jar").flatMap { it.archiveFile }
+            def stageUi = tasks.register("stagePyroUiFor" +
+                    runModel.name.substring(0, 1).toUpperCase(java.util.Locale.ROOT) +
+                    runModel.name.substring(1), Copy) {
+                from uiModJar
+                into runModel.gameDirectory.dir("mods")
+            }
+            taskBefore stageUi
+        }
         client {
             client()
 
@@ -108,6 +186,41 @@ neoForge {
             systemProperty 'pyrovfx.museum.autoStart', 'true'
             systemProperty 'pyrovfx.museum.runtimeShowcase', 'true'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        // Human acceptance of the integrated Pyro UI: opens the real
+        // Minecraft screen in the existing museum world (no HTML mockup).
+        clientUiShowcase {
+            client()
+            programArguments.addAll '--quickPlaySingleplayer', 'Pyro VFX Museum',
+                    '--width', providers.gradleProperty('uiWidth').orElse('1280').get(),
+                    '--height', providers.gradleProperty('uiHeight').orElse('720').get()
+            systemProperty 'pyrovfx.ui.showcase', 'true'
+            systemProperty 'pyrovfx.ui.capture.tag', providers.gradleProperty('uiCaptureTag').orElse('after-1280').get()
+            systemProperty 'pyrovfx.ui.guiScale', providers.gradleProperty('uiGuiScale').orElse('0').get()
+            // Opt-in development screenshot matrix, auto-exit for headless acceptance.
+            systemProperty 'pyrovfx.ui.capture', providers.gradleProperty('uiCapture').orElse('false').get()
+            systemProperty 'pyrovfx.ui.autoExit', providers.gradleProperty('uiAutoExit').orElse('false').get()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        // Dedicated in-Minecraft typography and sprite quality comparison;
+        // no VFX editor needs to be open. Use /pyrovfx typography in normal runs.
+        clientUiGallery {
+            client()
+            programArguments.addAll '--quickPlaySingleplayer', 'Pyro VFX Museum',
+                    '--width', providers.gradleProperty('uiWidth').orElse('1280').get(),
+                    '--height', providers.gradleProperty('uiHeight').orElse('720').get()
+            systemProperty 'pyrovfx.ui.gallery', 'true'
+            systemProperty 'pyrovfx.ui.gallery.capture',
+                    providers.gradleProperty('uiGalleryCapture').orElse('false').get()
+            systemProperty 'pyrovfx.ui.gallery.autoExit',
+                    providers.gradleProperty('uiGalleryAutoExit').orElse('false').get()
+            systemProperty 'pyrovfx.ui.gallery.reload',
+                    providers.gradleProperty('uiGalleryReload').orElse('false').get()
+            systemProperty 'pyrovfx.ui.gallery.tag',
+                    providers.gradleProperty('uiGalleryTag').orElse('font-quality').get()
+            systemProperty 'pyrovfx.ui.guiScale', providers.gradleProperty('uiGuiScale').orElse('0').get()
         }
 
         // Dedicated interactive graphics compatibility gallery.
@@ -240,16 +353,6 @@ neoForge {
         }
     }
 
-    mods {
-        // define mod <-> source bindings
-        // these are used to tell the game which sources are for which mod
-        // mostly optional in a single mod project
-        // but multi mod projects should define one per mod
-        "${mod_id}" {
-            sourceSet(sourceSets.main)
-            sourceSet(sourceSets.development)
-        }
-    }
 }
 
 // Include resources generated by data generators.
@@ -257,6 +360,12 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 
 dependencies {
+    // Compile against Pyro UI, but do NOT add its JAR as a second runtime mod:
+    // each development run stages it once into mods/. The release still uses
+    // the supported NeoForge Jar-in-Jar dependency mechanism.
+    compileOnly project(':pyro-ui')
+    jarJar project(':pyro-ui')
+
     // Example mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"
